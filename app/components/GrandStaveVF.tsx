@@ -11,7 +11,7 @@ import {
   Accidental,
   Barline,
 } from "vexflow";
-import { useMusicFontReady } from "./_guards/useMusicFontReady";
+import useMusicFontReady from "./_guards/useMusicFontReady";
 
 type Clef = "treble" | "bass";
 
@@ -140,7 +140,7 @@ export default function GrandStaveVF({
       (note as any).setContext?.(ctx);
 
       const layoutWidth = Math.max(60, drawW - 40);
-      const voice = new Voice({ num_beats: 1, beat_value: 1 });
+      const voice = new Voice({ numBeats: 1, beatValue: 1 });
       voice.addTickable(note);
       new Formatter().joinVoices([voice]).format([voice], layoutWidth);
       voice.draw(ctx, staveForNote);

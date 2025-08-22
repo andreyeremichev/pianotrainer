@@ -196,7 +196,7 @@ export default function KeysToNotesPlayingPage() {
       const index = getKeyIndex(selectedNote);
       const xPos = LEFT_MARGIN + index * WHITE_WIDTH + WHITE_WIDTH / 2;
 
-      const voice = new Voice({ num_beats: 4, beat_value: 4 });
+      const voice = new Voice({ numBeats: 4, beatValue: 4 });
       voice.addTickable(note);
       new Formatter().joinVoices([voice]).format([voice], 0);
 
