@@ -126,10 +126,15 @@ function centerOfWhite(note: NoteName) {
   return idx >= 0 ? WHITE_KEYS[idx].x + WHITE_W / 2 : 0;
 }
 
+/* ---------- TS-friendly state types (only change) ---------- */
+type NoteVerdicts = Partial<Record<NoteName, Verdict>>;
+type NoteFlags   = Partial<Record<NoteName, boolean>>;
+type NoteTimers  = Partial<Record<NoteName, number>>;
+
 export const ResponsiveKeyboardC2toC6 = forwardRef<KeyboardRef, Props>(function Keyboard({ judge, onKeyDown, onKeyDone, onKeyPress }, ref) {
-  const [highlight, setHighlight] = useState<Record<NoteName, Verdict | undefined>>({});
-  const [pressedLabels, setPressedLabels] = useState<Record<NoteName, boolean>>({});
-  const timersRef = useRef<Record<NoteName, number>>({});
+  const [highlight, setHighlight] = useState<NoteVerdicts>({});
+  const [pressedLabels, setPressedLabels] = useState<NoteFlags>({});
+  const timersRef = useRef<NoteTimers>({});
 
   useImperativeHandle(ref, () => ({
     highlight(note: NoteName, verdict: Verdict) { flash(note, verdict); },
@@ -141,7 +146,7 @@ export const ResponsiveKeyboardC2toC6 = forwardRef<KeyboardRef, Props>(function 
 
   function clearOne(note: NoteName) {
     if (timersRef.current[note]) {
-      window.clearTimeout(timersRef.current[note]);
+      window.clearTimeout(timersRef.current[note] as number);
       delete timersRef.current[note];
     }
     setHighlight(h => ({ ...h, [note]: undefined }));
@@ -150,7 +155,7 @@ export const ResponsiveKeyboardC2toC6 = forwardRef<KeyboardRef, Props>(function 
   }
 
   function flash(note: NoteName, verdict: Verdict) {
-    if (timersRef.current[note]) window.clearTimeout(timersRef.current[note]);
+    if (timersRef.current[note]) window.clearTimeout(timersRef.current[note] as number);
     setHighlight(h => ({ ...h, [note]: verdict }));
     setPressedLabels(l => ({ ...l, [note]: true }));
     timersRef.current[note] = window.setTimeout(() => clearOne(note), 1000);
