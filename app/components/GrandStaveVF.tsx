@@ -28,7 +28,7 @@ function parseKey(name: string): { key: string; acc: "#" | "b" | null; oct: numb
   if (!m) {
     // fallback: middle C
     return { key: "c/4", acc: null, oct: 4 };
-    }
+  }
   const letter = m[1].toLowerCase();
   const accidental = (m[2] as "" | "#" | "b") || null;
   const oct = parseInt(m[3], 10);
@@ -77,8 +77,8 @@ export default function GrandStaveVF({ noteName, forceClef }: Props) {
     });
 
     if (acc) {
-      // VexFlow expects "#" or "b"
-      note.addAccidental(0, new Accidental(acc));
+      // VexFlow v4: add accidental via addModifier
+      note.addModifier(new Accidental(acc), 0);
     }
 
     // voice + format (⚠️ camelCase keys are required)
