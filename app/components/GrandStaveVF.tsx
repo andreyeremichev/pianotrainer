@@ -1,4 +1,4 @@
-/ 🔒 FROZEN SIZE 260x170. Do not change geometry values unless we agree to unfreeze.
+// 🔒 FROZEN SIZE 260x170. Do not change geometry values unless we agree to unfreeze.
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef } from "react";
