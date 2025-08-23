@@ -1,4 +1,5 @@
-// 🔒 FROZEN SIZE 260x170. Do not change geometry values unless we agree to unfreeze.
+
+// 🔒 FROZEN SIZE 260x170. Do not change geometry values unless explicitly requested.
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef } from "react";
@@ -9,21 +10,19 @@ import {
   StaveNote,
   Voice,
   Formatter,
-  Accidental,
   Barline,
 } from "vexflow";
-// ✔ import the hook as default (matches our file)
 import useMusicFontReady from "./_guards/useMusicFontReady";
 
 type Clef = "treble" | "bass";
 
 type Props = {
   qa?: boolean;
-  /** Back-compat */
+  /** Back-compat: optional MIDI number */
   noteMidi?: number | null;
   /** Exact spelling to draw, e.g. "Db4", "C#5", "C4". */
   noteName?: string | null;
-  /** Force clef (e.g. show C4 on treble or bass explicitly). */
+  /** Force clef (e.g. show C4 on treble or bass explicitly) */
   forceClef?: Clef | null;
 };
 
@@ -44,7 +43,7 @@ function parseNoteName(n: string) {
 /** Default clef if none is forced & no MIDI is given */
 const clefByOctave = (oct: number): Clef => (oct >= 4 ? "treble" : "bass");
 
-/** Fixed-size grand stave: 260 × 170 px */
+/** Fixed-size grand staff: 260 × 170 px (frozen) */
 export default function GrandStaveVF({
   qa = false,
   noteMidi = null,
@@ -52,9 +51,9 @@ export default function GrandStaveVF({
   forceClef = null,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const fontReady = useMusicFontReady();
+  const fontReady = useMusicFontReady(); // used to trigger a redraw; we do NOT block on it
 
-  // Inject tiny CSS once
+  // Tiny CSS once
   useLayoutEffect(() => {
     const id = "grandstave-fixed-css";
     if (document.getElementById(id)) return;
@@ -69,23 +68,24 @@ export default function GrandStaveVF({
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || !fontReady) return;
+    if (!host) return; // draw immediately; fontReady will cause a safe redraw
 
     host.innerHTML = "";
 
+    // ---- FROZEN geometry ----
     const baseW = 260;
     const baseH = 170;
 
     const STAFF_SPACE = 10;
     const STAFF_HEIGHT = 4 * STAFF_SPACE;
-    const GAP = 40;
+    const GAP = 40;           // vertical gap between staves (prevents glyph collisions)
     const PAD_TOP = 0;
     const PAD_BOTTOM = 20;
 
-    const padX = 80;
+    const padX = 80;          // left margin to make room for brace/connectors
     const drawW = baseW - padX;
 
-    const trebleTopY = PAD_TOP - 15;
+    const trebleTopY = PAD_TOP - 15;               // position treble a bit higher
     const bassTopY   = trebleTopY + STAFF_HEIGHT + GAP;
 
     const canvasHost = document.createElement("div");
@@ -95,10 +95,12 @@ export default function GrandStaveVF({
     host.appendChild(canvasHost);
 
     try {
+      // client-only renderer
       const renderer = new Renderer(canvasHost, Renderer.Backends.SVG);
       renderer.resize(baseW, baseH);
       const ctx = renderer.getContext();
 
+      // Always draw a grand staff
       const treble = new Stave(padX, trebleTopY, drawW);
       treble.addClef("treble").setEndBarType(Barline.type.SINGLE).setContext(ctx).draw();
 
@@ -132,22 +134,22 @@ export default function GrandStaveVF({
         }
 
         const staveForNote = clef === "bass" ? bass : treble;
-        const note = new StaveNote({ clef, keys: [vfKey], duration: "w" }); // whole note
 
-        // We keep the custom accidental overlay; do not add VexFlow accidental
-        // if (acc) note.addModifier(new Accidental(acc), 0);
+        // WHOLE note; no VexFlow accidental (we use manual overlay to keep spacing tight)
+        const note = new StaveNote({ clef, keys: [vfKey], duration: "w" });
 
+        // Attach note to its stave
         (note as any).setStave?.(staveForNote);
         (note as any).setContext?.(ctx);
 
+        // Voice time matches a whole note (1/1)
         const layoutWidth = Math.max(60, drawW - 40);
-        // ✔ VexFlow v4 expects camelCase voice time props
         const voice = new Voice({ numBeats: 1, beatValue: 1 });
         voice.addTickable(note);
         new Formatter().joinVoices([voice]).format([voice], layoutWidth);
         voice.draw(ctx, staveForNote);
 
-        /* ===== CUSTOM accidental overlay (small, aligned to the notehead) ===== */
+        /* ===== Manual accidental overlay (Unicode ♯/♭, small, left of head) ===== */
         try {
           if (acc) {
             const svg = canvasHost.querySelector("svg") as SVGSVGElement | null;
@@ -158,10 +160,12 @@ export default function GrandStaveVF({
 
               const noteGroup = svg.querySelector("g.vf-stavenote");
               if (noteGroup) {
+                // Remove a previous overlay if present (when re-rendering)
                 noteGroup.querySelectorAll(".pt-acc-overlay").forEach(n => n.remove());
-                const texts = noteGroup.querySelectorAll("text");
-                if (texts.length >= 1) {
-                  const headText = texts[0] as SVGTextElement;
+
+                // In VexFlow v4 svg, the first <text> inside stavenote is the head
+                const headText = noteGroup.querySelector("text") as SVGTextElement | null;
+                if (headText) {
                   const bb = headText.getBBox();
 
                   const x = bb.x - ACC_X_PAD;
@@ -173,17 +177,13 @@ export default function GrandStaveVF({
                   t.setAttribute("y", String(y));
                   t.setAttribute("text-anchor", "end");
                   t.setAttribute("dominant-baseline", "middle");
-                  // Use common fonts; Unicode ♯/♭ render fine
                   t.setAttribute("font-family", "Bravura Text, Bravura, serif");
                   t.setAttribute("font-size", String(ACC_PT));
                   t.setAttribute("fill", "currentColor");
                   t.setAttribute("pointer-events", "none");
                   t.setAttribute("letter-spacing", "-0.5px");
 
-                  const symbol =
-                    acc === "#" ? "\u266F" :
-                    acc === "b" ? "\u266D" : "";
-                  t.textContent = symbol;
+                  t.textContent = acc === "#" ? "\u266F" : acc === "b" ? "\u266D" : "";
 
                   noteGroup.appendChild(t);
                 }
@@ -191,12 +191,12 @@ export default function GrandStaveVF({
             }
           }
         } catch {
-          // non-fatal if DOM probing fails
+          // Non-fatal if DOM probing fails
         }
-        /* ===================================================================== */
+        /* ========================================================================= */
       }
 
-      // Responsive SVG + manual right edge
+      // Responsive SVG + manual right edge (safety line)
       const svg = canvasHost.querySelector("svg") as SVGSVGElement | null;
       if (svg) {
         svg.removeAttribute("width");
@@ -242,6 +242,7 @@ export default function GrandStaveVF({
     }
 
     return () => { host.innerHTML = ""; };
+    // Re-draw on prop changes and once the fontReady flips; we do NOT block on it.
   }, [fontReady, noteMidi, noteName, forceClef]);
 
   return <div ref={hostRef} className="grandstave-host" />;
