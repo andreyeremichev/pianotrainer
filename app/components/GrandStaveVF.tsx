@@ -1,4 +1,3 @@
-
 // 🔒 FROZEN SIZE 260x170. Do not change geometry values unless explicitly requested.
 "use client";
 
@@ -135,7 +134,7 @@ export default function GrandStaveVF({
 
         const staveForNote = clef === "bass" ? bass : treble;
 
-        // WHOLE note; no VexFlow accidental (we use manual overlay to keep spacing tight)
+        // WHOLE note; manual accidental overlay preserves tight spacing
         const note = new StaveNote({ clef, keys: [vfKey], duration: "w" });
 
         // Attach note to its stave
@@ -160,10 +159,10 @@ export default function GrandStaveVF({
 
               const noteGroup = svg.querySelector("g.vf-stavenote");
               if (noteGroup) {
-                // Remove a previous overlay if present (when re-rendering)
+                // Remove previous overlay if present (when re-rendering)
                 noteGroup.querySelectorAll(".pt-acc-overlay").forEach(n => n.remove());
 
-                // In VexFlow v4 svg, the first <text> inside stavenote is the head
+                // First <text> inside stavenote is the head (v4 SVG)
                 const headText = noteGroup.querySelector("text") as SVGTextElement | null;
                 if (headText) {
                   const bb = headText.getBBox();
@@ -242,7 +241,7 @@ export default function GrandStaveVF({
     }
 
     return () => { host.innerHTML = ""; };
-    // Re-draw on prop changes and once the fontReady flips; we do NOT block on it.
+    // Re-draw on prop changes and once fontReady flips; we do NOT block on fontReady.
   }, [fontReady, noteMidi, noteName, forceClef]);
 
   return <div ref={hostRef} className="grandstave-host" />;
