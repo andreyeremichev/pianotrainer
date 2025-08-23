@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link"; // NEW: HOME link
-import GrandStaveVF from "../components/GrandStaveVF";
+import Link from "next/link";
+// ⬇️ NEW: dynamic client-only import fixes missing stave in production
+import dynamic from "next/dynamic";
+const GrandStaveVF = dynamic(() => import("../components/GrandStaveVF"), { ssr: false });
+
 import ResponsiveKeyboardC2toC6 from "../components/ResponsiveKeyboardC2toC6";
 
 /* ========= utils: note name <-> midi (C4 = 60) ========= */
@@ -91,7 +94,6 @@ function pickRandom(exclude: string | null, pool: string[]): string {
 const audioCache = new Map<string, HTMLAudioElement>();
 
 function normalizeToSharp(name: string): string {
-  // Accept "Db4" -> "C#4" for file lookup; keep octave
   const m = name.match(/^([A-G])([#b]?)(\d)$/i);
   if (!m) return name;
   const letter = m[1].toUpperCase();
@@ -105,7 +107,6 @@ function normalizeToSharp(name: string): string {
   return `${letter}${acc}${oct}`;
 }
 function urlForNote(name: string): string {
-  // public/audio/notes/<NAME>.wav with # → %23
   const sharp = normalizeToSharp(name);
   const safe = sharp.replace("#", "%23");
   return `/audio/notes/${safe}.wav`;
@@ -123,7 +124,7 @@ function getAudio(name: string): HTMLAudioElement {
 function playOnce(name: string) {
   const a = getAudio(name);
   try { a.currentTime = 0; } catch {}
-  a.play().catch(() => { /* ignore autoplay blocks; user gesture will unlock */ });
+  a.play().catch(() => { /* autoplay will unlock on first user gesture */ });
 }
 
 /* ========= Styles ========= */
@@ -148,8 +149,8 @@ const styles = `
 .header { text-align: center; margin-bottom: 8px; }
 .header h1 { margin: 0 0 4px 0; }
 .header p { margin: 0; color: #444; }
-.title-line { display: inline-flex; gap: 10px; align-items: baseline; }      /* NEW */
-.title-home { font-size: 12px; text-decoration: underline; }                 /* NEW */
+.title-line { display: inline-flex; gap: 10px; align-items: baseline; }
+.title-home { font-size: 12px; text-decoration: underline; }
 
 .grid { display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto; gap: 10px; }
 
@@ -164,7 +165,7 @@ const styles = `
 .stats-left { display: flex; flex-direction: column; gap: 8px; width: var(--stats-w); }
 .stats-box { border: 1px solid #000; border-radius: 6px; padding: 8px 10px; display: grid; place-items: center; }
 .stats-value { font-weight: 700; }
-.restart-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #eee; cursor: pointer; } /* NEW */
+.restart-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #eee; cursor: pointer; }
 
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: center; }
 .stave-narrow { width: 260px; }
@@ -190,13 +191,12 @@ export default function NotationRandomStable() {
   /* session state */
   const [mode, setMode] = useState<Mode>("full");
   const pool = useMemo(() => getPool(mode), [mode]);
-  const [target, setTarget] = useState(() => pickRandom(null, getPool("full"))); // e.g., "Db4" or "C4@bass"
-  const [progress, setProgress] = useState(0); // 0..25
+  const [target, setTarget] = useState(() => pickRandom(null, getPool("full")));
+  const [progress, setProgress] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [firstTry, setFirstTry] = useState(true);
   const [hint, setHint] = useState<string>("Tap a key to begin");
 
-  /* === Duplicate-event guard + session lock === */
   const echoRef = useRef<{ id: string; t: number } | null>(null);
   const awaitingNextRef = useRef(false);
 
@@ -210,7 +210,6 @@ export default function NotationRandomStable() {
     return true;
   }
 
-  /* reset when mode changes */
   useEffect(() => {
     setTarget(pickRandom(null, pool));
     setProgress(0);
@@ -226,31 +225,25 @@ export default function NotationRandomStable() {
       : "All notes C2–C6");
   }, [pool, mode]);
 
-  /* --- parse optional @clef tag (only used in GUIDE/FULL) --- */
   const tagMatch = target.match(/^([A-G][#b]?\d)(?:@(treble|bass))?$/i);
   const targetNameNoTag = (tagMatch ? tagMatch[1] : target) as string;
   const clefTag = (tagMatch && tagMatch[2]) ? (tagMatch[2] as "treble" | "bass") : null;
 
-  /* force clef by mode; otherwise honor tag (if any) */
   const forceClef: "treble" | "bass" | null =
     mode === "treble" ? "treble" :
     mode === "bass"   ? "bass"   :
     clefTag;
 
-  /* Play audio when a new note is displayed */
   useEffect(() => {
     playOnce(targetNameNoTag);
   }, [targetNameNoTag]);
 
-  /* keyboard verdict (for highlight) — enharmonic, ignore tag */
   const judge = (pressedName: string) =>
     (eqNote(pressedName, targetNameNoTag) ? "correct" : "wrong") as "correct" | "wrong";
 
-  /* keyboard MIDI press → audio + advance logic (compare against de-tagged target) */
   const onKeyPressMidi = (m: number) => {
     const targetMidi = noteNameToMidi(targetNameNoTag);
     if (targetMidi == null) return;
-
     if (awaitingNextRef.current) return;
 
     const guardId = `press-${m}`;
@@ -284,13 +277,10 @@ export default function NotationRandomStable() {
     }
   };
 
-  /* optional name handler (kept for compatibility) */
   const onKeyDownName = (_name: string) => {};
 
-  /* note to draw on the stave */
   const targetMidi = noteNameToMidi(targetNameNoTag) ?? 60;
 
-  /* NEW: session finished + restart */
   const sessionDone = progress >= 25;
   const handleRestart = () => {
     setTarget(pickRandom(null, pool));
@@ -307,7 +297,6 @@ export default function NotationRandomStable() {
 
       <div className="page">
         <div className="root" style={{ position: "relative" }}>
-          {/* Small-screen portrait overlay */}
           <div className="blocker">
             <p>
               <strong>Please rotate your device to landscape</strong>
@@ -319,16 +308,14 @@ export default function NotationRandomStable() {
           <div className="header">
             <div className="title-line">
               <h1>Read & Play Random Notes</h1>
-              <Link href="/" className="title-home">HOME</Link> {/* NEW: compact HOME link */}
+              <Link href="/" className="title-home">HOME</Link>
             </div>
             <p>•Guide, Sharps, Flats, Bass and Treble - each session trains your ear and eyes together, one note at a time.</p>
           </div>
 
           <div className="grid">
-            {/* Row 1: boxes + stave + mode */}
             <div className="child child--stave">
               <div className="stats-bar">
-                {/* LEFT boxes */}
                 <div className="stats-left">
                   <div className="stats-box">
                     <div>Progress</div>
@@ -339,7 +326,6 @@ export default function NotationRandomStable() {
                     <div className="stats-value">{correct}/25</div>
                   </div>
 
-                  {/* NEW: Restart appears only when session is done */}
                   {sessionDone && (
                     <button className="restart-btn" onClick={handleRestart}>
                       Restart Session
@@ -347,7 +333,6 @@ export default function NotationRandomStable() {
                   )}
                 </div>
 
-                {/* CENTER: Grand Stave (hero) */}
                 <div className="stave-center">
                   <div className="stave-narrow">
                     <GrandStaveVF
@@ -359,7 +344,6 @@ export default function NotationRandomStable() {
                   </div>
                 </div>
 
-                {/* RIGHT: Mode select + dynamic hint */}
                 <div className="mode-box">
                   <div className="mode-title">CHOOSE TRAINING MODE</div>
                   <select
@@ -377,7 +361,6 @@ export default function NotationRandomStable() {
               </div>
             </div>
 
-            {/* Row 2: Keyboard */}
             <div className="child child--keys">
               <div className="media">
                 <ResponsiveKeyboardC2toC6
