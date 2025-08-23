@@ -82,7 +82,7 @@ export default function GrandStaveVF({ noteName, forceClef }: Props) {
     }
 
     // voice + format (⚠️ camelCase keys are required)
-    const voice = new Voice({ numBeats: 1, beatValue: 1 });
+    const voice = new Voice({ numBeats: 1, beatValue: 4 });
     voice.addTickable(note);
     new Formatter().joinVoices([voice]).format([voice], Math.max(60, STAFF_SPACE - 40));
     voice.draw(ctx, stave);
