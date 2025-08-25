@@ -5,7 +5,6 @@ export const metadata = {
 };
 
 import Link from "next/link";
-import StandardLogo from "../components/logos/StandardLogo";
 
 export default function HomePage() {
   return (
@@ -22,7 +21,6 @@ export default function HomePage() {
             margin: "0 auto 12px",
           }}
         >
-          <StandardLogo />
         </div>
 
         <p style={{ margin: "8px 0 16px 0", color: "#444" }}>
