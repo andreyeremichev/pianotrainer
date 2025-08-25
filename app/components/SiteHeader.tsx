@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import Link from "next/link";
@@ -15,7 +13,7 @@ export default function SiteHeader({ variant = "global" }: Props) {
 
   return (
     <header className="pt-header" role="banner" aria-label="Primary">
-      {/* Scoped styles for hover underline, small logo, and responsive nav */}
+      {/* Scoped styles only for this header */}
       <style>{`
         .pt-header {
           display: flex;
@@ -28,7 +26,15 @@ export default function SiteHeader({ variant = "global" }: Props) {
         .pt-brand {
           display: inline-flex;
           align-items: center;
+          line-height: 0;                 /* remove extra inline spacing */
         }
+        /* Force the logo SVG to a small height without props */
+        .pt-brand svg {
+          height: 15px;
+          width: auto;
+          display: block;
+        }
+
         .pt-nav {
           display: flex;
           gap: 18px;
@@ -39,6 +45,7 @@ export default function SiteHeader({ variant = "global" }: Props) {
           scrollbar-width: none;      /* Firefox hide scrollbar */
         }
         .pt-nav::-webkit-scrollbar { display: none; } /* Safari/Chrome hide */
+
         .pt-link {
           color: #000;
           text-decoration: none;
@@ -52,8 +59,7 @@ export default function SiteHeader({ variant = "global" }: Props) {
       `}</style>
 
       <Link href="/" aria-label="PianoTrainer Home" className="pt-brand">
-        {/* force smaller visual height; StandardLogo should respect height prop */}
-        <StandardLogo height={15} />
+        <StandardLogo />
       </Link>
 
       <nav aria-label="Main" className="pt-nav">
