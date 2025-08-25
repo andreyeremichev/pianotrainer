@@ -4,9 +4,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 // ⬇️ NEW: dynamic client-only import fixes missing stave in production
 import dynamic from "next/dynamic";
-const GrandStaveVF = dynamic(() => import("../components/GrandStaveVF"), { ssr: false });
+const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
 
-import ResponsiveKeyboardC2toC6 from "../components/ResponsiveKeyboardC2toC6";
+import ResponsiveKeyboardC2toC6 from "../../../components/ResponsiveKeyboardC2toC6";
 
 /* ========= utils: note name <-> midi (C4 = 60) ========= */
 const PITCH_CLASS: Record<string, number> = {
