@@ -5,7 +5,7 @@ export const metadata = {
 };
 
 import Link from "next/link";
-import StandardLogo from "/components/logos/StandardLogo";
+import StandardLogo from "../components/logos/StandardLogo";
 
 export default function HomePage() {
   return (
