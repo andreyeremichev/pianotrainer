@@ -1,210 +1,142 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
-
-// ⬇️ client-only import to ensure the grand staff renders online (Vercel)
 import dynamic from "next/dynamic";
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
+import ResponsiveKeyboardC2toC6, { NoteName } from "../../../components/ResponsiveKeyboardC2toC6";
 
-import ResponsiveKeyboardC2toC6 from "../../../components/ResponsiveKeyboardC2toC6";
-
-/* ========= midi/name helpers (C4 = 60) ========= */
-const SHARP_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const FLAT_MAP: Record<number, string> = { 1: "Db", 3: "Eb", 6: "Gb", 8: "Ab", 10: "Bb" };
-
+/* ========= helpers: MIDI ↔ note name ========= */
+const PITCH_CLASS = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 function midiToNameSharp(midi: number): string {
   const pc = midi % 12;
   const oct = Math.floor(midi / 12) - 1;
-  return `${SHARP_NAMES[pc]}${oct}`;
+  return `${PITCH_CLASS[pc]}${oct}`;
 }
 function midiToNameFlat(midi: number): string {
-  const pc = midi % 12;
-  const oct = Math.floor(midi / 12) - 1;
-  const base = FLAT_MAP[pc];
-  return base ? `${base}${oct}` : `${SHARP_NAMES[pc]}${oct}`;
-}
-function noteNameToMidi(n: string): number | null {
-  const m = n.match(/^([A-Ga-g])([#b]?)(\d)$/);
-  if (!m) return null;
-  const letter = m[1].toUpperCase();
-  const acc = m[2] as "" | "#" | "b";
-  const oct = parseInt(m[3], 10);
-  const pcMap: Record<string, number> = {
-    C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5,
-    "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11,
-  };
-  const key = (acc === "" ? letter : `${letter}${acc}`);
-  const pc = pcMap[key];
-  if (pc == null) return null;
-  return (oct + 1) * 12 + pc;
+  const sharp = midiToNameSharp(midi);
+  const map: Record<string,string> = { "C#":"Db","D#":"Eb","F#":"Gb","G#":"Ab","A#":"Bb" };
+  const base = sharp.slice(0,-1);
+  const oct  = sharp.slice(-1);
+  return map[base] ? `${map[base]}${oct}` : sharp;
 }
 
-/* ========= audio helpers (reuse your /public/audio/notes set) ========= */
+/* ========= Audio ========= */
 const audioCache = new Map<string, HTMLAudioElement>();
-function normalizeToSharp(name: string): string {
-  // Convert flats → sharps for file lookup only; octave preserved
-  const m = name.match(/^([A-G])([#b]?)(\d)$/i);
-  if (!m) return name;
-  const letter = m[1].toUpperCase();
-  const acc = m[2] as "" | "#" | "b";
-  const oct = m[3];
-  if (acc === "b") {
-    const map: Record<string, string> = { D: "C#", E: "D#", G: "F#", A: "G#", B: "A#" };
-    const twin = map[letter];
-    if (twin) return `${twin}${oct}`;
-  }
-  return `${letter}${acc}${oct}`;
-}
-function audioUrl(name: string): string {
-  const sharp = normalizeToSharp(name);
-  return `/audio/notes/${sharp.replace("#", "%23")}.wav`;
+function urlForNote(name: string): string {
+  const safe = name.replace("#", "%23");
+  return `/audio/notes/${safe}.wav`;
 }
 function getAudio(name: string): HTMLAudioElement {
-  const key = normalizeToSharp(name);
-  let a = audioCache.get(key);
+  let a = audioCache.get(name);
   if (!a) {
-    a = new Audio(audioUrl(key));
+    a = new Audio(urlForNote(name));
     a.preload = "auto";
-    audioCache.set(key, a);
+    audioCache.set(name, a);
   }
   return a;
 }
 function playOnce(name: string) {
   const a = getAudio(name);
   try { a.currentTime = 0; } catch {}
-  a.play().catch(() => { /* unlocks on first user interaction */ });
+  a.play().catch(() => {});
 }
 
-/* ========= styles (frozen containers; keep stave 260×170) ========= */
+/* ========= Styles ========= */
 const styles = `
-:root {
-  --page-max-width: 1200px;
-  --radius: 8px;
-  --keyboard-min-h: 120px;
-}
-.page { box-sizing: border-box; max-width: var(--page-max-width); margin: 0 auto; padding: 8px; }
-.root {
-  box-sizing: border-box;
-  border: 1px solid #ccc; border-radius: var(--radius); background: #fff;
-  display: flex; flex-direction: column;
-  padding: 12px; min-height: 100%;
-}
-.header { text-align: center; margin-bottom: 8px; }
-.header h1 { margin: 0 0 4px 0; }
-.header p { margin: 0; color: #444; }
-.title-line { display: inline-flex; gap: 10px; align-items: baseline; }
-.title-home { font-size: 12px; text-decoration: underline; }
-
-/* grid: just stave row + keyboard row */
-.grid { display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto; gap: 10px; }
-
-.child { border: 1px solid #ccc; border-radius: var(--radius); background: #fff; padding: 8px; }
-.child--stave {}
-.child--keys  {}
-
-.stave-center { min-width: 0; display: flex; justify-content: center; align-items: center; }
-.stave-narrow { width: 260px; } /* 🔒 FROZEN */
-
-.media { display: flex; align-items: center; justify-content: center; min-height: var(--keyboard-min-h); }
-.media > svg { width: 100%; height: 100%; display: block; }
-
-/* Portrait blocker for trainer pages */
-.blocker { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.95); z-index: 5; text-align: center; padding: 24px; border-radius: var(--radius); }
-.blocker p { margin: 0; font-size: 16px; line-height: 1.4; }
-@media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
+.page { max-width: 1200px; margin: 0 auto; padding: 8px; }
+.root { border: 1px solid #ccc; border-radius: 8px; background:#fff;
+  display:flex; flex-direction:column; padding:12px; min-height:100%; }
+.header { text-align:center; margin-bottom:8px; }
+.header h1 { margin:0 0 4px 0; }
+.header p { margin:0; color:#444; }
+.title-line { display:inline-flex; gap:10px; align-items:baseline; }
+.title-home { font-size:12px; text-decoration:underline; }
+.grid { display:grid; grid-template-columns:1fr; grid-template-rows:auto auto; gap:10px; }
+.child { border:1px solid #ccc; border-radius:8px; background:#fff; padding:8px; }
+.stave-center { min-width:0; display:flex; justify-content:center; align-items:center; }
+.stave-narrow { width:260px; }
+.media { display:flex; align-items:center; justify-content:center; min-height:120px; }
+.media > svg { width:100%; height:100%; display:block; }
+.blocker { position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+  background:rgba(255,255,255,0.95); z-index:5; text-align:center; padding:24px; border-radius:8px; }
+.blocker p { margin:0; font-size:16px; line-height:1.4; }
+@media (max-width:450px) and (orientation:portrait){ .blocker{display:flex;} }
 `;
 
 export default function KeysToNotesPage() {
-  // Current note shown on the grand staff
-  const [noteName, setNoteName] = useState<string>("C4"); // default visible note
-  const noteMidi = useMemo(() => noteNameToMidi(noteName) ?? 60, [noteName]);
-
-  // Track the last *white* key the user pressed to choose enharmonic for next black
+  const [noteName, setNoteName] = useState<string | null>(null);
   const lastWhiteMidiRef = useRef<number | null>(null);
 
-  // Called by keyboard with MIDI number whenever a key is pressed
+  // --- duplicate-event guard (prevents "ta-ta" double audio on touch devices)
+  const echoRef = useRef<{ id: string; t: number } | null>(null);
+  function shouldAcceptOnce(id: string, windowMsDesktop = 220, windowMsTouch = 520): boolean {
+    const now = performance.now();
+    const last = echoRef.current;
+    const isCoarse = typeof window !== "undefined" && matchMedia?.("(pointer: coarse)")?.matches;
+    const win = isCoarse ? windowMsTouch : windowMsDesktop;
+    if (last && last.id === id && (now - last.t) < win) return false;
+    echoRef.current = { id, t: now };
+    return true;
+  }
+
   const handleKeyPressMidi = (midi: number) => {
+    // de-dupe: ignore synthetic double events
+    const guardId = `press-${midi}`;
+    if (!shouldAcceptOnce(guardId)) return;
+
     const pc = midi % 12;
-    const isBlack = pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10;
+    const isBlack = [1,3,6,8,10].includes(pc);
 
     let display: string;
     if (isBlack) {
       const lastWhite = lastWhiteMidiRef.current;
-      if (lastWhite == null) {
-        // No white reference yet → default to sharp
-        display = midiToNameSharp(midi);
-      } else if (lastWhite < midi) {
-        // White key to the left → spell as sharp
-        display = midiToNameSharp(midi);
-      } else if (lastWhite > midi) {
-        // White key to the right → spell as flat
-        display = midiToNameFlat(midi);
-      } else {
-        // Same pitch (shouldn't happen with black vs white) → sharp fallback
-        display = midiToNameSharp(midi);
-      }
+      if (lastWhite == null || lastWhite < midi) display = midiToNameSharp(midi);
+      else display = midiToNameFlat(midi);
     } else {
-      // Natural note
       display = midiToNameSharp(midi);
-      lastWhiteMidiRef.current = midi; // update white-key anchor
+      lastWhiteMidiRef.current = midi;
     }
 
-    // Update stave + play audio
     setNoteName(display);
     playOnce(display);
   };
 
-  // (optional) legacy name callback (kept for keyboard API compatibility)
-  const handleKeyDownName = (_name: string) => {};
-
   return (
     <>
       <style>{styles}</style>
-
       <div className="page">
-        <div className="root" style={{ position: "relative" }}>
-          {/* small-screen portrait overlay */}
+        <div className="root" style={{ position:"relative" }}>
           <div className="blocker">
-            <p>
-              <strong>Please rotate your device to landscape</strong>
-              <br />
-              (or use a device with a larger screen)
-            </p>
+            <p><strong>Please rotate your device to landscape</strong><br/>(or use a larger screen)</p>
           </div>
 
-          {/* Header (inline variant: title container + HOME link) */}
           <div className="header">
             <div className="title-line">
-              <h1>Keys → Notes (Grand Staff)</h1>
+              <h1>Keys to Notes</h1>
               <Link href="/" className="title-home">HOME</Link>
             </div>
-            <p>Press any key (C2–C6). The note plays and appears instantly on the grand staff.</p>
+            <p>Press any piano key and see the note instantly on the grand staff.</p>
           </div>
 
           <div className="grid">
-            {/* Row 1: Stave (centered, fixed 260×170) */}
+            {/* Stave always visible with both clefs */}
             <div className="child child--stave">
               <div className="stave-center">
                 <div className="stave-narrow">
                   <GrandStaveVF
-                    key={noteName}             // re-layout safely per note
-                    noteName={noteName}        // exact spelling (C# vs Db)
-                    noteMidi={noteMidi}        // octave/clef placement
-                    forceClef={null}           // always render both staves; component chooses line
+                    key={noteName ?? "empty"}
+                    noteName={noteName ?? "C4"}
+                    noteMidi={noteName ? null : 60}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Row 2: Keyboard (unchanged) */}
+            {/* Keyboard */}
             <div className="child child--keys">
               <div className="media">
-                <ResponsiveKeyboardC2toC6
-                  onKeyPress={handleKeyPressMidi}
-                  onKeyDown={handleKeyDownName}
-                />
+                <ResponsiveKeyboardC2toC6 onKeyPress={handleKeyPressMidi} />
               </div>
             </div>
           </div>
