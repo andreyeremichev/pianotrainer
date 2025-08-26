@@ -30,7 +30,7 @@ export default function SiteHeader({ variant = "global" }: Props) {
         }
         /* Force the logo SVG to a small height without props */
         .pt-brand svg {
-          height: 40px;
+          height: 46px;
           width: auto;
           display: block;
         }
@@ -59,7 +59,7 @@ export default function SiteHeader({ variant = "global" }: Props) {
       `}</style>
 
       <Link href="/" aria-label="PianoTrainer Home" className="pt-brand">
-        <StandardLogo />
+        <StandardLogo orientation="vertical" />
       </Link>
 
       <nav aria-label="Main" className="pt-nav">
