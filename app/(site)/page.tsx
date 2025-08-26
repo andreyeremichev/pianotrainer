@@ -25,9 +25,9 @@ const notationItems: Item[] = [
   },
   {
     label: "Keys to Notes",
-    // href: "/trainer/notation/keys-to-notes", // enable when live
+    href: "/trainer/notation/keys-to-notes",
     desc: "Press any key; see its exact note on the stave.",
-    badge: "Soon",
+    badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
   {
