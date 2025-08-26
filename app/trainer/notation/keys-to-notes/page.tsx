@@ -7,7 +7,6 @@ import dynamic from "next/dynamic";
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
 
 import ResponsiveKeyboardC2toC6, { NoteName } from "../../../components/ResponsiveKeyboardC2toC6";
-import SiteFooter from "../../../components/SiteFooter";
 
 /* ========= note ↔ midi helpers ========= */
 const PITCH_CLASS: Record<string, number> = {
@@ -186,7 +185,7 @@ export default function KeysToNotesPage() {
             />
           </div>
         </div>
-        <SiteFooter />
+    
       </div>
     </>
   );
