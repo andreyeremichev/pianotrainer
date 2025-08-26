@@ -1,93 +1,71 @@
 export const metadata = {
   title: "PianoTrainer • Free Notation & Ear Training for Beginners",
   description:
-    "Practice reading music and training your ear with beginner-friendly exercises. Random notes, keys to notes, intervals, circle of fifths and more — free on PianoTrainer.",
+    "Practice reading music and training your ear with beginner-friendly drills. Random notes, keys to notes, intervals, circle of fifths and more — free on PianoTrainer.",
 };
 
 import Link from "next/link";
-import TrebleClef from "../components/icons/TrebleClef";
 
 type Item = {
   label: string;
   href?: string;          // if missing → coming soon
   desc?: string;
   badge?: "New" | "Soon";
-  icon?: React.ReactNode; // now SVG/emoji component
+  icon?: React.ReactNode; // emoji or glyph
 };
 
+/* ---- Notation (left) ---- */
 const notationItems: Item[] = [
   {
     label: "Random Notes",
     href: "/trainer/notation/random-notes",
     desc: "Read a single whole note on a grand staff and play it.",
     badge: "New",
-    icon: <TrebleClef size={18} />,
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
   {
     label: "Keys to Notes",
-    href: "/trainer/notation/keys-to-notes", // live when ready
-    desc: "Press any key; see its note on the stave.",
+    // href: "/trainer/notation/keys-to-notes", // enable when live
+    desc: "Press any key; see its exact note on the stave.",
     badge: "Soon",
-    icon: <TrebleClef size={18} />,
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
   {
     label: "Chords",
-    desc: "Beginner chord stacks on the stave.",
+    desc: "Beginner chord stacks across treble and bass clefs.",
     badge: "Soon",
-    icon: <TrebleClef size={18} />,
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
   {
     label: "Intervals (Notation)",
-    desc: "Second to octave, sharps & flats, both clefs.",
+    desc: "Seconds to octaves with sharps & flats, both clefs.",
     badge: "Soon",
-    icon: <TrebleClef size={18} />,
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
 ];
 
+/* ---- Ear (right) ---- */
 const earItems: Item[] = [
   {
     label: "Circle of Fifths",
-    href: "/trainer/ear/circle-of-fifths",
-    desc: "Drone + recognition test across keys.",
+    // href: "/trainer/ear/circle-of-fifths",
+    desc: "Drone + quick key recognition across the circle.",
     badge: "Soon",
-    icon: <span aria-hidden="true">🧭</span>,
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🧭</span>,
   },
   {
     label: "Intervals (Ear)",
-    href: "/trainer/ear/intervals",
-    desc: "Identify intervals by ear with helpful references.",
+    // href: "/trainer/ear/intervals",
+    desc: "Identify intervals by ear with simple references.",
     badge: "Soon",
-    icon: <span aria-hidden="true">👂</span>,
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>👂</span>,
   },
   {
     label: "Progressions",
-    href: "/trainer/ear/progressions",
-    desc: "Common I–IV–V and minor progressions for beginners.",
+    // href: "/trainer/ear/progressions",
+    desc: "I–IV–V and minor basics — listen and respond.",
     badge: "Soon",
-    icon: <span aria-hidden="true">🎧</span>,
-  },
-];
-
-const learnItems: Item[] = [
-  {
-    label: "How to Read Music",
-    href: "/learn/how-to-read-music",
-    desc: "Clefs, ledger lines, accidentals, and rhythm basics.",
-  },
-  {
-    label: "Ear Training for Beginners",
-    href: "/learn/ear-training-for-beginners",
-    desc: "Simple strategies to recognize notes and intervals.",
-  },
-  {
-    label: "Circle of Fifths Explained",
-    href: "/learn/circle-of-fifths-explained",
-    desc: "Keys, sharps & flats, and why it matters.",
-  },
-  {
-    label: "Intervals Guide",
-    href: "/learn/intervals-guide",
-    desc: "From minor 2nds to octaves with examples.",
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎧</span>,
   },
 ];
 
@@ -96,13 +74,15 @@ function ListItem({ item }: { item: Item }) {
     <>
       <span className="item-left">
         <span className="glyph" aria-hidden="true">
-          {item.icon ?? <TrebleClef size={18} />}
+          {item.icon}
         </span>
       </span>
       <span className="item-main">
         <span className="item-title">
           {item.label}
-          {item.badge && <span className={`badge ${item.badge.toLowerCase()}`}>{item.badge}</span>}
+          {item.badge && (
+            <span className={`badge ${item.badge.toLowerCase()}`}>{item.badge}</span>
+          )}
         </span>
         {item.desc && <span className="item-desc">{item.desc}</span>}
       </span>
@@ -130,6 +110,7 @@ export default function HomePage() {
           padding: 16px;
         }
 
+        /* Hero */
         .hero {
           text-align: center;
           margin: 18px 0 10px;
@@ -145,6 +126,7 @@ export default function HomePage() {
           font-size: 15px;
         }
 
+        /* Two-column split on wide; single column on narrow/portrait */
         .split {
           display: grid;
           grid-template-columns: 1fr;
@@ -168,6 +150,7 @@ export default function HomePage() {
           font-size: 18px;
         }
 
+        /* Lists */
         .list {
           display: grid;
           gap: 8px;
@@ -216,6 +199,7 @@ export default function HomePage() {
           margin-top: 2px;
         }
 
+        /* Badges */
         .badge {
           border: 1px solid #ddd;
           padding: 1px 6px;
@@ -228,45 +212,20 @@ export default function HomePage() {
         .badge.new { border-color: #b2f2bb; background: #e9fbe9; }
         .badge.soon { border-color: #ffe066; background: #fff7d1; }
 
-        .learn {
-          margin-top: 22px;
-        }
-        .learn-grid {
-          display: grid;
-          gap: 8px;
-        }
-        @media (min-width: 820px) {
-          .learn-grid {
-            grid-template-columns: repeat(2, minmax(0,1fr));
-          }
-        }
-        .learn a {
-          display: block;
-          padding: 10px 12px;
-          border: 1px solid #eee;
-          border-radius: 8px;
-          text-decoration: none;
-          background: #fff;
-          transition: background 0.15s ease, border-color 0.15s ease;
-          color: inherit;
-        }
-        .learn a:hover,
-        .learn a:focus-visible {
-          background: #fafafa;
-          border-color: #eaeaea;
-        }
-
-        .item-link:focus-visible, .learn a:focus-visible {
+        /* Accessibility */
+        .item-link:focus-visible {
           outline: 2px solid #2684ff;
           outline-offset: 2px;
         }
       `}</style>
 
+      {/* Hero copy */}
       <section className="hero" aria-label="Welcome">
         <h1>Train your eyes & ears — the beginner way</h1>
         <p>Start with Random Notes, then add keys, intervals, and ear drills.</p>
       </section>
 
+      {/* Split lists */}
       <section className="split" aria-label="Training Modes">
         <div className="section" aria-labelledby="notation-h2">
           <h2 id="notation-h2">Notation Trainer</h2>
@@ -277,6 +236,7 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* thin divider on wide screens */}
         <div className="divider" aria-hidden="true" />
 
         <div className="section" aria-labelledby="ear-h2">
@@ -286,25 +246,6 @@ export default function HomePage() {
               <ListItem key={item.label} item={item} />
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="learn" aria-label="Learn Guides">
-        <h2 style={{ margin: "0 0 8px 0", fontSize: 18 }}>Learn (Guides)</h2>
-        <div className="learn-grid">
-          {learnItems.map((g) =>
-            g.href ? (
-              <Link key={g.label} href={g.href}>
-                <strong>{g.label}</strong>
-                <div style={{ fontSize: 13, color: "#555" }}>{g.desc}</div>
-              </Link>
-            ) : (
-              <span key={g.label}>
-                <strong>{g.label}</strong>
-                <div style={{ fontSize: 13, color: "#555" }}>{g.desc}</div>
-              </span>
-            )
-          )}
         </div>
       </section>
     </main>
