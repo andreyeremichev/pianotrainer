@@ -8,12 +8,11 @@ type Props = {
 };
 
 /**
- * StandardLogo
- * - Entire mark (triangle + keys + wordmark) is a single <g class="logo-root"> group.
- * - No inline width/height: size is controlled by parent CSS (e.g., header sets svg { height: 24px }).
- * - Keys are computed so black keys are perfectly centered between adjacent white keys.
- * - Gap between the button and the wordmark is fixed via layout constants and the viewBox (scales as one unit).
- * - Strokes use vectorEffect="non-scaling-stroke" so they stay visible at small sizes.
+ * StandardLogo (fixed black-key centering)
+ * - Entire mark is one group (<g class="logo-root">).
+ * - No inline sizing; size via CSS (e.g., header sets svg { height: 24px }).
+ * - Black keys centered between white keys (x = WHITE_W and x = 2*WHITE_W).
+ * - Strokes use vectorEffect="non-scaling-stroke" for crisp small sizes.
  */
 export default function StandardLogo({ className, style }: Props) {
   const clipId = useId();
@@ -22,12 +21,12 @@ export default function StandardLogo({ className, style }: Props) {
   const VIEW_W = 360;
   const VIEW_H = 260;
 
-  // Triangle "button" bounding box
+  // Triangle "button"
   const TRI_LEFT_X = 72;
   const TRI_TOP_Y = 56;
-  const TRI_HEIGHT = 148;
+  const TRI_HEIGHT = 148; // from 56 to 204
 
-  // White keys (3 keys inside triangle)
+  // White keys (3 keys span 148 units)
   const WHITE_TOTAL_W = 148;
   const WHITE_W = WHITE_TOTAL_W / 3;
 
@@ -40,11 +39,11 @@ export default function StandardLogo({ className, style }: Props) {
   const WORD_X = 72;
   const WORD_BASELINE_Y = 230;
 
-  // Black key positions (centered between whites)
-  const MID_1 = WHITE_W / 2;
-  const MID_2 = WHITE_W + WHITE_W / 2;
-  const BLACK1_X = MID_1 - BLACK_W / 2;
-  const BLACK2_X = MID_2 - BLACK_W / 2;
+  // Correct centers: between white1/white2 and white2/white3
+  const CENTER_1 = WHITE_W;        // boundary between white #1 and #2
+  const CENTER_2 = 2 * WHITE_W;    // boundary between white #2 and #3
+  const BLACK1_X = CENTER_1 - BLACK_W / 2;
+  const BLACK2_X = CENTER_2 - BLACK_W / 2;
 
   return (
     <svg
@@ -56,9 +55,7 @@ export default function StandardLogo({ className, style }: Props) {
       style={style}
       role="img"
     >
-      <title id="title-standard">
-        PianoTrainer – Play Button with Keys (Standard)
-      </title>
+      <title id="title-standard">PianoTrainer – Play Button with Keys (Standard)</title>
 
       <defs>
         <style>{`
@@ -72,24 +69,20 @@ export default function StandardLogo({ className, style }: Props) {
         <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
           <polygon
             points={`${TRI_LEFT_X},${TRI_TOP_Y} ${
-              TRI_LEFT_X + 148
-            },${TRI_TOP_Y + TRI_HEIGHT / 2} ${TRI_LEFT_X},${
-              TRI_TOP_Y + TRI_HEIGHT
-            }`}
+              TRI_LEFT_X + WHITE_TOTAL_W
+            },${TRI_TOP_Y + TRI_HEIGHT / 2} ${TRI_LEFT_X},${TRI_TOP_Y + TRI_HEIGHT}`}
           />
         </clipPath>
       </defs>
 
-      {/* Unified group: entire logo scales and clicks as one element */}
+      {/* Unified group: entire logo behaves as one element */}
       <g className="logo-root">
         {/* Triangle outline */}
         <polygon
           className="outline"
           points={`${TRI_LEFT_X},${TRI_TOP_Y} ${
-            TRI_LEFT_X + 148
-          },${TRI_TOP_Y + TRI_HEIGHT / 2} ${TRI_LEFT_X},${
-            TRI_TOP_Y + TRI_HEIGHT
-          }`}
+            TRI_LEFT_X + WHITE_TOTAL_W
+          },${TRI_TOP_Y + TRI_HEIGHT / 2} ${TRI_LEFT_X},${TRI_TOP_Y + TRI_HEIGHT}`}
           vectorEffect="non-scaling-stroke"
         />
 
@@ -129,7 +122,7 @@ export default function StandardLogo({ className, style }: Props) {
               vectorEffect="non-scaling-stroke"
             />
 
-            {/* Black keys (centered) */}
+            {/* Black keys (centered between whites) */}
             <rect
               x={BLACK1_X}
               y={0}
