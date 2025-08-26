@@ -30,7 +30,7 @@ export default function SiteHeader({ variant = "global" }: Props) {
         }
         /* Force the logo SVG to a small height without props */
         .pt-brand svg {
-          height: 36px;
+          height: 40px;
           width: auto;
           display: block;
         }
