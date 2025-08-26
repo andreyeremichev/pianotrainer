@@ -36,7 +36,7 @@ export default function StandardLogo({ className, style }: Props) {
   const BLACK_RX = 2;
 
   // Wordmark placement
-  const WORD_X = 72;
+  const WORD_X = 75;
   const WORD_BASELINE_Y = 230;
 
   // Correct centers: between white1/white2 and white2/white3
