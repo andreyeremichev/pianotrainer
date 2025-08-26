@@ -22,12 +22,12 @@ const items: Item[] = [
     badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
     desc:
-      "See a single whole note on a fixed grand staff (treble + bass). Read it, play it on the keyboard, and get instant audio feedback. Great daily warm-up.",
+      "See a single whole note on a fixed grand stave (treble + bass). Read it, play it on the keyboard, and get instant audio feedback. Great daily warm-up.",
   },
   {
     label: "Keys to Notes",
-    // href: "/trainer/notation/keys-to-notes", // enable when live
-    badge: "Soon",
+    href: "/trainer/notation/keys-to-notes",
+    badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
     desc:
       "Press any piano key to reveal its exact notation on the stave. Build instant links between keyboard positions and note names.",

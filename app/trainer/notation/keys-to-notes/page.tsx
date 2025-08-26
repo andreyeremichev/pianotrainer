@@ -1,4 +1,8 @@
 "use client";
+export const metadata = {
+  title: "Keys to Notes • PianoTrainer",
+  description: "Play any piano key and instantly see the correct note on the grand staff. Train your eyes and ears together.",
+};
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
