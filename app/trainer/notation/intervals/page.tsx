@@ -5,12 +5,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
-// Client-only grand staff (frozen geometry)
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
-// Frozen keyboard (unchanged)
 import ResponsiveKeyboardC2toC6 from "../../../components/ResponsiveKeyboardC2toC6";
-
-/* ======================= constants & helpers ======================= */
 
 type IntervalCode = "m2"|"M2"|"m3"|"M3"|"P4"|"TT"|"P5"|"m6"|"M6"|"m7"|"M7"|"P8";
 type Clef = "bass" | "treble";
@@ -31,23 +27,20 @@ const INTERVALS: { code: IntervalCode; semitones: number; label: string }[] = [
 ];
 
 const SHARP_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const PC_IS_BLACK = new Set([1,3,6,8,10]); // C#, D#, F#, G#, A#
 
 function midiToNameSharp(midi: number): string {
   const pc = midi % 12;
   const oct = Math.floor(midi / 12) - 1;
   return `${SHARP_NAMES[pc]}${oct}`;
 }
-
 function midiToNameFlatIfDescending(midi: number, descending: boolean): string {
   const sharp = midiToNameSharp(midi);
-  if (!descending) return sharp; // ascending → prefer sharps on black
+  if (!descending) return sharp;
   const base = sharp.slice(0, -1);
   const oct  = sharp.slice(-1);
   const map: Record<string,string> = { "C#":"Db", "D#":"Eb", "F#":"Gb", "G#":"Ab", "A#":"Bb" };
   return map[base] ? `${map[base]}${oct}` : sharp;
 }
-
 function noteNameToMidi(n: string): number | null {
   const m = n.match(/^([A-Ga-g])([#b]?)(\d)$/);
   if (!m) return null;
@@ -61,7 +54,7 @@ function noteNameToMidi(n: string): number | null {
   return (oct + 1) * 12 + pc;
 }
 
-/* ======= Audio normalization (flats → sharps) [VERBATIM as requested] ======= */
+/* ======= Audio normalization (flats → sharps) ======= */
 const audioCache = new Map<string, HTMLAudioElement>();
 function normalizeToSharp(name: string) {
   const m = name.match(/^([A-G])([#b]?)(\d)$/i); if (!m) return name;
@@ -82,7 +75,7 @@ function getAudio(display: string) {
 }
 function playOnce(display: string) { const a = getAudio(display); try { a.currentTime = 0; } catch {} a.play().catch(() => {}); }
 
-/* ======================= styles (frozen scaffold) ======================= */
+/* ======================= styles ======================= */
 const styles = `
 :root {
   --page-max-width: 1200px;
@@ -110,6 +103,7 @@ const styles = `
 .stats-box { border: 1px solid #000; border-radius: 6px; padding: 8px 10px; display: grid; place-items: center; }
 .stats-value { font-weight: 700; }
 .restart-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #eee; cursor: pointer; }
+.start-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #dff; cursor: pointer; }
 
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: center; }
 .stave-narrow { width: 260px; } /* 🔒 FROZEN size */
@@ -121,6 +115,16 @@ const styles = `
 .picker-actions { display: flex; gap: 6px; justify-content: center; }
 .picker-actions button { font-size: 12px; padding: 4px 8px; }
 
+/* Two-note overlay; upper note shifted to the right for clarity (m2 visible) */
+.stave-stack { position: relative; width: 260px; }
+.stave-stack .overlay { position: absolute; inset: 0; transform: translateX(10px); } /* ← 10px offset */
+
+.stave-stack .overlay svg .vf-stave,
+.stave-stack .overlay svg .vf-staveconnector,
+.stave-stack .overlay svg .vf-clef { display: none; } /* hide duplicate staff, leave notehead */
+
+.interval-label { text-align: center; font-size: 13px; margin-top: 6px; min-height: 1.2em; }
+
 .media { display: flex; align-items: center; justify-content: center; min-height: var(--keyboard-min-h); }
 .media > svg { width: 100%; height: 100%; display: block; }
 
@@ -128,17 +132,9 @@ const styles = `
   background: rgba(255,255,255,0.95); z-index: 5; text-align: center; padding: 24px; border-radius: var(--radius); }
 .blocker p { margin: 0; font-size: 16px; line-height: 1.4; }
 @media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
-
-/* Overlay trick to show two notes using two stacked staves without doubling lines/connectors */
-.stave-stack { position: relative; width: 260px; }
-.stave-stack .overlay { position: absolute; inset: 0; }
-.stave-stack .overlay svg .vf-stave,
-.stave-stack .overlay svg .vf-staveconnector,
-.stave-stack .overlay svg .vf-clef { display: none; }
-.interval-label { text-align: center; font-size: 13px; margin-top: 6px; min-height: 1.2em; }
 `;
 
-/* ======================= duplicate-event guard (verbatim) ======================= */
+/* ======================= duplicate-event guard ======================= */
 const echoRefGlobal = { current: null as { id: string; t: number } | null };
 function shouldAcceptOnce(id: string, desktopMs = 220, touchMs = 520) {
   const now = performance.now();
@@ -150,66 +146,49 @@ function shouldAcceptOnce(id: string, desktopMs = 220, touchMs = 520) {
   return true;
 }
 
-/* ======================= page ======================= */
 export default function IntervalsSequentialPage() {
-  /* selections: which intervals are in the pool */
+  /* Picker starts EMPTY; user must choose & press Start */
   const [selected, setSelected] = useState<Record<IntervalCode, boolean>>(() => {
     const init: Record<IntervalCode, boolean> = {
-      m2:true, M2:true, m3:true, M3:true, P4:true, TT:true,
-      P5:true, m6:true, M6:true, m7:true, M7:true, P8:true,
+      m2:false, M2:false, m3:false, M3:false, P4:false, TT:false,
+      P5:false, m6:false, M6:false, m7:false, M7:false, P8:false,
     };
     return init;
   });
+  const [started, setStarted] = useState(false);
 
   /* session state */
-  const [progress, setProgress] = useState(0); // 0..25
-  const [correct, setCorrect] = useState(0); // first-try successes
+  const [progress, setProgress] = useState(0);
+  const [correct, setCorrect] = useState(0);
   const [firstTry, setFirstTry] = useState(true);
 
-  // current target pair
   const [lowerMidi, setLowerMidi] = useState<number | null>(null);
   const [upperMidi, setUpperMidi] = useState<number | null>(null);
   const [intervalLabel, setIntervalLabel] = useState<string>("");
-
-  // step: 1=await lower; 2=await upper; 3=done (show label, then advance)
   const [step, setStep] = useState<1|2|3>(1);
-
   const awaitingNextRef = useRef(false);
 
-  // build active list of intervals
   const activeIntervals = useMemo(() => {
-    return INTERVALS.filter(i => selected[i.code]);
+    const arr = INTERVALS.filter(i => selected[i.code]);
+    return arr.length ? arr : [];
   }, [selected]);
 
-  // helper: pick next interval & positions (fully inside a single clef)
   function rollNew() {
-    const pool = activeIntervals.length ? activeIntervals : INTERVALS;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    // choose a code from activeIntervals (already non-empty when started)
+    const pick = activeIntervals[Math.floor(Math.random() * activeIntervals.length)];
     const semis = pick.semitones;
 
-    // pick clef first (half probability each)
     const clef: Clef = Math.random() < 0.5 ? "bass" : "treble";
-    // ranges (inclusive)
     const MIN_BASS = 36; // C2
     const MAX_BASS = 60; // C4
     const MIN_TREB = 60; // C4
     const MAX_TREB = 84; // C6
 
     let baseMin: number, baseMax: number;
-    if (clef === "bass") {
-      baseMin = MIN_BASS;
-      baseMax = MAX_BASS - semis; // ensure upper fits
-    } else {
-      baseMin = MIN_TREB;
-      baseMax = MAX_TREB - semis;
-    }
+    if (clef === "bass") { baseMin = MIN_BASS; baseMax = MAX_BASS - semis; }
+    else { baseMin = MIN_TREB; baseMax = MAX_TREB - semis; }
 
-    // sanity clamp
-    if (baseMax < baseMin) {
-      // if interval doesn't fit in chosen clef, retry on the other clef
-      const otherClef = clef === "bass" ? "treble" : "bass";
-      return rollNew(); // simple retry; rare edge when semis=12 at edge
-    }
+    if (baseMax < baseMin) { return rollNew(); }
 
     const base = baseMin + Math.floor(Math.random() * (baseMax - baseMin + 1));
     const lower = base;
@@ -222,60 +201,58 @@ export default function IntervalsSequentialPage() {
     setStep(1);
     awaitingNextRef.current = false;
 
-    // auto-play both notes when displayed (sequential, quick)
-    const lowerName = midiToNameSharp(lower);
-    const upperName = midiToNameSharp(upper); // ascending → prefer sharps
-    playOnce(lowerName);
-    setTimeout(() => playOnce(upperName), 280);
+    // auto-play both notes when displayed
+    playOnce(midiToNameSharp(lower));
+    setTimeout(() => playOnce(midiToNameSharp(upper)), 280);
   }
 
-  // start a session or proceed after completion
-  useEffect(() => {
-    if (progress === 0 && lowerMidi == null && upperMidi == null) rollNew();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // judge callback for keyboard (decides green/red flash)
-  const judge = (noteName: string) => {
-    if (awaitingNextRef.current || lowerMidi == null || upperMidi == null) return undefined;
-    const expected = step === 1 ? lowerMidi : upperMidi;
-    const pressedMidi = noteNameToMidi(noteName);
-    if (pressedMidi == null) return undefined;
-    return (pressedMidi === expected ? "correct" : "wrong") as "correct" | "wrong";
+  // Start button handler
+  const handleStart = () => {
+    if (!activeIntervals.length) return;
+    setStarted(true);
+    setProgress(0);
+    setCorrect(0);
+    setFirstTry(true);
+    setIntervalLabel("");
+    setLowerMidi(null);
+    setUpperMidi(null);
+    setStep(1);
+    awaitingNextRef.current = false;
+    rollNew();
   };
 
-  // keyboard press handler (MIDI)
-  const onKeyPressMidi = (midi: number) => {
-    if (awaitingNextRef.current || lowerMidi == null || upperMidi == null) return;
+  // judge for keyboard
+  const judge = (noteName: string) => {
+    if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) return undefined;
+    const expected = step === 1 ? lowerMidi : upperMidi;
+    const pressed = noteNameToMidi(noteName);
+    if (pressed == null) return undefined;
+    return (pressed === expected ? "correct" : "wrong") as "correct" | "wrong";
+  };
 
-    // de-dupe
+  const onKeyPressMidi = (midi: number) => {
+    if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) return;
+
     const guardId = `press-${midi}`;
     if (!shouldAcceptOnce(guardId)) return;
 
-    // guide audio on every press
-    const pressedName = midiToNameSharp(midi);
-    playOnce(pressedName);
+    playOnce(midiToNameSharp(midi));
 
     const expected = step === 1 ? lowerMidi : upperMidi;
     if (midi === expected) {
       if (step === 1) {
         setStep(2);
-      } else if (step === 2) {
-        // finished pair
+      } else {
         setStep(3);
         awaitingNextRef.current = true;
-
-        // increment "correct" if firstTry
         if (firstTry) setCorrect(c => Math.min(25, c + 1));
 
-        // show label briefly, then advance
         setTimeout(() => {
           setProgress(p => {
             const next = Math.min(25, p + 1);
             if (next < 25) {
               rollNew();
             } else {
-              // session complete — wait for Restart
               awaitingNextRef.current = false;
             }
             return next;
@@ -283,7 +260,6 @@ export default function IntervalsSequentialPage() {
         }, 1000);
       }
     } else {
-      // wrong
       setFirstTry(false);
     }
   };
@@ -298,27 +274,23 @@ export default function IntervalsSequentialPage() {
     setUpperMidi(null);
     setStep(1);
     awaitingNextRef.current = false;
-    rollNew();
+    // Keep picker collapsed during the session; re-roll only if we still have active intervals
+    if (activeIntervals.length) rollNew();
   };
 
-  // derived display names for staff (ascending → prefer sharps on upper)
-  const lowerNameDisplay = lowerMidi != null
-    ? midiToNameFlatIfDescending(lowerMidi, false) // not descending → default sharp
-    : "C4";
-  const upperNameDisplay = upperMidi != null
-    ? midiToNameFlatIfDescending(upperMidi, false) // ascending → sharp if black
-    : "E4";
+  // display names (ascending → prefer sharps)
+  const lowerNameDisplay = lowerMidi != null ? midiToNameFlatIfDescending(lowerMidi, false) : "C4";
+  const upperNameDisplay = upperMidi != null ? midiToNameFlatIfDescending(upperMidi, false) : "E4";
 
-  // UI: intervals picker handlers
+  // picker helpers
   const toggleAll = (v: boolean) => {
-    const next: Record<IntervalCode, boolean> = { ...selected };
+    const next: Record<IntervalCode, boolean> = {} as any;
     INTERVALS.forEach(i => { next[i.code] = v; });
     setSelected(next);
   };
   const ensureAtLeastOne = (code: IntervalCode, v: boolean) => {
     const next = { ...selected, [code]: v };
     if (!Object.values(next).some(Boolean)) {
-      // prevent empty pool → keep the toggled one on
       next[code] = true;
     }
     setSelected(next);
@@ -330,24 +302,21 @@ export default function IntervalsSequentialPage() {
 
       <div className="page">
         <div className="root">
-          {/* Portrait blocker */}
           <div className="blocker">
             <p><strong>Please rotate your device to landscape</strong><br/>(or use a device with a larger screen)</p>
           </div>
 
-          {/* Title */}
           <div className="header">
             <div className="title-line">
               <h1>Intervals (Sequential)</h1>
               <Link href="/" className="title-home">HOME</Link>
             </div>
-            <p>See an interval on the grand staff. Play the <strong>lower</strong> note first, then the <strong>upper</strong>. Interval name appears on success.</p>
+            <p>Choose intervals, press <strong>Start</strong>, then play the <strong>lower</strong> note first and the <strong>upper</strong> note. The name shows on success.</p>
           </div>
 
-          {/* Stave row */}
           <div className="child">
             <div className="stats-bar">
-              {/* LEFT: Progress / Correct + Restart (on done) */}
+              {/* LEFT: Progress/Correct + Start/Restart */}
               <div className="stats-left">
                 <div className="stats-box">
                   <div>Progress</div>
@@ -357,56 +326,62 @@ export default function IntervalsSequentialPage() {
                   <div>Correct</div>
                   <div className="stats-value">{correct}/25</div>
                 </div>
-                {sessionDone && (
-                  <button className="restart-btn" onClick={handleRestart}>Restart Session</button>
+
+                {!started && (
+                  <button
+                    className="start-btn"
+                    onClick={handleStart}
+                    disabled={!activeIntervals.length}
+                    title={activeIntervals.length ? "Start session" : "Select at least one interval"}
+                  >
+                    Start
+                  </button>
+                )}
+
+                {sessionDone && started && (
+                  <button className="restart-btn" onClick={handleRestart}>
+                    Restart Session
+                  </button>
                 )}
               </div>
 
-              {/* CENTER: Frozen grand staff (two notes via overlay trick) */}
+              {/* CENTER: Grand staff (two notes; upper shifted 10px right) */}
               <div className="stave-center">
                 <div className="stave-narrow">
                   <div className="stave-stack">
-                    {/* Base layer: lower note, staff visible */}
-                    <GrandStaveVF
-                      key={`L-${lowerNameDisplay}`}
-                      noteName={lowerNameDisplay}
-                      // noteMidi unused for drawing here; staff decides by octave
-                    />
-                    {/* Overlay: upper note only (hide staves/connectors/clefs via CSS) */}
+                    <GrandStaveVF key={`L-${lowerNameDisplay}-${started}-${progress}`} noteName={started ? lowerNameDisplay : undefined} />
                     <div className="overlay">
-                      <GrandStaveVF
-                        key={`U-${upperNameDisplay}`}
-                        noteName={upperNameDisplay}
-                      />
+                      <GrandStaveVF key={`U-${upperNameDisplay}-${started}-${progress}`} noteName={started ? upperNameDisplay : undefined} />
                     </div>
                   </div>
-                  {/* Interval label shown after success (step 3) */}
                   <div className="interval-label">
-                    {step === 3 ? intervalLabel : "\u00A0"}
+                    {started && step === 3 ? intervalLabel : "\u00A0"}
                   </div>
                 </div>
               </div>
 
-              {/* RIGHT: Interval picker */}
-              <div className="picker-box">
-                <div className="picker-title">Choose Intervals</div>
-                <div className="picker-actions">
-                  <button onClick={() => toggleAll(true)}>Select all</button>
-                  <button onClick={() => toggleAll(false)}>Clear all</button>
+              {/* RIGHT: Interval picker — collapses after Start */}
+              {!started && (
+                <div className="picker-box">
+                  <div className="picker-title">Choose Intervals</div>
+                  <div className="picker-actions">
+                    <button onClick={() => toggleAll(true)}>Select all</button>
+                    <button onClick={() => toggleAll(false)}>Clear all</button>
+                  </div>
+                  <div className="picker-list">
+                    {INTERVALS.map(i => (
+                      <label key={i.code} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input
+                          type="checkbox"
+                          checked={!!selected[i.code]}
+                          onChange={e => ensureAtLeastOne(i.code, e.target.checked)}
+                        />
+                        <span>{i.code} — {i.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <div className="picker-list">
-                  {INTERVALS.map(i => (
-                    <label key={i.code} style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <input
-                        type="checkbox"
-                        checked={!!selected[i.code]}
-                        onChange={e => ensureAtLeastOne(i.code, e.target.checked)}
-                      />
-                      <span>{i.code} — {i.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
