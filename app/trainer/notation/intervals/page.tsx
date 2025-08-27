@@ -352,7 +352,7 @@ export default function IntervalsSequentialPage() {
                   <GrandStaveVF
                     noteName={started ? lowerNameDisplay : null}
                     secondaryNoteName={started ? upperNameDisplay : null}
-                    secondaryXShift={20}
+                    secondaryXShift={30}
                   />
                   <div className="interval-label">
                     {started && step === 3 ? intervalLabel : "\u00A0"}
