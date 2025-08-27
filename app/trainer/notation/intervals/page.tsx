@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -115,14 +114,6 @@ const styles = `
 .picker-actions { display: flex; gap: 6px; justify-content: center; }
 .picker-actions button { font-size: 12px; padding: 4px 8px; }
 
-/* Two-note overlay; upper note shifted to the right for clarity (m2 visible) */
-.stave-stack { position: relative; width: 260px; }
-.stave-stack .overlay { position: absolute; inset: 0; transform: translateX(10px); } /* ← 10px offset */
-
-.stave-stack .overlay svg .vf-stave,
-.stave-stack .overlay svg .vf-staveconnector,
-.stave-stack .overlay svg .vf-clef { display: none; } /* hide duplicate staff, leave notehead */
-
 .interval-label { text-align: center; font-size: 13px; margin-top: 6px; min-height: 1.2em; }
 
 .media { display: flex; align-items: center; justify-content: center; min-height: var(--keyboard-min-h); }
@@ -146,15 +137,17 @@ function shouldAcceptOnce(id: string, desktopMs = 220, touchMs = 520) {
   return true;
 }
 
+/* Helper to get an empty picker selection (same as page refresh) */
+function initialSelected(): Record<IntervalCode, boolean> {
+  return {
+    m2:false, M2:false, m3:false, M3:false, P4:false, TT:false,
+    P5:false, m6:false, M6:false, m7:false, M7:false, P8:false,
+  };
+}
+
 export default function IntervalsSequentialPage() {
   /* Picker starts EMPTY; user must choose & press Start */
-  const [selected, setSelected] = useState<Record<IntervalCode, boolean>>(() => {
-    const init: Record<IntervalCode, boolean> = {
-      m2:false, M2:false, m3:false, M3:false, P4:false, TT:false,
-      P5:false, m6:false, M6:false, m7:false, M7:false, P8:false,
-    };
-    return init;
-  });
+  const [selected, setSelected] = useState<Record<IntervalCode, boolean>>(initialSelected);
   const [started, setStarted] = useState(false);
 
   /* session state */
@@ -174,7 +167,6 @@ export default function IntervalsSequentialPage() {
   }, [selected]);
 
   function rollNew() {
-    // choose a code from activeIntervals (already non-empty when started)
     const pick = activeIntervals[Math.floor(Math.random() * activeIntervals.length)];
     const semis = pick.semitones;
 
@@ -253,6 +245,16 @@ export default function IntervalsSequentialPage() {
             if (next < 25) {
               rollNew();
             } else {
+              // ==== SESSION COMPLETE → return to picker but KEEP selections ====
+              setStarted(false);              // show picker + Start again
+              // setSelected(initialSelected()); // ← removed (we KEEP the user's choices)
+              setProgress(0);
+              setCorrect(0);
+              setFirstTry(true);
+              setIntervalLabel("");
+              setLowerMidi(null);
+              setUpperMidi(null);
+              setStep(1);
               awaitingNextRef.current = false;
             }
             return next;
@@ -274,7 +276,6 @@ export default function IntervalsSequentialPage() {
     setUpperMidi(null);
     setStep(1);
     awaitingNextRef.current = false;
-    // Keep picker collapsed during the session; re-roll only if we still have active intervals
     if (activeIntervals.length) rollNew();
   };
 
@@ -345,16 +346,19 @@ export default function IntervalsSequentialPage() {
                 )}
               </div>
 
-              {/* CENTER: Grand staff (two notes; upper shifted 10px right) */}
-            <div className="stave-center">
-  <div className="stave-narrow">
-    <GrandStaveVF
-      noteName={started ? lowerNameDisplay : null}
-      secondaryNoteName={started ? upperNameDisplay : null}
-      secondaryXShift={10}
-    />
-  </div>
-</div>
+              {/* CENTER: Grand staff (two notes; upper shifted 20px right) */}
+              <div className="stave-center">
+                <div className="stave-narrow">
+                  <GrandStaveVF
+                    noteName={started ? lowerNameDisplay : null}
+                    secondaryNoteName={started ? upperNameDisplay : null}
+                    secondaryXShift={20}
+                  />
+                  <div className="interval-label">
+                    {started && step === 3 ? intervalLabel : "\u00A0"}
+                  </div>
+                </div>
+              </div>
 
               {/* RIGHT: Interval picker — collapses after Start */}
               {!started && (
