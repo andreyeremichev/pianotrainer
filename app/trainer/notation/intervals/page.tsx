@@ -346,19 +346,15 @@ export default function IntervalsSequentialPage() {
               </div>
 
               {/* CENTER: Grand staff (two notes; upper shifted 10px right) */}
-              <div className="stave-center">
-                <div className="stave-narrow">
-                  <div className="stave-stack">
-                    <GrandStaveVF key={`L-${lowerNameDisplay}-${started}-${progress}`} noteName={started ? lowerNameDisplay : undefined} />
-                    <div className="overlay">
-                      <GrandStaveVF key={`U-${upperNameDisplay}-${started}-${progress}`} noteName={started ? upperNameDisplay : undefined} />
-                    </div>
-                  </div>
-                  <div className="interval-label">
-                    {started && step === 3 ? intervalLabel : "\u00A0"}
-                  </div>
-                </div>
-              </div>
+            <div className="stave-center">
+  <div className="stave-narrow">
+    <GrandStaveVF
+      noteName={started ? lowerNameDisplay : null}
+      secondaryNoteName={started ? upperNameDisplay : null}
+      secondaryXShift={10}
+    />
+  </div>
+</div>
 
               {/* RIGHT: Interval picker — collapses after Start */}
               {!started && (
