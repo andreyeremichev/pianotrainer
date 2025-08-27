@@ -19,7 +19,7 @@ const notationItems: Item[] = [
   {
     label: "Random Notes",
     href: "/trainer/notation/random-notes",
-    desc: "Read a single whole note on a grand staff and play it.",
+    desc: "Read a single whole note on a grand stave and play it.",
     badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
@@ -38,8 +38,9 @@ const notationItems: Item[] = [
   },
   {
     label: "Intervals (Notation)",
+    href: "/trainer/notation/intervals",
     desc: "Seconds to octaves with sharps & flats, both clefs.",
-    badge: "Soon",
+    badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
 ];

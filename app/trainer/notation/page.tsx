@@ -41,10 +41,11 @@ const items: Item[] = [
   },
   {
     label: "Intervals (Notation)",
-    badge: "Soon",
+    href: "/trainer/notation/intervals",
+    badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
     desc:
-      "Second to octave, sharps & flats, ascending/descending. Recognize interval spacing on the staff and connect it to finger movement.",
+      "Second to octave, sharps & flats, ascending/descending. Recognize interval spacing on the stave and connect it to finger movement.",
   },
 ];
 
