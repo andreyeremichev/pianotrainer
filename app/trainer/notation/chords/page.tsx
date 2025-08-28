@@ -314,7 +314,7 @@ export default function ChordsRecognitionPage() {
                 <div className="stave-narrow">
                   <GrandStaveVF
                     // chord mode: pass three note names (e.g., ["F#3","A3","C#4"])
-                    chordKeys={displayNotes ?? undefined}
+                    triadNotes={question ? question.display : null}
                   />
                   <div className="explain">{explain}</div>
                 </div>
