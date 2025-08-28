@@ -1,3 +1,4 @@
+// app/(site)/page.tsx
 export const metadata = {
   title: "PianoTrainer • Free Notation & Ear Training for Beginners",
   description:
@@ -5,6 +6,7 @@ export const metadata = {
 };
 
 import Link from "next/link";
+import React from "react";
 
 type Item = {
   label: string;
@@ -103,29 +105,11 @@ function ListItem({ item }: { item: Item }) {
 
 export default function HomePage() {
   return (
-    <main className="home">
+    <main className="page">{/* ← use the shared page wrapper */}
       <style>{`
-        .home {
-          max-width: 1100px;
-          margin: 0 auto;
-          padding: 16px;
-        }
-
         /* Hero */
-        .hero {
-          text-align: center;
-          margin: 18px 0 10px;
-        }
-        .hero h1 {
-          margin: 0;
-          font-size: 26px;
-          letter-spacing: 0.2px;
-        }
-        .hero p {
-          margin: 6px 0 0;
-          color: #444;
-          font-size: 15px;
-        }
+        .hero { text-align: center; margin: 18px 0 10px; }
+        /* h1 and p sizes now inherit from (site)/site.css */
 
         /* Two-column split on wide; single column on narrow/portrait */
         .split {
@@ -146,16 +130,10 @@ export default function HomePage() {
           }
         }
 
-        .section h2 {
-          margin: 0 0 8px 0;
-          font-size: 18px;
-        }
+        .section h2 { margin: 0 0 8px 0; } /* size inherits (18px) */
 
         /* Lists */
-        .list {
-          display: grid;
-          gap: 8px;
-        }
+        .list { display: grid; gap: 8px; }
         .item-link {
           display: grid;
           grid-template-columns: 28px 1fr;
@@ -170,22 +148,10 @@ export default function HomePage() {
           color: inherit;
         }
         .item-link:hover,
-        .item-link:focus-visible {
-          background: #fafafa;
-          border-color: #eaeaea;
-        }
-        .item-link.disabled {
-          opacity: 0.6;
-          cursor: default;
-          pointer-events: none;
-        }
+        .item-link:focus-visible { background: #fafafa; border-color: #eaeaea; }
+        .item-link.disabled { opacity: 0.6; cursor: default; pointer-events: none; }
 
-        .glyph {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          line-height: 1;
-        }
+        .glyph { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
         .item-title {
           font-weight: 600;
@@ -193,12 +159,7 @@ export default function HomePage() {
           gap: 8px;
           align-items: baseline;
         }
-        .item-desc {
-          display: block;
-          font-size: 13px;
-          color: #555;
-          margin-top: 2px;
-        }
+        .item-desc { display: block; font-size: 13px; color: #555; margin-top: 2px; }
 
         /* Badges */
         .badge {

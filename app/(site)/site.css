@@ -1,58 +1,71 @@
-/* app/(site)/site.css
-   Scope everything under the (site) route group so trainer pages remain untouched. */
 
+/* app/(site)/site.css
+   Shared look for ALL non-trainer pages (Home, hubs, About, Contact, Privacy, …).
+   Trainer pages DO NOT import this file. */
+
+/* --- Canonical type & spacing (from Home) --- */
 :root {
-  --site-max: 1200px;
-  --site-pad-x: 12px;
-  --site-pad-y: 8px;
+  --site-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter,
+               Arial, "Noto Sans", "Liberation Sans", system-ui, sans-serif;
+
+  /* Home-scale sizes */
+  --h1: 26px;   /* Home hero h1 */
+  --h2: 18px;   /* Home section h2 */
+  --p:  15px;   /* Home paragraph */
+
+  --lh-tight: 1.2;
+  --lh-normal: 1.55;
+
+  --page-max: 1100px;   /* Home was 1100px */
+  --pad-x: 16px;        /* Home used 16px all around */
+  --pad-y: 16px;
+
+  --section-gap: 20px;
 }
 
+/* Every (site) page should render <main class="page">… */
 .site-shell .page {
   box-sizing: border-box;
-  max-width: var(--site-max);
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: var(--site-pad-y) var(--site-pad-x);
+  padding: var(--pad-y) var(--pad-x);
+  font-family: var(--site-font);
+  color: #111;
 }
 
-/* Typography (match Notation Hub look) */
+/* Headings & text — match Home scale */
 .site-shell .page h1 {
-  margin: 20px 0 10px;
+  font-size: var(--h1);
+  line-height: var(--lh-tight);
+  margin: 18px 0 10px;
   font-weight: 800;
-  line-height: 1.15;
-  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: 0.2px; /* per Home hero */
 }
 
 .site-shell .page h2 {
-  margin: 18px 0 10px;
+  font-size: var(--h2);
+  line-height: var(--lh-tight);
+  margin: 0 0 8px 0; /* per Home section h2 */
   font-weight: 700;
-  line-height: 1.2;
-  font-size: clamp(20px, 3vw, 28px);
-}
-
-.site-shell .page h3 {
-  margin: 14px 0 8px;
-  font-weight: 700;
-  line-height: 1.25;
-  font-size: clamp(18px, 2.4vw, 22px);
 }
 
 .site-shell .page p,
 .site-shell .page li {
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: var(--p);
+  line-height: var(--lh-normal);
   color: #222;
 }
 
+/* Sections spacing (safe default) */
+.site-shell .page section { margin: var(--section-gap) 0; }
+
+/* Links — match header/footer behavior */
+.site-shell .page a { text-decoration: none; }
+.site-shell .page a:hover { text-decoration: underline; }
+
+/* Lists tidy defaults */
 .site-shell .page ul,
 .site-shell .page ol {
-  padding-left: 1.2rem;   /* consistent list indent */
+  padding-left: 1.2rem;
   margin: 0.5rem 0 1rem;
-}
-
-/* Slightly roomier on medium+ screens */
-@media (min-width: 768px) {
-  :root {
-    --site-pad-x: 20px;
-    --site-pad-y: 12px;
-  }
 }
