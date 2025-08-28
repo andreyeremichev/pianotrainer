@@ -10,6 +10,7 @@ import {
   Voice,
   Formatter,
   Barline,
+  Accidental, // ← needed for chord-mode accidentals
 } from "vexflow";
 import useMusicFontReady from "./_guards/useMusicFontReady";
 
@@ -24,7 +25,7 @@ type Props = {
   /** Primary note spelling, e.g. "Db4", "C#5", "C4". */
   noteName?: string | null;
 
-  /** OPTIONAL: second note to draw in the SAME staff draw. */
+  /** OPTIONAL: second note to draw in the SAME staff draw (intervals page). */
   secondaryNoteName?: string | null;
 
   /** Pixel nudge applied to the SECOND note (positive = right). Default 10. */
@@ -32,6 +33,9 @@ type Props = {
 
   /** Force clef (e.g. show C4 on treble or bass explicitly) for the PRIMARY note */
   forceClef?: Clef | null;
+
+  /** NEW: stacked triad for chords page — exactly three note names, e.g. ["F#3","A3","C#4"] */
+  chordKeys?: string[] | null;
 };
 
 const NAMES_SHARP = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
@@ -59,6 +63,7 @@ export default function GrandStaveVF({
   secondaryNoteName = null,
   secondaryXShift = 10,
   forceClef = null,
+  chordKeys = null, // ← NEW
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const fontReady = useMusicFontReady(); // used to trigger a redraw; we do NOT block on it
@@ -122,110 +127,144 @@ export default function GrandStaveVF({
       new StaveConnector(treble, bass).setType(StaveConnector.type.SINGLE_LEFT).setContext(ctx).draw();
       new StaveConnector(treble, bass).setType(StaveConnector.type.SINGLE_RIGHT).setContext(ctx).draw();
 
-      // --- NOTE DRAWING ---
-      // Resolve the primary note parameters (name wins, MIDI fallback)
-      let primParsed: ReturnType<typeof parseNoteName> | null = null;
-      if (noteName) {
-        primParsed = parseNoteName(noteName);
-      } else if (typeof noteMidi === "number") {
-        const nm = midiToName(noteMidi);
-        primParsed = parseNoteName(nm);
+      /* ===================== CHORD MODE (3 half notes, stacked) ===================== */
+      if (Array.isArray(chordKeys) && chordKeys.length === 3) {
+        // Parse incoming names -> VexFlow keys + accidentals
+        const p = chordKeys.map(n => parseNoteName(n)).filter(Boolean) as NonNullable<
+          ReturnType<typeof parseNoteName>
+        >[];
+
+        if (p.length === 3) {
+          // Decide clef by middle note octave (keeps chord on intended stave; both staves always visible)
+          const midOct = p[1].octave;
+          const clef: Clef = forceClef ?? clefByOctave(midOct);
+          const staveFor = clef === "bass" ? bass : treble;
+
+          // One StaveNote with 3 keys, half-note duration
+          const keys = p.map(x => x.key);
+          const accs = p.map(x => x.accidental);
+          const chord = new StaveNote({ clef, keys, duration: "h" });
+
+          // Use VexFlow accidentals in chord mode for proper stacking/spacing
+          accs.forEach((a, i) => { if (a) chord.addModifier(new Accidental(a), i); });
+
+          (chord as any).setStave?.(staveFor);
+          (chord as any).setContext?.(ctx);
+
+          const layoutWidth = Math.max(60, drawW - 40);
+          const voice = new Voice({ numBeats: 1, beatValue: 1 });
+          voice.addTickable(chord);
+          new Formatter().joinVoices([voice]).format([voice], layoutWidth);
+          voice.draw(ctx, staveFor);
+        }
+        // Skip single/dual-note path entirely when chordKeys provided
       }
+      /* =================== END CHORD MODE =================== */
 
-      const secParsed = secondaryNoteName ? parseNoteName(secondaryNoteName) : null;
-
-      if (primParsed || secParsed) {
-        // Build a StaveNote factory using our overlay-accidental approach (duration "w")
-        const makeNote = (p: NonNullable<typeof primParsed>) => {
-          const clef: Clef = forceClef ?? clefByOctave(p.octave);
-          const sn = new StaveNote({ clef, keys: [p.key], duration: "w" });
-          return { sn, clef, acc: p.accidental };
-        };
-
-        const prim = primParsed ? makeNote(primParsed) : null;
-        const sec  = secParsed  ? makeNote(secParsed)  : null;
-
-        // Voices — one per note, formatted at the same time position
-        const voices: Voice[] = [];
-        const overlayData: { index: number; acc: ""|"#"|"b" }[] = [];
-
-        if (prim) {
-          const v = new Voice({ numBeats: 1, beatValue: 1 });
-          v.addTickable(prim.sn);
-          voices.push(v);
-          overlayData.push({ index: 0, acc: prim.acc });
+      /* =================== SINGLE / DUAL NOTE MODE (unchanged) =================== */
+      else {
+        // Resolve the primary note parameters (name wins, MIDI fallback)
+        let primParsed: ReturnType<typeof parseNoteName> | null = null;
+        if (noteName) {
+          primParsed = parseNoteName(noteName);
+        } else if (typeof noteMidi === "number") {
+          const nm = midiToName(noteMidi);
+          primParsed = parseNoteName(nm);
         }
 
-        if (sec) {
-          try { (sec.sn as any).setXShift?.(secondaryXShift ?? 10); } catch {}
-          const v2 = new Voice({ numBeats: 1, beatValue: 1 });
-          v2.addTickable(sec.sn);
-          voices.push(v2);
-          overlayData.push({ index: prim ? 1 : 0, acc: sec.acc });
-        }
+        const secParsed = secondaryNoteName ? parseNoteName(secondaryNoteName) : null;
 
-        // Format voices together
-        const layoutWidth = Math.max(60, drawW - 40);
-        const fmt = new Formatter();
-        try { fmt.joinVoices(voices as any); } catch {}
-        fmt.format(voices as any, layoutWidth);
+        if (primParsed || secParsed) {
+          // Build a StaveNote factory using our overlay-accidental approach (duration "w")
+          const makeNote = (p: NonNullable<typeof primParsed>) => {
+            const clef: Clef = forceClef ?? clefByOctave(p.octave);
+            const sn = new StaveNote({ clef, keys: [p.key], duration: "w" });
+            return { sn, clef, acc: p.accidental };
+          };
 
-        // Draw each voice on its stave
-        if (prim) {
-          const staveForPrimary = prim.clef === "bass" ? bass : treble;
-          voices[0].draw(ctx, staveForPrimary);
-        }
-        if (sec) {
-          const staveForSecondary = sec.clef === "bass" ? bass : treble;
-          const idx = prim ? 1 : 0;
-          voices[idx].draw(ctx, staveForSecondary);
-        }
+          const prim = primParsed ? makeNote(primParsed) : null;
+          const sec  = secParsed  ? makeNote(secParsed)  : null;
 
-        /* ===== Manual accidental overlay for each drawn note (Unicode ♯/♭) ===== */
-        try {
-          const svg = canvasHost.querySelector("svg") as SVGSVGElement | null;
-          if (svg) {
-            const groups = Array.from(svg.querySelectorAll("g.vf-stavenote"));
-            // clean any previous overlays (if re-render)
-            groups.forEach(g => g.querySelectorAll(".pt-acc-overlay").forEach(n => n.remove()));
+          // Voices — one per note, formatted at the same time position
+          const voices: Voice[] = [];
 
-            const ACC_PT = 20;
-            const ACC_X_PAD = 4;
-            const ACC_Y_ADJ = 0;
-
-            const applyOverlay = (g: SVGGElement, acc: ""|"#"|"b") => {
-              if (!acc) return;
-              const head = g.querySelector("text");
-              if (!head) return;
-              const bb = (head as SVGGraphicsElement).getBBox();
-
-              const t = document.createElementNS(svg.namespaceURI, "text");
-              t.classList.add("pt-acc-overlay");
-              t.setAttribute("x", String(bb.x - ACC_X_PAD));
-              t.setAttribute("y", String(bb.y + bb.height / 2 + ACC_Y_ADJ));
-              t.setAttribute("text-anchor", "end");
-              t.setAttribute("dominant-baseline", "middle");
-              t.setAttribute("font-family", "Bravura Text, Bravura, serif");
-              t.setAttribute("font-size", String(ACC_PT));
-              t.setAttribute("fill", "currentColor");
-              t.setAttribute("pointer-events", "none");
-              t.setAttribute("letter-spacing", "-0.5px");
-              t.textContent = acc === "#" ? "\u266F" : acc === "b" ? "\u266D" : "";
-              g.appendChild(t);
-            };
-
-            // Primary then secondary (if present)
-            if (prim && groups[0]) applyOverlay(groups[0] as SVGGElement, prim.acc);
-            if (sec) {
-              const idx = prim ? 1 : 0;
-              if (groups[idx]) applyOverlay(groups[idx] as SVGGElement, sec.acc);
-            }
+          if (prim) {
+            const v = new Voice({ numBeats: 1, beatValue: 1 });
+            v.addTickable(prim.sn);
+            voices.push(v);
           }
-        } catch {
-          // Non-fatal if DOM probing fails
+
+          if (sec) {
+            try { (sec.sn as any).setXShift?.(secondaryXShift ?? 10); } catch {}
+            const v2 = new Voice({ numBeats: 1, beatValue: 1 });
+            v2.addTickable(sec.sn);
+            voices.push(v2);
+          }
+
+          // Format together
+          const layoutWidth = Math.max(60, drawW - 40);
+          const fmt = new Formatter();
+          try { fmt.joinVoices(voices as any); } catch {}
+          fmt.format(voices as any, layoutWidth);
+
+          // Draw each voice on its stave
+          if (prim) {
+            const staveForPrimary = prim.clef === "bass" ? bass : treble;
+            voices[0].draw(ctx, staveForPrimary);
+          }
+          if (sec) {
+            const staveForSecondary = sec.clef === "bass" ? bass : treble;
+            const idx = prim ? 1 : 0;
+            voices[idx].draw(ctx, staveForSecondary);
+          }
+
+          /* ===== Manual accidental overlay for each drawn note (Unicode ♯/♭) ===== */
+          try {
+            const svg = canvasHost.querySelector("svg") as SVGSVGElement | null;
+            if (svg) {
+              const groups = Array.from(svg.querySelectorAll("g.vf-stavenote"));
+              // clean any previous overlays (if re-render)
+              groups.forEach(g => g.querySelectorAll(".pt-acc-overlay").forEach(n => n.remove()));
+
+              const ACC_PT = 20;
+              const ACC_X_PAD = 4;
+              const ACC_Y_ADJ = 0;
+
+              const applyOverlay = (g: SVGGElement, acc: ""|"#"|"b") => {
+                if (!acc) return;
+                const head = g.querySelector("text");
+                if (!head) return;
+                const bb = (head as SVGGraphicsElement).getBBox();
+
+                const t = document.createElementNS(svg.namespaceURI, "text");
+                t.classList.add("pt-acc-overlay");
+                t.setAttribute("x", String(bb.x - ACC_X_PAD));
+                t.setAttribute("y", String(bb.y + bb.height / 2 + ACC_Y_ADJ));
+                t.setAttribute("text-anchor", "end");
+                t.setAttribute("dominant-baseline", "middle");
+                t.setAttribute("font-family", "Bravura Text, Bravura, serif");
+                t.setAttribute("font-size", String(ACC_PT));
+                t.setAttribute("fill", "currentColor");
+                t.setAttribute("pointer-events", "none");
+                t.setAttribute("letter-spacing", "-0.5px");
+                t.textContent = acc === "#" ? "\u266F" : acc === "b" ? "\u266D" : "";
+                g.appendChild(t);
+              };
+
+              // Primary then secondary (if present)
+              if (prim && groups[0]) applyOverlay(groups[0] as SVGGElement, prim.acc);
+              if (sec) {
+                const idx = prim ? 1 : 0;
+                if (groups[idx]) applyOverlay(groups[idx] as SVGGElement, sec.acc);
+              }
+            }
+          } catch {
+            // Non-fatal if DOM probing fails
+          }
+          /* ========================================================================= */
         }
-        /* ========================================================================= */
       }
+      /* =================== END SINGLE / DUAL NOTE MODE =================== */
 
       // Responsive SVG + manual right edge (safety line)
       const svg = canvasHost.querySelector("svg") as SVGSVGElement | null;
@@ -274,7 +313,15 @@ export default function GrandStaveVF({
 
     return () => { host.innerHTML = ""; };
     // Re-draw on prop changes and once fontReady flips; we do NOT block on fontReady.
-  }, [fontReady, noteMidi, noteName, secondaryNoteName, secondaryXShift, forceClef]);
+  }, [
+    fontReady,
+    noteMidi,
+    noteName,
+    secondaryNoteName,
+    secondaryXShift,
+    forceClef,
+    Array.isArray(chordKeys) ? chordKeys.join("|") : "", // ensure chord re-draws when keys change
+  ]);
 
   return <div ref={hostRef} className="grandstave-host" />;
 }
