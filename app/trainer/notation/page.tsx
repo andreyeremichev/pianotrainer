@@ -1,7 +1,7 @@
 export const metadata = {
   title: "Notation Trainer • PianoTrainer",
   description:
-    "Beginner-friendly notation drills: random notes on a grand staff, keys-to-notes mapping, chords, and intervals. Train treble & bass clefs with whole notes.",
+    "Beginner-friendly notation drills: random notes on a grand stave, keys-to-notes mapping, chords, and intervals. Train treble & bass clefs with whole notes.",
 };
 
 import Link from "next/link";
@@ -133,7 +133,7 @@ export default function NotationHubPage() {
         <header className="hdr" aria-label="Notation Trainer">
           <h1>Notation Trainer</h1>
           <p>
-            Learn to read music on a <strong>grand staff</strong> the beginner-friendly way:
+            Learn to read music on a <strong>grand stave</strong> the beginner-friendly way:
             one whole note at a time, clear visuals, and immediate audio feedback. Start with{" "}
             <Link href="/trainer/notation/random-notes">Random Notes</Link>, then add keyboard
             mapping, chords, and interval spacing.
@@ -154,6 +154,66 @@ export default function NotationHubPage() {
             <li>Short sessions (3–5 minutes) beat long ones. Aim for daily streaks.</li>
           </ul>
         </section>
+      
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify(
+      {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "@id": "https://pianotrainer.app/trainer/notation",
+        url: "https://pianotrainer.app/trainer/notation",
+        name: "Notation Trainer Hub • PianoTrainer",
+        description:
+          "Practice reading notes on a fixed grand staff: Random Notes, Keys to Notes, and Intervals. Beginner-friendly, free, and browser-based.",
+        isPartOf: {
+          "@type": "WebSite",
+          url: "https://pianotrainer.app",
+          name: "PianoTrainer",
+        },
+        publisher: {
+          "@type": "Organization",
+          name: "PianoTrainer",
+          url: "https://pianotrainer.app",
+        },
+        mainEntity: {
+          "@type": "ItemList",
+          itemListOrder: "http://schema.org/ItemListOrderAscending",
+          numberOfItems: 3,
+          itemListElement: [
+            {
+              "@type": "ListItem",
+              position: 1,
+              url: "https://pianotrainer.app/trainer/notation/random-notes",
+              name: "Random Notes",
+              description:
+                "Read & play single notes on a grand staff. Whole notes, brace + connectors always visible.",
+            },
+            {
+              "@type": "ListItem",
+              position: 2,
+              url: "https://pianotrainer.app/trainer/notation/keys-to-notes",
+              name: "Keys to Notes",
+              description:
+                "Press any key (C2–C6) and instantly see the correct note on the staff; plays audio with correct enharmonics.",
+            },
+            {
+              "@type": "ListItem",
+              position: 3,
+              url: "https://pianotrainer.app/trainer/notation/intervals",
+              name: "Intervals (Sequential)",
+              description:
+                "Two-note intervals: play lower then upper note to pass. Shows interval name on success.",
+            }
+          ],
+        },
+      },
+      null,
+      2
+    ),
+  }}
+/>
       </main>
     </>
   );
