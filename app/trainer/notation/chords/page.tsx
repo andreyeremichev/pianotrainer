@@ -17,7 +17,7 @@ import {
   RomanDegree,
   Inversion,
   pickRandom,
-} from "@/utils/chords";
+} from "../../../../utils/chords";
 
 /* ----------------- styles (reuse trainer grid look) ----------------- */
 const styles = `
