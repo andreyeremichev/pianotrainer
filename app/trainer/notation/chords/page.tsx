@@ -1,36 +1,28 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
-// Grand staff (client-only)
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
-// On-screen keyboard (display-only here; we flash keys on correct)
 import ResponsiveKeyboardC2toC6, { type KeyboardRef } from "../../../components/ResponsiveKeyboardC2toC6";
 
-// Chord engine (relative import from repo root /utils)
-import type {
-  BuiltChord,
-  MajorKey,
-  RomanDegree,
-  Inversion,
-} from "../../../../utils/chords";
 import {
+  type MajorKey,
+  type RomanDegree,
+  type Inversion,
+  type BuiltChord,
   rollRandomFromSelections,
-  chordLabel,
-  midiToSharpName,
   audioUrlFromDisplay,
-  pickRandom,
 } from "../../../../utils/chords";
 
-/* ======================= styles (lean, reusing trainer look) ======================= */
+/* ======================= styles ======================= */
 const styles = `
 :root {
   --page-max-width: 1200px;
   --radius: 8px;
   --stats-w: 120px;
-  --picker-w: 240px;
+  --picker-w: 260px;
   --keyboard-min-h: 120px;
 }
 .page { box-sizing: border-box; max-width: var(--page-max-width); margin: 0 auto; padding: 8px; }
@@ -42,30 +34,35 @@ const styles = `
 .title-line { display: inline-flex; gap: 10px; align-items: baseline; }
 .title-home { font-size: 12px; text-decoration: underline; }
 
+.grid { display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto; gap: 10px; }
 .child { border: 1px solid #ccc; border-radius: var(--radius); background: #fff; padding: 8px; }
-.grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-.stats-bar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px; }
 
+.stats-bar {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px;
+}
 .stats-left { display: flex; flex-direction: column; gap: 8px; width: var(--stats-w); }
 .stats-box { border: 1px solid #000; border-radius: 6px; padding: 8px 10px; display: grid; place-items: center; }
 .stats-value { font-weight: 700; }
-.start-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #dff; cursor: pointer; }
 .restart-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #eee; cursor: pointer; }
+.start-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #dff; cursor: pointer; }
 
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: center; }
-.stave-narrow { width: 260px; } /* 🔒 frozen */
+.stave-narrow { width: 260px; } /* 🔒 FROZEN size */
+.explain { text-align:center; font-size: 13px; margin-top: 6px; min-height: 1.2em; }
 
 .picker-box { width: var(--picker-w); border: 1px solid #000; border-radius: 6px; padding: 8px 10px;
-  display: flex; flex-direction: column; gap: 8px; align-items: stretch; background: #f3f3f3; }
+  display: flex; flex-direction: column; gap: 6px; align-items: stretch; background: #f3f3f3; }
 .picker-title { text-align: center; font-weight: 600; }
-.picker-group { display: grid; gap: 6px; }
-.picker-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.picker-row label { display: inline-flex; gap: 6px; align-items: center; }
+.picker-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 13px; }
+.picker-actions { display: flex; gap: 6px; justify-content: center; }
+.picker-actions button { font-size: 12px; padding: 4px 8px; }
 
-.mcq { margin-top: 8px; display: grid; gap: 8px; }
-.mcq button { padding: 8px 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; text-align: left; }
+.mcq { margin-top: 10px; display: grid; gap: 8px; }
+.mcq button {
+  font-size: 14px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff; cursor: pointer;
+}
 .mcq button:hover { background: #fafafa; }
-.explain { text-align: center; font-size: 13px; margin-top: 6px; min-height: 1.2em; color:#222; }
+.mcq button[disabled] { opacity: 0.6; cursor: default; }
 
 .media { display: flex; align-items: center; justify-content: center; min-height: var(--keyboard-min-h); }
 .media > svg { width: 100%; height: 100%; display: block; }
@@ -76,149 +73,152 @@ const styles = `
 @media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
 `;
 
-/* ======================= audio helpers ======================= */
-const audioCache = new Map<string, HTMLAudioElement>();
-function getAudio(url: string) {
-  let a = audioCache.get(url);
-  if (!a) {
-    a = new Audio(url);
-    a.preload = "auto";
-    audioCache.set(url, a);
-  }
-  return a;
-}
+/* ======================= Audio helpers (reuse singles) ======================= */
 function playBlock(urls: string[]) {
-  // Start together-ish
-  urls.forEach((u, i) => {
-    const a = getAudio(u);
-    try { a.currentTime = 0; } catch {}
-    // tiny stagger to avoid clipping
-    setTimeout(() => { a.play().catch(() => {}); }, i * 30);
+  // Fire near-simultaneously
+  urls.forEach(u => {
+    const a = new Audio(u);
+    a.play().catch(() => {});
   });
 }
-function playArpeggio(urls: string[]) {
+function playArpeggio(urls: string[], gapMs = 140) {
   urls.forEach((u, i) => {
-    const a = getAudio(u);
-    try { a.currentTime = 0; } catch {}
-    setTimeout(() => { a.play().catch(() => {}); }, i * 260);
+    setTimeout(() => {
+      const a = new Audio(u);
+      a.play().catch(() => {});
+    }, i * gapMs);
   });
 }
 
-/* ======================= page ======================= */
+/* ======================= Page ======================= */
 const ALL_KEYS: MajorKey[] = ["C","G","D","A","E","B","F#","C#","F","Bb","Eb","Ab","Db","Gb","Cb"];
 const ALL_DEGREES: RomanDegree[] = ["I","ii","iii","IV","V","vi","vii°"];
 const ALL_INVERSIONS: Inversion[] = ["root","1st","2nd"];
 
-type PlayMode = "block" | "arpeggio";
+type PlayMode = "block" | "arp";
 
 export default function ChordsRecognitionPage() {
-  // Picker
+  /* Picker state (defaults) */
   const [selectedKeys, setSelectedKeys] = useState<MajorKey[]>(["C","G","F"]);
   const [selectedDegrees, setSelectedDegrees] = useState<RomanDegree[]>(["I","IV","V"]);
   const [selectedInversions, setSelectedInversions] = useState<Inversion[]>(["root","1st","2nd"]);
   const [playMode, setPlayMode] = useState<PlayMode>("block");
-  const [started, setStarted] = useState(false);
+  const canStart = selectedKeys.length && selectedDegrees.length && selectedInversions.length;
 
-  // Session
-  const [progress, setProgress] = useState(0);
+  /* Session state */
+  const [started, setStarted] = useState(false);
+  const [progress, setProgress] = useState(0); // 0..25
   const [correct, setCorrect] = useState(0);
+  const [explain, setExplain] = useState("");
   const [currentChord, setCurrentChord] = useState<BuiltChord | null>(null);
   const [options, setOptions] = useState<string[]>([]);
-  const [explain, setExplain] = useState("");
+  const [firstTry, setFirstTry] = useState(true);
+  const awaitingNextRef = useRef(false);
 
-  // Keyboard ref to flash keys green after correct
   const kbRef = useRef<KeyboardRef>(null);
 
-  // Build 2 distractors (same key preferred, different degree/inversion)
-  function buildOptions(target: BuiltChord): string[] {
-    const labels = new Set<string>();
-    labels.add(target.label);
-
-    // try to create two plausible distractors
-    for (let i = 0; i < 20 && labels.size < 3; i++) {
-      const k = target.key; // same key more plausible
-      const d = pickRandom(selectedDegrees);
-      const v = pickRandom(selectedInversions);
-      const altLabel = chordLabel(k, d, v);
-      labels.add(altLabel);
+  /* Build 2 distractors from current settings (same key/inversion, wrong degree) */
+  const buildOptions = (answer: BuiltChord): string[] => {
+    const pool: string[] = [answer.label];
+    const candidates = ALL_DEGREES.filter(d => d !== answer.degree && selectedDegrees.includes(d));
+    while (pool.length < 3 && candidates.length) {
+      const d = candidates.splice(Math.floor(Math.random()*candidates.length), 1)[0];
+      pool.push(`${d} in ${answer.key} major (${answer.inversion === "root" ? "root" : answer.inversion === "1st" ? "1st inv" : "2nd inv"})`);
     }
-
-    // if still not enough, broaden key space
-    while (labels.size < 3) {
-      const k = pickRandom(selectedKeys);
-      const d = pickRandom(selectedDegrees);
-      const v = pickRandom(selectedInversions);
-      labels.add(chordLabel(k, d, v));
+    // If not enough same-key candidates, fill from any selection
+    const fallback = ALL_DEGREES.filter(d => d !== answer.degree);
+    while (pool.length < 3 && fallback.length) {
+      const d = fallback.splice(Math.floor(Math.random()*fallback.length), 1)[0];
+      pool.push(`${d} in ${answer.key} major (${answer.inversion === "root" ? "root" : answer.inversion === "1st" ? "1st inv" : "2nd inv"})`);
     }
-
-    // shuffle
-    return Array.from(labels).sort(() => Math.random() - 0.5);
-  }
+    // Shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random()* (i+1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0,3);
+  };
 
   function rollNext() {
-    const next = rollRandomFromSelections(selectedKeys, selectedDegrees, selectedInversions, /* preferFlats */ false);
+    const next = rollRandomFromSelections(selectedKeys, selectedDegrees, selectedInversions, false);
     if (!next) return;
     setCurrentChord(next);
     setOptions(buildOptions(next));
     setExplain("");
+    setFirstTry(true);                 // reset for next question
+    awaitingNextRef.current = false;  // unlock UI
   }
-
-  const canStart = useMemo(
-    () => selectedKeys.length && selectedDegrees.length && selectedInversions.length,
-    [selectedKeys, selectedDegrees, selectedInversions]
-  );
 
   const handleStart = () => {
     if (!canStart) return;
     setStarted(true);
     setProgress(0);
     setCorrect(0);
+    setExplain("");
+    setFirstTry(true);
+    awaitingNextRef.current = false;
     rollNext();
   };
-
-  // User picks an MCQ option
-  const handleAnswer = (label: string) => {
-    if (!currentChord) return;
-    const isCorrect = label === currentChord.label;
-
-    if (isCorrect) {
-      // 1) Explain
-      setExplain(`${currentChord.label} — ${currentChord.display.join(" – ")}`);
-
-      // 2) Audio (reveal only)
-      const urls = currentChord.display.map(audioUrlFromDisplay);
-      if (playMode === "block") playBlock(urls);
-      else playArpeggio(urls);
-
-      // 3) Flash keys on keyboard (green, 1s)
-      try {
-        currentChord.display.forEach((name) => kbRef.current?.highlight(name as any, "correct"));
-      } catch {}
-
-      // 4) Progress → next
-      setCorrect(c => Math.min(25, c + 1));
-      setProgress(p => {
-        const nextP = Math.min(25, p + 1);
-        if (nextP < 25) {
-          setTimeout(() => rollNext(), 900);
-        }
-        return nextP;
-      });
-    } else {
-      // Gentle nudge
-      setExplain("Try again…");
-    }
-  };
-
-  const sessionDone = progress >= 25;
 
   const handleRestart = () => {
     setProgress(0);
     setCorrect(0);
     setExplain("");
-    // keep selections; just start anew
+    setFirstTry(true);
+    awaitingNextRef.current = false;
     rollNext();
   };
+
+  const sessionDone = progress >= 25;
+
+  /* Answer handler — FIRST-TRY scoring rule */
+  const handleAnswer = (label: string) => {
+    if (!currentChord || awaitingNextRef.current || sessionDone) return;
+
+    const isCorrect = label === currentChord.label;
+
+    if (isCorrect) {
+      // Explain + reveal audio
+      setExplain(`${currentChord.label} — ${currentChord.display.join(" – ")}`);
+      const urls = currentChord.display.map(audioUrlFromDisplay);
+      if (playMode === "block") playBlock(urls);
+      else playArpeggio(urls);
+
+      // Highlight keys for 1s
+      try {
+        currentChord.display.forEach(n => kbRef.current?.highlight(n as any, "correct"));
+      } catch {}
+
+      // Score: progress always +1; correct only if firstTry
+      if (firstTry) setCorrect(c => Math.min(25, c + 1));
+      awaitingNextRef.current = true;
+
+      setProgress(p => {
+        const nextP = Math.min(25, p + 1);
+        if (nextP < 25) {
+          setTimeout(() => rollNext(), 900);
+        } else {
+          awaitingNextRef.current = false;
+        }
+        return nextP;
+      });
+    } else {
+      // Wrong → no counter changes; allow retry
+      setFirstTry(false);
+      setExplain("Try again…");
+    }
+  };
+
+  /* ------- Picker helpers ------- */
+  const toggleArr = <T,>(all: T[], selected: T[], v: boolean) =>
+    v ? Array.from(new Set([...selected, ...all])) : [];
+
+  const toggleOne = <T,>(selected: T[], value: T, v: boolean) =>
+    v ? Array.from(new Set([...selected, value])) : selected.filter(x => x !== value);
+
+  const keyChecked = (k: MajorKey) => selectedKeys.includes(k);
+  const degChecked = (d: RomanDegree) => selectedDegrees.includes(d);
+  const invChecked = (i: Inversion) => selectedInversions.includes(i);
 
   return (
     <>
@@ -235,13 +235,12 @@ export default function ChordsRecognitionPage() {
               <h1>Chords — Name That Triad</h1>
               <Link href="/" className="title-home">HOME</Link>
             </div>
-            <p>Choose key(s), degrees, and inversions, press <strong>Start</strong>, then pick the correct answer. We’ll reveal the chord on the keyboard and play it.</p>
+            <p>Pick a key, degrees, inversions — press <b>Start</b>. Identify the chord from 3 choices, then see & hear it highlighted.</p>
           </div>
 
-          {/* Main card: stats • stave • picker (or MCQ) */}
           <div className="child">
             <div className="stats-bar">
-              {/* LEFT: progress */}
+              {/* LEFT: Progress/Correct + Start/Restart */}
               <div className="stats-left">
                 <div className="stats-box">
                   <div>Progress</div>
@@ -257,11 +256,12 @@ export default function ChordsRecognitionPage() {
                     className="start-btn"
                     onClick={handleStart}
                     disabled={!canStart}
-                    title={canStart ? "Start session" : "Select key(s), degrees and inversions"}
+                    title={canStart ? "Start session" : "Choose at least one in each group"}
                   >
                     Start
                   </button>
                 )}
+
                 {sessionDone && started && (
                   <button className="restart-btn" onClick={handleRestart}>
                     Restart Session
@@ -269,114 +269,100 @@ export default function ChordsRecognitionPage() {
                 )}
               </div>
 
-              {/* CENTER: Stave with the current triad */}
+              {/* CENTER: Grand staff + MCQ */}
               <div className="stave-center">
-                <div className="stave-narrow">
-                  <GrandStaveVF
-                    // triad: array of note names (e.g., ["F#3","A3","C#4"])
-                    triadNotes={currentChord ? currentChord.display : null}
-                  />
+                <div>
+                  <div className="stave-narrow">
+                    <GrandStaveVF
+                      triadNotes={currentChord ? currentChord.display : null}
+                    />
+                  </div>
+
+                  <div className="mcq" aria-label="Multiple choice answers">
+                    {options.map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => handleAnswer(opt)}
+                        disabled={!started || sessionDone || awaitingNextRef.current}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="explain">{explain}</div>
                 </div>
               </div>
 
-              {/* RIGHT: Picker (collapses after Start) OR MCQ choices */}
-              {!started ? (
-                <div className="picker-box" role="region" aria-label="Chord Setup">
+              {/* RIGHT: Picker — collapses after Start */}
+              {!started && (
+                <div className="picker-box">
                   <div className="picker-title">Setup</div>
 
-                  <div className="picker-group">
-                    <strong>Key (major)</strong>
-                    <div className="picker-row" role="group" aria-label="Keys">
-                      {ALL_KEYS.map(k => (
-                        <label key={k}>
-                          <input
-                            type="checkbox"
-                            checked={selectedKeys.includes(k)}
-                            onChange={(e) =>
-                              setSelectedKeys(prev =>
-                                e.target.checked ? [...prev, k] : prev.filter(x => x !== k)
-                              )
-                            }
-                          />
-                          <span>{k}</span>
-                        </label>
-                      ))}
-                    </div>
+                  <div className="picker-actions" aria-label="Play mode">
+                    <button
+                      onClick={() => setPlayMode("block")}
+                      disabled={playMode === "block"}
+                      title="Play together"
+                    >Block</button>
+                    <button
+                      onClick={() => setPlayMode("arp")}
+                      disabled={playMode === "arp"}
+                      title="Play as arpeggio"
+                    >Arpeggio</button>
                   </div>
 
-                  <div className="picker-group">
-                    <strong>Degrees</strong>
-                    <div className="picker-row" role="group" aria-label="Degrees">
-                      {ALL_DEGREES.map(d => (
-                        <label key={d}>
-                          <input
-                            type="checkbox"
-                            checked={selectedDegrees.includes(d)}
-                            onChange={(e) =>
-                              setSelectedDegrees(prev =>
-                                e.target.checked ? [...prev, d] : prev.filter(x => x !== d)
-                              )
-                            }
-                          />
-                          <span>{d}</span>
-                        </label>
-                      ))}
-                    </div>
+                  <div className="picker-title">Keys</div>
+                  <div className="picker-actions">
+                    <button onClick={() => setSelectedKeys(toggleArr(ALL_KEYS, selectedKeys, true))}>All</button>
+                    <button onClick={() => setSelectedKeys(toggleArr(ALL_KEYS, selectedKeys, false))}>Clear</button>
                   </div>
-
-                  <div className="picker-group">
-                    <strong>Inversions</strong>
-                    <div className="picker-row" role="group" aria-label="Inversions">
-                      {ALL_INVERSIONS.map(v => (
-                        <label key={v}>
-                          <input
-                            type="checkbox"
-                            checked={selectedInversions.includes(v)}
-                            onChange={(e) =>
-                              setSelectedInversions(prev =>
-                                e.target.checked ? [...prev, v] : prev.filter(x => x !== v)
-                              )
-                            }
-                          />
-                          <span>{v}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="picker-group">
-                    <strong>Playback</strong>
-                    <div className="picker-row" role="group" aria-label="Playback mode">
-                      <label>
+                  <div className="picker-list">
+                    {ALL_KEYS.map(k => (
+                      <label key={k} style={{ display:"flex", gap:6, alignItems:"center" }}>
                         <input
-                          type="radio"
-                          name="playmode"
-                          checked={playMode === "block"}
-                          onChange={() => setPlayMode("block")}
+                          type="checkbox"
+                          checked={keyChecked(k)}
+                          onChange={e => setSelectedKeys(toggleOne(selectedKeys, k, e.target.checked))}
                         />
-                        <span>Block</span>
+                        <span>{k} major</span>
                       </label>
-                      <label>
-                        <input
-                          type="radio"
-                          name="playmode"
-                          checked={playMode === "arpeggio"}
-                          onChange={() => setPlayMode("arpeggio")}
-                        />
-                        <span>Arpeggio</span>
-                      </label>
-                    </div>
+                    ))}
                   </div>
-                </div>
-              ) : (
-                <div className="picker-box" role="group" aria-label="Choices">
-                  <div className="picker-title">Choose the correct chord</div>
-                  <div className="mcq">
-                    {options.map(opt => (
-                      <button key={opt} onClick={() => handleAnswer(opt)} aria-label={`Answer ${opt}`}>
-                        {opt}
-                      </button>
+
+                  <div className="picker-title">Degrees</div>
+                  <div className="picker-actions">
+                    <button onClick={() => setSelectedDegrees(toggleArr(ALL_DEGREES, selectedDegrees, true))}>All</button>
+                    <button onClick={() => setSelectedDegrees(toggleArr(ALL_DEGREES, selectedDegrees, false))}>Clear</button>
+                  </div>
+                  <div className="picker-list">
+                    {ALL_DEGREES.map(d => (
+                      <label key={d} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input
+                          type="checkbox"
+                          checked={degChecked(d)}
+                          onChange={e => setSelectedDegrees(toggleOne(selectedDegrees, d, e.target.checked))}
+                        />
+                        <span>{d}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="picker-title">Inversions</div>
+                  <div className="picker-actions">
+                    <button onClick={() => setSelectedInversions(toggleArr(ALL_INVERSIONS, selectedInversions, true))}>All</button>
+                    <button onClick={() => setSelectedInversions(toggleArr(ALL_INVERSIONS, selectedInversions, false))}>Clear</button>
+                  </div>
+                  <div className="picker-list">
+                    {ALL_INVERSIONS.map(i => (
+                      <label key={i} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input
+                          type="checkbox"
+                          checked={invChecked(i)}
+                          onChange={e => setSelectedInversions(toggleOne(selectedInversions, i, e.target.checked))}
+                        />
+                        <span>{i === "root" ? "Root" : i === "1st" ? "1st inversion" : "2nd inversion"}</span>
+                      </label>
                     ))}
                   </div>
                 </div>
@@ -384,7 +370,7 @@ export default function ChordsRecognitionPage() {
             </div>
           </div>
 
-          {/* Keyboard (display-only; we flash keys green on correct reveal) */}
+          {/* Keyboard (for reveal highlight only) */}
           <div className="child">
             <div className="media">
               <ResponsiveKeyboardC2toC6
