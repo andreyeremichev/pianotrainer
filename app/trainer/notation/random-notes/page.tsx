@@ -148,7 +148,7 @@ const styles = `
 }
 .header { text-align: center; margin-bottom: 8px; }
 .header h1 { margin: 0 0 4px 0; }
-.header p { margin: 0; color: #444; }
+.header p { margin: 0; color: var(--site-muted); }
 .title-line { display: inline-flex; gap: 10px; align-items: baseline; }
 .title-home { font-size: 12px; text-decoration: underline; }
 
@@ -176,7 +176,7 @@ const styles = `
   display: flex; flex-direction: column; gap: 6px; align-items: stretch; background: #f3f3f3;
 }
 .mode-box .mode-title { text-align: center; font-weight: 600; }
-.mode-hint { font-size: 12px; color: #333; text-align: center; min-height: 1.2em; }
+.mode-hint { font-size: 12px; color: var(--site-muted); text-align: center; min-height: 1.2em; }
 
 .media { display: flex; align-items: center; justify-content: center; min-height: var(--keyboard-min-h); }
 .media > svg { width: 100%; height: 100%; display: block; }

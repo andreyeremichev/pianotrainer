@@ -87,7 +87,7 @@ export default function NotationHubPage() {
 
           header.hdr { margin: 6px 0 14px; }
           .hdr h1 { margin: 0 0 6px 0; font-size: 26px; letter-spacing: 0.2px; }
-          .hdr p { margin: 0; color: #444; font-size: 15px; }
+          .hdr p { margin: 0; color: var(--site-muted); font-size: 15px; }
 
           .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
           @media (min-width: 820px) {
@@ -113,7 +113,7 @@ export default function NotationHubPage() {
           .card-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
           .card-title { font-weight: 700; display: inline-flex; gap: 8px; align-items: baseline; }
-          .card-desc { display: block; font-size: 13px; color: #555; margin-top: 3px; }
+          .card-desc { display: block; font-size: 13px; color: var(--site-muted-2); margin-top: 3px; }
 
           .badge {
             border: 1px solid #ddd;
@@ -121,7 +121,7 @@ export default function NotationHubPage() {
             border-radius: 999px;
             font-size: 11px;
             line-height: 1.2;
-            color: #222;
+            color: var(--site-text);
             background: #f7f7f7;
           }
           .badge.new { border-color: #b2f2bb; background: #e9fbe9; }
