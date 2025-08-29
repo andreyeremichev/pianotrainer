@@ -222,7 +222,7 @@ export default function ChordsRecognitionPage() {
         rollNext();
         return p;
       });
-    }, 1000);
+    }, 2500);
   };
 
   const sessionDone = progress >= 25;
