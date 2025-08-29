@@ -1,7 +1,9 @@
-
 /* app/(site)/site.css
    Shared look for ALL non-trainer pages (Home, hubs, About, Contact, Privacy, …).
-   Trainer pages DO NOT import this file. */
+   Trainer pages DO NOT import this file.
+   Colors are driven by tokens defined in globals.css:
+   --text, --text-strong, --panel, --panel-border
+*/
 
 /* --- Canonical type & spacing (from Home) --- */
 :root {
@@ -30,7 +32,8 @@
   margin: 0 auto;
   padding: var(--pad-y) var(--pad-x);
   font-family: var(--site-font);
-  color: #111;
+  color: var(--text);                 /* ← tokenized for dark/light */
+  background: transparent;
 }
 
 /* Headings & text — match Home scale */
@@ -39,21 +42,23 @@
   line-height: var(--lh-tight);
   margin: 18px 0 10px;
   font-weight: 800;
-  letter-spacing: 0.2px; /* per Home hero */
+  letter-spacing: 0.2px;              /* per Home hero */
+  color: var(--text-strong);          /* ← stronger contrast */
 }
 
 .site-shell .page h2 {
   font-size: var(--h2);
   line-height: var(--lh-tight);
-  margin: 0 0 8px 0; /* per Home section h2 */
+  margin: 0 0 8px 0;                  /* per Home section h2 */
   font-weight: 700;
+  color: var(--text-strong);
 }
 
 .site-shell .page p,
 .site-shell .page li {
   font-size: var(--p);
   line-height: var(--lh-normal);
-  color: #222;
+  color: var(--text);                 /* ← tokenized */
 }
 
 /* Sections spacing (safe default) */
@@ -68,4 +73,26 @@
 .site-shell .page ol {
   padding-left: 1.2rem;
   margin: 0.5rem 0 1rem;
+}
+
+/* Optional utilities you can use inside (site) pages */
+.site-shell .page .panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.site-shell .page .divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 12px 0;
+}
+
+/* Roomier padding on medium+ screens (keeps Home feel) */
+@media (min-width: 768px) {
+  :root {
+    --pad-x: 20px;
+    --pad-y: 12px;
+  }
 }

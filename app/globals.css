@@ -1,6 +1,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Design tokens for content */
+  --text-strong: #111;     /* headings */
+  --text:        #222;     /* body text */
+  --text-muted:  #555;     /* descriptions */
+  --panel:       #ffffff;  /* cards / boxes */
+  --panel-border:#e5e5e5;  /* borders/dividers */
 }
 
 /* Keep the vertical scrollbar gutter reserved so it never
@@ -17,7 +24,13 @@ html, body {
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
-    --foreground: #ededed;
+    --foreground: #eaeaea;
+
+    --text-strong: #f3f4f6;
+    --text:        #e6e7eb;
+    --text-muted:  #cbd5e1;
+    --panel:       #111315;
+    --panel-border:#2a2f37;
   }
 }
 
@@ -28,7 +41,7 @@ body {
 }
 
 body {
-  color: var(--foreground);
+  color: var(--text);                /* ← use token instead of raw foreground */
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
