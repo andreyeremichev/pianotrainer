@@ -1,11 +1,8 @@
 :root {
-  /* LOCK LIGHT THEME */
+  /* Site-wide light theme tokens */
   --background: #ffffff;
   --foreground: #171717;
 }
-
-/* Tell browsers to render controls/text as LIGHT only */
-html { color-scheme: light; }
 
 /* Keep the vertical scrollbar gutter reserved so it never
    appears/disappears and nudges layout by 1–2px (causes shaking). */
@@ -14,6 +11,8 @@ html { scrollbar-gutter: stable both-edges; }
 /* Always allow vertical scroll without layout width changing */
 html, body { overflow-y: auto; }
 
+/* ✅ FORCE LIGHT: remove all @media (prefers-color-scheme: dark) blocks.
+   We keep a single, explicit light palette. */
 html, body {
   max-width: 100vw;
   overflow-x: hidden;
@@ -28,6 +27,5 @@ body {
 }
 
 * { box-sizing: border-box; padding: 0; margin: 0; }
-a { color: inherit; text-decoration: none; }
 
-/* IMPORTANT: remove any dark-mode overrides. Do NOT add prefers-color-scheme. */
+a { color: inherit; text-decoration: none; }
