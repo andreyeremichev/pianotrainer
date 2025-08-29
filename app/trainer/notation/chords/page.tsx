@@ -81,8 +81,19 @@ const styles = `
 .mcq button[disabled] { opacity: 0.6; cursor: default; }
 
 /* Row 2: keyboard full-width */
-.media { display: flex; align-items: center; justify-content: center; min-height: var(--keyboard-min-h); }
-.media > svg { width: 100%; height: 100%; display: block; }
+.media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* bump min-height so keys aren’t clipped */
+  min-height: 160px;   /* was var(--keyboard-min-h) or ~120px */
+}
+
+.media > svg {
+  width: 100%;
+  height: auto;        /* auto keeps proportions */
+  display: block;
+}
 
 /* Portrait blocker */
 .blocker { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
