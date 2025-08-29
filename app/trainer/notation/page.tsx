@@ -34,10 +34,11 @@ const items: Item[] = [
   },
   {
     label: "Chords",
-    badge: "Soon",
+    href: "/trainer/notation/chords",
+    badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
     desc:
-      "Simple stacked notes (triads first), shown as whole-note chord shapes. Learn how chords look across treble and bass clefs.",
+      "Simple stacked notes (triads first), shown as half-note chord shapes. Learn how chords look across treble and bass clefs.",
   },
   {
     label: "Intervals (Notation)",

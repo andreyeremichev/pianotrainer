@@ -34,8 +34,9 @@ const notationItems: Item[] = [
   },
   {
     label: "Chords",
+    href: "/trainer/notation/chords",
     desc: "Beginner chord stacks across treble and bass clefs.",
-    badge: "Soon",
+    badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
   },
   {
