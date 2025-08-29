@@ -100,6 +100,18 @@ const styles = `
   background: rgba(255,255,255,0.95); z-index: 5; text-align: center; padding: 24px; border-radius: var(--radius); }
 .blocker p { margin: 0; font-size: 16px; line-height: 1.4; }
 @media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
+
+/* --- iOS Safari: prevent 1px clipping of keyboard SVG in landscape --- */
+@supports (-webkit-touch-callout: none) {
+  .child--keys .media {
+    padding-bottom: 8px;     /* give the SVG a little breathing room */
+    overflow: visible;       /* don't clip the last pixel row */
+  }
+  .child--keys .media > svg,
+  .child--keys .media svg {
+    height: calc(100% - 2px); /* counter rounding at high DPR */
+  }
+}
 `;
 
 /* ======================= Audio helpers (reveal on correct) ======================= */
