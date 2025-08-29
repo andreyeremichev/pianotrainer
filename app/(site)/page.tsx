@@ -160,7 +160,7 @@ export default function HomePage() {
           gap: 8px;
           align-items: baseline;
         }
-        .item-desc { display: block; font-size: 13px; color: #555; margin-top: 2px; }
+          .item-desc { display: block; font-size: 13px; color: var(--site-muted-2); margin-top: 2px; }
 
         /* Badges */
         .badge {
@@ -169,7 +169,7 @@ export default function HomePage() {
           border-radius: 999px;
           font-size: 11px;
           line-height: 1.2;
-          color: #222;
+          color: var(--site-text);
           background: #f7f7f7;
         }
         .badge.new { border-color: #b2f2bb; background: #e9fbe9; }

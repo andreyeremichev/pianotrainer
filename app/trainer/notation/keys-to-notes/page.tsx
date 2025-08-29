@@ -97,7 +97,7 @@ const styles = `
 }
 .header { text-align: center; margin-bottom: 8px; }
 .header h1 { margin: 0 0 4px 0; }
-.header p { margin: 0; color: #444; }
+.header p { margin: 0; color: var(--site-muted); }
 .title-line { display: inline-flex; gap: 10px; align-items: baseline; }
 .title-home { font-size: 12px; text-decoration: underline; }
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: center; margin-bottom: 12px; }

@@ -3,25 +3,33 @@
    Shared look for ALL non-trainer pages (Home, hubs, About, Contact, Privacy, …).
    Trainer pages DO NOT import this file. */
 
-/* --- Canonical type & spacing (from Home) --- */
+/* ---- Tokens ---- */
 :root {
   --site-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter,
                Arial, "Noto Sans", "Liberation Sans", system-ui, sans-serif;
 
   /* Home-scale sizes */
-  --h1: 26px;   /* Home hero h1 */
-  --h2: 18px;   /* Home section h2 */
-  --p:  15px;   /* Home paragraph */
+  --h1: 26px;
+  --h2: 18px;
+  --p:  15px;
 
   --lh-tight: 1.2;
   --lh-normal: 1.55;
 
-  --page-max: 1100px;   /* Home was 1100px */
-  --pad-x: 16px;        /* Home used 16px all around */
+  --page-max: 1100px;
+  --pad-x: 16px;
   --pad-y: 16px;
 
   --section-gap: 20px;
+
+  /* light theme defaults (overridden in dark below) */
+  --site-text: #111;
+  --site-muted: #444;
+  --site-muted-2: #555;
+  --site-card-bg: #fff;
+  --site-card-border: #e5e5e5;
 }
+
 
 /* Every (site) page should render <main class="page">… */
 .site-shell .page {
@@ -30,7 +38,7 @@
   margin: 0 auto;
   padding: var(--pad-y) var(--pad-x);
   font-family: var(--site-font);
-  color: #111;
+  color: var(--site-text);
 }
 
 /* Headings & text — match Home scale */
@@ -39,13 +47,13 @@
   line-height: var(--lh-tight);
   margin: 18px 0 10px;
   font-weight: 800;
-  letter-spacing: 0.2px; /* per Home hero */
+  letter-spacing: 0.2px;
 }
 
 .site-shell .page h2 {
   font-size: var(--h2);
   line-height: var(--lh-tight);
-  margin: 0 0 8px 0; /* per Home section h2 */
+  margin: 0 0 8px 0;
   font-weight: 700;
 }
 
@@ -53,10 +61,16 @@
 .site-shell .page li {
   font-size: var(--p);
   line-height: var(--lh-normal);
-  color: #222;
+  color: var(--site-text);
 }
 
-/* Sections spacing (safe default) */
+.site-shell .page .muted,
+.site-shell .home .hero p,
+.site-shell .page .lead {
+  color: var(--site-muted);
+}
+
+/* Sections spacing */
 .site-shell .page section { margin: var(--section-gap) 0; }
 
 /* Links — match header/footer behavior */
@@ -68,4 +82,20 @@
 .site-shell .page ol {
   padding-left: 1.2rem;
   margin: 0.5rem 0 1rem;
+}
+
+/* ---- Home-specific tiny tweaks (dark aware) ---- */
+.site-shell .home { color: var(--site-text); }
+.site-shell .home .item-desc { color: var(--site-muted-2); }
+.site-shell .home .item-link {
+  background: var(--site-card-bg);
+  border: 1px solid var(--site-card-border);
+}
+.site-shell .home .item-link:hover,
+.site-shell .home .item-link:focus-visible {
+  background: color-mix(in oklab, var(--site-card-bg) 92%, #fff);
+  border-color: var(--site-card-border);
+}
+.site-shell .home .badge {
+  color: var(--site-text);
 }
