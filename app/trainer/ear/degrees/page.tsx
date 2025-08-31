@@ -134,15 +134,15 @@ const DRILL_SETS: Record<string, Drill[]> = {
     { compact:"1353171",pretty:"1 3 5 3 1 7 1" },
   ],
   "1 to 5 going down": [
-    { compact:"12313", pretty:"1 2 3 1 3" },
-    { compact:"32131", pretty:"3 2 1 3 1" },
-    { compact:"34535", pretty:"3 4 5 3 5" },
-    { compact:"54353", pretty:"5 4 3 5 3" },
-    { compact:"13131", pretty:"1 3 1 3 1" },
-    { compact:"35353", pretty:"3 5 3 5 3" },
-    { compact:"13531", pretty:"1 3 5 3 1" },
-    { compact:"53135", pretty:"5 3 1 3 5" },
-  ],
+  { compact:"17671",  pretty:"1 7 6 7 1" },
+  { compact:"17616",  pretty:"1 7 6 1 6" },
+  { compact:"16716",  pretty:"1 6 7 1 6" },
+  { compact:"16161",  pretty:"1 6 1 6 1" },
+  { compact:"17651",  pretty:"1 7 6 5 1" },
+  { compact:"17571",  pretty:"1 7 5 7 1" },
+  { compact:"15671",  pretty:"1 5 6 7 1" },
+  { compact:"16151",  pretty:"1 6 1 5 1" },
+],
   "Full Major Scale": [
     { compact:"1353171",  pretty:"1 3 5 3 1 7 1" },
     { compact:"12345671", pretty:"1 2 3 4 5 6 7 1" },
@@ -157,11 +157,11 @@ const DRILL_SETS: Record<string, Drill[]> = {
 
 const DRILL_HELPERS: Record<string, string> = {
   "1 Through 3": "8 drills with only three degrees. Listen, sing back, then type and check.",
-  "1 Through 5": "8 drills up to five degrees. Mixture of steps and small skips.",
-  "Outlining the 1 Chord": "8 drills arpeggiating the I chord shapes. Hear the chord tones.",
-  "SCALE DEGREE 7 AND TONICIZING A KEY": "8 drills anchoring the key with the leading tone (7) and tonic.",
-  "1 to 5 going down": "8 drills descending shapes built from 1–5.",
-  "Full Major Scale": "8 varied drills across the major scale. Ascents, descents, and tonic frames.",
+  "1 Through 5": "8 drills up to five degrees. Mixture of steps and small skips. Listen, sing back, then type and check.",
+  "Outlining the 1 Chord": "8 drills arpeggiating the I chord shapes. Hear the chord tones. Listen, sing back, then type and check.",
+  "SCALE DEGREE 7 AND TONICIZING A KEY": "8 drills anchoring the key with the leading tone (7) and tonic. Listen, sing back, then type and check.",
+  "1 to 5 going down": "8 drills descending shapes built from 1 down an Octave to 5. Listen, sing back, then type and check.",
+  "Full Major Scale": "8 varied drills across the major scale. Ascents, descents, and tonic frames. Listen, sing back, then type and check.",
 };
 
 /* ===========================
@@ -226,6 +226,9 @@ function buildDrillPlan(compact: string, tonicMidi: number, setName: string) {
     let semis = DEG_TO_SEMITONES[deg];
     if (semis === undefined) continue;
     if (setName === "SCALE DEGREE 7 AND TONICIZING A KEY" && deg === "7") semis -= 12;
+    // 1→5 going down: play every degree except "1" an octave below
+if (setName === "1 to 5 going down" && deg !== "1")
+  semis -= 12;
     const midi = tonicMidi + semis;
     events.push({ at: start + i * gap, deg, noteName: midiToNoteName(midi) });
     i++;
