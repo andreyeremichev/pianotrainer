@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 
 /* ===========================
@@ -459,31 +459,51 @@ export default function DegreesPage() {
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
   const [ariaReplay, setAriaReplay] = useState<string>("");
 
+  // --- iOS keyboard handling ---
+  const [kbdOpen, setKbdOpen] = useState(false);
+  useEffect(() => {
+    const vv = (window as any).visualViewport;
+    if (!vv) return;
+
+    const onResize = () => {
+      const threshold = 120; // px difference → treat as keyboard open
+      setKbdOpen(vv.height < window.innerHeight - threshold);
+    };
+
+    onResize();
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onResize);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onResize);
+    };
+  }, []);
+
   const inSession = collapsed && idx < 8;
   const sessionDone = collapsed && idx >= 8;
 
   const activeSetDegrees = useMemo(() => {
     const s = new Set<string>();
-    (DRILL_SETS[setName] ?? []).forEach(d => {
+    (DRILL_SETS[setName] ?? []).forEach((d) => {
       for (const ch of d.compact) if ("1234567".includes(ch)) s.add(ch);
     });
     return s;
   }, [setName]);
 
   async function playCurrent(index: number, animate = false) {
-  const d = queue[index] ?? (DRILL_SETS[setName] ?? [])[index];
-  if (!d) return;
-  const tonicMidi = TONIC4_MIDI[selectedKey];
+    const d = queue[index] ?? (DRILL_SETS[setName] ?? [])[index];
+    if (!d) return;
+    const tonicMidi = TONIC4_MIDI[selectedKey];
 
-  setDrillPlayed(false);
-  setAwaitingCheck(true);
+    setDrillPlayed(false);
+    setAwaitingCheck(true);
 
-  // if animate=false (initial plays & manual replays before CHECK): no dot pulses
-  // if animate=true  (auto-replay after CHECK): show dot pulses
-  await scheduleDrill(d.compact, tonicMidi, setName, true /* soundOn */, animate, setHighlighted);
+    // if animate=false (initial plays & manual replays before CHECK): no dot pulses
+    // if animate=true  (auto-replay after CHECK): show dot pulses
+    await scheduleDrill(d.compact, tonicMidi, setName, true /* soundOn */, animate, setHighlighted);
 
-  setDrillPlayed(true);
-}
+    setDrillPlayed(true);
+  }
 
   const onPressCenter = useCallback(async () => {
     const drills = DRILL_SETS[setName] ?? DRILL_SETS["1 Through 3"];
@@ -508,7 +528,10 @@ export default function DegreesPage() {
     // Next drill after CHECK
     if (checkedThisDrill) {
       const next = idx + 1;
-      if (next >= 8) { setIdx(next); return; }
+      if (next >= 8) {
+        setIdx(next);
+        return;
+      }
       setIdx(next);
       setAnswer("");
       setFeedback(null);
@@ -538,8 +561,18 @@ export default function DegreesPage() {
     setAwaitingCheck(false);
     setAnswer("");
 
+    // collapse iOS keyboard & restore viewport
+    try {
+      (document.activeElement as HTMLElement | null)?.blur();
+    } catch {}
+    setTimeout(() => {
+      if ("visualViewport" in window) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }, 50);
+
     // brief pause then replay with highlights
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 500));
     await playCurrent(idx, true);
   }, [inSession, awaitingCheck, queue, idx, answer, setName, selectedKey]);
 
@@ -578,7 +611,9 @@ export default function DegreesPage() {
         {/* Header */}
         <header style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "6px 0 14px" }}>
           <h1 style={{ margin: 0, fontSize: 26 }}>Degrees Trainer</h1>
-          <Link href="/" style={{ color: theme.blue, fontSize: 15 }}>Home</Link>
+          <Link href="/" style={{ color: theme.blue, fontSize: 15 }}>
+            Home
+          </Link>
         </header>
 
         {/* Options (collapsed on start; reopen when finished) */}
@@ -640,9 +675,7 @@ export default function DegreesPage() {
                   </button>
                 ))}
               </div>
-              <div style={{ marginTop: 8, color: theme.muted, fontSize: 13 }}>
-                {DRILL_HELPERS[setName]}
-              </div>
+              <div style={{ marginTop: 8, color: theme.muted, fontSize: 13 }}>{DRILL_HELPERS[setName]}</div>
             </div>
           </section>
         ) : null}
@@ -663,14 +696,28 @@ export default function DegreesPage() {
             border: `1px solid ${theme.border}`,
             borderRadius: 16,
             padding: 12,
+            // keep the answer area visible while the iOS keyboard is up
+            position: kbdOpen ? ("sticky" as const) : ("static" as const),
+            bottom: kbdOpen ? "calc(env(safe-area-inset-bottom, 0px))" : "auto",
+            zIndex: kbdOpen ? 20 : "auto",
           }}
         >
           {!sessionDone ? (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  marginBottom: 8,
+                }}
+              >
                 <div style={{ fontSize: 13, color: theme.muted }}>
                   {inSession ? (
-                    <>Drill {idx + 1} of 8 • Key: <strong>{selectedKey}</strong></>
+                    <>
+                      Drill {idx + 1} of 8 • Key: <strong>{selectedKey}</strong>
+                    </>
                   ) : (
                     "Press ▶ to start"
                   )}
@@ -680,7 +727,15 @@ export default function DegreesPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {/* Row → stacks to column when keyboard is open */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexDirection: kbdOpen ? ("column" as const) : ("row" as const),
+                }}
+              >
                 <input
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value.replace(/[^1-7]/g, ""))}
@@ -691,14 +746,17 @@ export default function DegreesPage() {
                   style={{
                     flex: 1,
                     minWidth: 0,
+                    width: kbdOpen ? "100%" : undefined, // full-width under keyboard
                     padding: "10px 12px",
                     borderRadius: 8,
                     background: "#0E1620",
                     color: theme.text,
                     border: `1px solid ${theme.border}`,
                     outline: "none",
+                    fontSize: 16, // prevent iOS zoom
                   }}
                 />
+
                 <button
                   onClick={onCheck}
                   disabled={!inSession || !drillPlayed || checkedThisDrill || answer.length === 0}
@@ -714,6 +772,7 @@ export default function DegreesPage() {
                       !inSession || !drillPlayed || checkedThisDrill || answer.length === 0
                         ? "not-allowed"
                         : "pointer",
+                    width: kbdOpen ? "100%" : "auto", // full-width button when stacked
                   }}
                 >
                   CHECK
@@ -730,8 +789,17 @@ export default function DegreesPage() {
               </div>
 
               {/* Screen-reader helper for replay */}
-              <div aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
-                {/* set in playCurrent when animate=true */}
+              <div
+                aria-live="polite"
+                style={{
+                  position: "absolute",
+                  width: 1,
+                  height: 1,
+                  overflow: "hidden",
+                  clip: "rect(0 0 0 0)",
+                }}
+              >
+                {ariaReplay}
               </div>
             </>
           ) : (
