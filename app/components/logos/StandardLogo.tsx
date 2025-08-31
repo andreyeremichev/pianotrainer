@@ -51,7 +51,7 @@ export default function StandardLogo({
   const BLACK_RX = 2;
 
   // Word styling
-  const WORD_FONT_SIZE = 30;
+  const WORD_FONT_SIZE = 60;
 
   // Visual left edge of triangle (stroke centered, so -stroke/2)
   const TRI_VISUAL_LEFT = TRI_LEFT_X - OUTLINE_STROKE / 2;
@@ -68,9 +68,9 @@ export default function StandardLogo({
 
   /* ===== VERTICAL WORD ===== */
   // Padding from bottom/top apex along the left edge
-  const GAP_WORD_V = 0.1; // equal padding at bottom and top
+  const GAP_WORD_V = 0.05; // equal padding at bottom and top
   // Horizontal spacing between the triangle side and the vertical word
-  const GAP_WORD_V_X = 12; // increase to push text further left (away from the triangle)
+  const GAP_WORD_V_X = 15; // increase to push text further left (away from the triangle)
   // Rotation center (move left by GAP_WORD_V_X to create side gap)
   const ROT_CX = APEX_LEFT_X - OUTLINE_STROKE / 2 - GAP_WORD_V_X;
   const ROT_CY = APEX_BOTTOM_Y;
@@ -98,7 +98,7 @@ export default function StandardLogo({
 
       <defs>
         <style>{`
-          .outline { fill: none; stroke: #111; stroke-width: ${OUTLINE_STROKE}; }
+          .outline { fill: none; stroke: #D4AF37; stroke-width: ${OUTLINE_STROKE}; }
           .word {
             font: 800 ${WORD_FONT_SIZE}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
               Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
@@ -136,7 +136,7 @@ export default function StandardLogo({
               width={WHITE_W}
               height={TRI_HEIGHT}
               fill="#fff"
-              stroke="#111"
+              stroke="#D4AF37"
               strokeWidth={1}
               vectorEffect="non-scaling-stroke"
             />
