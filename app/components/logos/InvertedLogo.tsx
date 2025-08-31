@@ -49,7 +49,7 @@ export default function InvertedLogo({
   const BLACK_RX = 2;
 
   // Word styling
-  const WORD_FONT_SIZE = 30;
+  const WORD_FONT_SIZE = 60;
 
   // Visual left edge (stroke centered)
   const TRI_VISUAL_LEFT = TRI_LEFT_X - OUTLINE_STROKE / 2;
@@ -64,8 +64,8 @@ export default function InvertedLogo({
   const WORD_BASELINE_Y_H = 230;
 
   /* ===== VERTICAL WORD ===== */
-  const GAP_WORD_V = 0.1;   // top/bottom padding along left edge
-  const GAP_WORD_V_X = 12; // horizontal spacing from triangle side
+  const GAP_WORD_V = 0.05;   // top/bottom padding along left edge
+  const GAP_WORD_V_X = 15; // horizontal spacing from triangle side
   const ROT_CX = APEX_LEFT_X - OUTLINE_STROKE / 2 - GAP_WORD_V_X;
   const ROT_CY = APEX_BOTTOM_Y;
   const WORD_X_V = ROT_CX;

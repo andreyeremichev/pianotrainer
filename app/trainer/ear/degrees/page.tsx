@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 
 /* ===========================
-   Dark theme tokens
+   Theme tokens
    =========================== */
 const theme = {
   bg: "#0B0F14",
@@ -16,19 +16,19 @@ const theme = {
   red: "#FF6B6B",
   blue: "#6FA8FF",
 };
-
 const INACTIVE_COLOR = "#8B94A7";
 
-/* Fixed unique colors for degrees */
+/* ===========================
+   Degree colors & order
+   =========================== */
 const DEGREE_COLORS: Record<string, string> = {
-  "1":  "#4DA3FF",
-  "2":  "#A6E22E",
-  "3":  "#FF4DA6",
-  "4":  "#FFD166",
-  "5":  "#9B59B6",
-  "6":  "#FF6B6B",
-  "7":  "#FF9F1C",
-
+  "1": "#4DA3FF",
+  "2": "#A6E22E",
+  "3": "#FF4DA6",
+  "4": "#FFD166",
+  "5": "#9B59B6",
+  "6": "#FF6B6B",
+  "7": "#FF9F1C",
   "♭2": "#2ECC71",
   "♭3": "#E67E22",
   "♭6": "#E84393",
@@ -36,10 +36,8 @@ const DEGREE_COLORS: Record<string, string> = {
   "♯4": "#F1C40F",
 };
 
-/* Perimeter order (top first, clockwise) */
 const DEGREE_ORDER = ["1","5","2","6","3","7","♯4","♭2","♭6","♭3","♭7","4"] as const;
 
-/* Helpers */
 const withAlpha = (hex: string, a: number) => {
   const h = hex.replace("#", "");
   const r = parseInt(h.slice(0, 2), 16);
@@ -49,7 +47,7 @@ const withAlpha = (hex: string, a: number) => {
 };
 
 /* ===========================
-   Music & audio helpers
+   Music helpers
    =========================== */
 const NOTE_ORDER = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"] as const;
 type NoteName = `${(typeof NOTE_ORDER)[number]}${number}`;
@@ -70,17 +68,6 @@ const DEG_TO_SEMITONES: Record<string, number> = {
   "1": 0, "2": 2, "3": 4, "4": 5, "5": 7, "6": 9, "7": 11,
 };
 
-function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)); }
-function playNoteFile(noteName: string, volume = 1.0) {
-  const safe = noteName.replace("#", "%23");
-  const a = new Audio(`/audio/notes/${safe}.wav`);
-  a.currentTime = 0;
-  a.volume = volume;
-  a.play().catch(() => {});
-  return a;
-}
-
-/* Keys */
 const MAJOR_KEYS = ["C","G","D","A","E","B","F#","C#","F","Bb","Eb","Ab","Db"] as const;
 type MajorKey = typeof MAJOR_KEYS[number];
 
@@ -101,7 +88,7 @@ const TONIC4_MIDI: Record<MajorKey, number> = {
 };
 
 /* ===========================
-   Drill sets (8 each)
+   Drill sets (8 drills each)
    =========================== */
 type Drill = { compact: string; pretty: string };
 
@@ -178,6 +165,121 @@ const DRILL_HELPERS: Record<string, string> = {
 };
 
 /* ===========================
+   Web Audio engine (sample-accurate)
+   =========================== */
+let _ctx: AudioContext | null = null;
+const _buffers = new Map<string, AudioBuffer>();
+
+function getCtx(): AudioContext {
+  if (!_ctx) {
+    // @ts-ignore
+    const AC = window.AudioContext || window.webkitAudioContext;
+    _ctx = new AC({ latencyHint: "interactive" });
+  }
+  return _ctx!;
+}
+
+async function unlockAudioCtx() {
+  const ctx = getCtx();
+  if (ctx.state === "suspended") {
+    try { await ctx.resume(); } catch {}
+  }
+}
+
+async function loadBuffer(noteName: string): Promise<AudioBuffer> {
+  const key = noteName;
+  if (_buffers.has(key)) return _buffers.get(key)!;
+  const safe = noteName.replace("#", "%23");
+  const res = await fetch(`/audio/notes/${safe}.wav`);
+  const arr = await res.arrayBuffer();
+  const buf = await getCtx().decodeAudioData(arr);
+  _buffers.set(key, buf);
+  return buf;
+}
+
+function playBufferAt(buf: AudioBuffer, when: number, durationSec = 0.9, gainDb = 0) {
+  const ctx = getCtx();
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+
+  const gain = ctx.createGain();
+  const g = Math.pow(10, gainDb / 20);
+  gain.gain.setValueAtTime(0, when);
+  gain.gain.linearRampToValueAtTime(g, when + 0.01);
+  gain.gain.setTargetAtTime(0, when + durationSec, 0.06);
+
+  src.connect(gain).connect(ctx.destination);
+  src.start(when);
+  src.stop(when + durationSec + 0.25);
+}
+
+type DrillEvent = { at: number; deg: string; noteName: string };
+
+function buildDrillPlan(compact: string, tonicMidi: number, setName: string) {
+  const ctx = getCtx();
+  const start = ctx.currentTime + 0.25; // 250 ms lead-in
+  const gap = 1.0; // 1000 ms
+  const events: DrillEvent[] = [];
+  let i = 0;
+  for (const ch of compact) {
+    const deg = String(ch);
+    let semis = DEG_TO_SEMITONES[deg];
+    if (semis === undefined) continue;
+    if (setName === "SCALE DEGREE 7 AND TONICIZING A KEY" && deg === "7") semis -= 12;
+    const midi = tonicMidi + semis;
+    events.push({ at: start + i * gap, deg, noteName: midiToNoteName(midi) });
+    i++;
+  }
+  return { events, lastAt: start + (i > 0 ? (i - 1) * gap : 0) };
+}
+
+async function scheduleDrill(
+  compact: string,
+  tonicMidi: number,
+  setName: string,
+  soundOn: boolean,
+  setHighlighted: (s: Set<string>) => void
+): Promise<void> {
+  const plan = buildDrillPlan(compact, tonicMidi, setName);
+  const bufs = await Promise.all(plan.events.map(e => loadBuffer(e.noteName)));
+
+  const ctx = getCtx();
+  plan.events.forEach((e, idx) => {
+    if (soundOn) playBufferAt(bufs[idx], e.at, 0.9, 0);
+  });
+
+  let i = 0;
+  let hideAt = 0;
+  let raf = 0;
+  const tick = () => {
+    const now = ctx.currentTime;
+    while (i < plan.events.length && now + 0.005 >= plan.events[i].at) {
+      setHighlighted(new Set([plan.events[i].deg]));
+      hideAt = plan.events[i].at + 0.70;
+      i++;
+    }
+    if (hideAt && now >= hideAt) {
+      setHighlighted(new Set());
+      hideAt = 0;
+    }
+    if (now <= plan.lastAt + 0.05 || i < plan.events.length || hideAt) {
+      raf = requestAnimationFrame(tick);
+    } else {
+      cancelAnimationFrame(raf);
+    }
+  };
+  raf = requestAnimationFrame(tick);
+
+  await new Promise<void>(res => {
+    const wait = () => {
+      if (ctx.currentTime >= plan.lastAt + 0.05) res();
+      else requestAnimationFrame(wait);
+    };
+    wait();
+  });
+}
+
+/* ===========================
    Icons
    =========================== */
 function PlayIcon({ size = 64 }: { size?: number }) {
@@ -209,7 +311,6 @@ function DegreeCircle({
   centerMode: "play" | "replay" | "disabled";
   onPressCenter: () => void;
 }) {
-  // side length is capped by card width, viewport width/height, and a hard limit
   const side = "min(100%, 78vw, 52dvh, 560px)";
 
   return (
@@ -225,13 +326,9 @@ function DegreeCircle({
         overflow: "visible",
       }}
     >
-      {/* Width-controlled wrapper */}
       <div style={{ width: side, maxWidth: "100%" }}>
-        {/* Square box: padding-top keeps a perfect 1:1 no matter what */}
         <div style={{ position: "relative", width: "100%", paddingTop: "100%" }}>
-          {/* Absolute layer: all circle content goes here */}
           <div style={{ position: "absolute", inset: 0 }}>
-            {/* Outer ring */}
             <div
               style={{
                 position: "absolute",
@@ -240,21 +337,17 @@ function DegreeCircle({
                 border: `2px solid ${theme.border}`,
               }}
             />
-
-            {/* Dots ON the ring + labels slightly inside */}
             {DEGREE_ORDER.map((deg, i) => {
               const angle = (i / DEGREE_ORDER.length) * Math.PI * 2 - Math.PI / 2;
 
-              // dot centers ON the ring (radius = 50%)
               const xDot = 50 + Math.cos(angle) * 50;
               const yDot = 50 + Math.sin(angle) * 50;
 
-              // labels a touch inside the ring
               const labelRadius = 50 * 0.86;
               const xLabel = 50 + Math.cos(angle) * labelRadius;
               const yLabel = 50 + Math.sin(angle) * labelRadius;
 
-              const isCore = ["1", "2", "3", "4", "5", "6", "7"].includes(deg);
+              const isCore = ["1","2","3","4","5","6","7"].includes(deg);
               const isActive = isCore && activeSetDegrees.has(deg);
               const baseColor = isActive ? (DEGREE_COLORS[deg] ?? INACTIVE_COLOR) : INACTIVE_COLOR;
 
@@ -265,7 +358,6 @@ function DegreeCircle({
 
               return (
                 <React.Fragment key={deg}>
-                  {/* colored dot ON ring */}
                   <span
                     style={{
                       position: "absolute",
@@ -281,7 +373,6 @@ function DegreeCircle({
                         "transform 120ms ease, box-shadow 120ms ease, background 120ms ease",
                     }}
                   />
-                  {/* neutral label aligned to the same angle */}
                   <span
                     style={{
                       position: "absolute",
@@ -301,7 +392,6 @@ function DegreeCircle({
               );
             })}
 
-            {/* Center icon-only button (no inner circle) */}
             <button
               onClick={onPressCenter}
               disabled={centerMode === "disabled"}
@@ -375,70 +465,50 @@ export default function DegreesPage() {
 
     if (animate) setAriaReplay(`Replaying: ${d.pretty}`);
 
-    for (const ch of d.compact) {
-      const deg = String(ch);
-      let semis = DEG_TO_SEMITONES[deg];
-      if (semis === undefined) continue;
-
-      // Special case: tonicizing mode → play 7 one octave below
-      if (setName === "SCALE DEGREE 7 AND TONICIZING A KEY" && deg === "7") {
-        semis -= 12;
-      }
-
-      const midi = tonicMidi + semis;
-      const name = midiToNoteName(midi);
-      playNoteFile(name, 1.0);
-
-      if (animate) {
-        setHighlighted(new Set([deg]));
-        await sleep(700);
-        setHighlighted(new Set());
-        await sleep(300);
-      } else {
-        await sleep(1000);
-      }
-    }
+    // sample-accurate schedule (audio + dot pulses)
+    await scheduleDrill(d.compact, tonicMidi, setName, true, setHighlighted);
 
     setDrillPlayed(true);
   }
 
-const onPressCenter = useCallback(async () => {
-  const drills = DRILL_SETS[setName] ?? DRILL_SETS["1 Through 3"];
+  const onPressCenter = useCallback(async () => {
+    const drills = DRILL_SETS[setName] ?? DRILL_SETS["1 Through 3"];
 
-  // A) Start new session if idle OR if previous session has finished
-  if (!inSession || sessionDone) {
-    setQueue(drills.slice());          // or shuffle if you prefer
-    setIdx(0);
-    setAnswer("");
-    setFeedback(null);
-    setScore({ total: 0, correct: 0 });
-    setCheckedThisDrill(false);
-    setAwaitingCheck(false);
-    setDrillPlayed(false);
-    setHighlighted(new Set());
-    setCollapsed(true);                // collapse options for the run
-    await playCurrent(0);
-    return;
-  }
+    // Start new run (idle or finished)
+    if (!inSession || sessionDone) {
+      await unlockAudioCtx();
+      setQueue(drills.slice()); // keep order; change to shuffle if desired
+      setIdx(0);
+      setAnswer("");
+      setFeedback(null);
+      setScore({ total: 0, correct: 0 });
+      setCheckedThisDrill(false);
+      setAwaitingCheck(false);
+      setDrillPlayed(false);
+      setHighlighted(new Set());
+      setCollapsed(true);
+      await playCurrent(0);
+      return;
+    }
 
-  // B) Advance to next drill after CHECK
-  if (checkedThisDrill) {
-    const next = idx + 1;
-    if (next >= 8) { setIdx(next); return; }
-    setIdx(next);
-    setAnswer("");
-    setFeedback(null);
-    setCheckedThisDrill(false);
-    setHighlighted(new Set());
-    await playCurrent(next);
-    return;
-  }
+    // Next drill after CHECK
+    if (checkedThisDrill) {
+      const next = idx + 1;
+      if (next >= 8) { setIdx(next); return; }
+      setIdx(next);
+      setAnswer("");
+      setFeedback(null);
+      setCheckedThisDrill(false);
+      setHighlighted(new Set());
+      await playCurrent(next);
+      return;
+    }
 
-  // C) Replay current drill while awaiting CHECK
-  if (awaitingCheck) {
-    await playCurrent(idx);
-  }
-}, [inSession, sessionDone, setName, idx, checkedThisDrill, awaitingCheck, selectedKey]);
+    // Replay during await-check
+    if (awaitingCheck) {
+      await playCurrent(idx);
+    }
+  }, [inSession, sessionDone, setName, idx, checkedThisDrill, awaitingCheck, selectedKey]);
 
   const onCheck = useCallback(async () => {
     if (!inSession || !awaitingCheck) return;
@@ -454,9 +524,10 @@ const onPressCenter = useCallback(async () => {
     setAwaitingCheck(false);
     setAnswer("");
 
-    await sleep(500);          // short pause to read feedback
-    await playCurrent(idx, true); // replay with dot animation
-  }, [inSession, awaitingCheck, queue, idx, answer, selectedKey, setName]);
+    // brief pause then replay with highlights
+    await new Promise(r => setTimeout(r, 500));
+    await playCurrent(idx, true);
+  }, [inSession, awaitingCheck, queue, idx, answer, setName, selectedKey]);
 
   const centerMode: "play" | "replay" | "disabled" = useMemo(() => {
     if (sessionDone) return "play";
@@ -473,7 +544,7 @@ const onPressCenter = useCallback(async () => {
         minHeight: "100vh",
         background: theme.bg,
         color: theme.text,
-        overflowX: "hidden", // prevent sideways scroll
+        overflowX: "hidden",
       }}
     >
       <main
@@ -485,7 +556,6 @@ const onPressCenter = useCallback(async () => {
           maxWidth: 480, // phones
         }}
       >
-        {/* widen column on iPad portrait and up */}
         <style>{`
           @media (min-width: 768px) { main { max-width: 620px !important; } }
           @media (min-width: 1024px){ main { max-width: 720px !important; } }
@@ -531,7 +601,7 @@ const onPressCenter = useCallback(async () => {
               </div>
             </div>
 
-            {/* Drill sets grid */}
+            {/* Drill sets */}
             <div>
               <div style={{ color: theme.muted, fontSize: 13, marginBottom: 6 }}>Degrees to test</div>
               <div style={{ display: "grid", gap: 6, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
@@ -606,7 +676,7 @@ const onPressCenter = useCallback(async () => {
                   disabled={!inSession || !drillPlayed || checkedThisDrill}
                   style={{
                     flex: 1,
-                    minWidth: 0, // prevents flex overflow
+                    minWidth: 0,
                     padding: "10px 12px",
                     borderRadius: 8,
                     background: "#0E1620",
@@ -647,7 +717,7 @@ const onPressCenter = useCallback(async () => {
 
               {/* Screen-reader helper for replay */}
               <div aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
-                {ariaReplay}
+                {/* set in playCurrent when animate=true */}
               </div>
             </>
           ) : (
