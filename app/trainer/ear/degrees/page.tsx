@@ -453,6 +453,7 @@ export default function DegreesPage() {
 
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<null | { ok: boolean; correct: string }>(null);
+  const [lastAnswer, setLastAnswer] = useState<string>("");
   const [score, setScore] = useState({ total: 0, correct: 0 });
 
   const [drillPlayed, setDrillPlayed] = useState(false);
@@ -562,7 +563,8 @@ export default function DegreesPage() {
     setScore((s) => ({ total: s.total + 1, correct: s.correct + (ok ? 1 : 0) }));
     setCheckedThisDrill(true);
     setAwaitingCheck(false);
-    setAnswer("");
+   setLastAnswer(answer);   // preserve typed answer for feedback
+setAnswer("");           // then clear input
 
     // collapse iOS keyboard & restore viewport
     try {
@@ -783,13 +785,23 @@ export default function DegreesPage() {
               </div>
 
               <div style={{ minHeight: 22, marginTop: 8 }}>
-                {feedback?.ok === true && <span style={{ color: theme.green }}>Correct</span>}
-                {feedback?.ok === false && (
-                  <span style={{ color: theme.red }}>
-                    Missed — correct: <code>{feedback.correct}</code>
-                  </span>
-                )}
-              </div>
+  {feedback?.ok === true && (
+    <span style={{ color: theme.green }}>
+      Correct: <code>{feedback.correct}</code>
+    </span>
+  )}
+
+  {feedback?.ok === false && (
+  <>
+    <span style={{ color: theme.muted, marginRight: 8 }}>
+      Missed (<code>{lastAnswer}</code>)
+    </span>
+    <span style={{ color: theme.green }}>
+      Correct: <code>{feedback.correct}</code>
+    </span>
+  </>
+)}
+</div>
 
               {/* Screen-reader helper for replay */}
               <div
