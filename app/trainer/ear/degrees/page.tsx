@@ -233,11 +233,13 @@ function buildDrillPlan(compact: string, tonicMidi: number, setName: string) {
   return { events, lastAt: start + (i > 0 ? (i - 1) * gap : 0) };
 }
 
+
 async function scheduleDrill(
   compact: string,
   tonicMidi: number,
   setName: string,
   soundOn: boolean,
+  animateDots: boolean,                    // ⬅️ NEW: control highlight pulses
   setHighlighted: (s: Set<string>) => void
 ): Promise<void> {
   const plan = buildDrillPlan(compact, tonicMidi, setName);
@@ -248,6 +250,19 @@ async function scheduleDrill(
     if (soundOn) playBufferAt(bufs[idx], e.at, 0.9, 0);
   });
 
+  // If we shouldn't animate, bail early after audio finishes
+  if (!animateDots) {
+    await new Promise<void>(res => {
+      const wait = () => {
+        if (ctx.currentTime >= plan.lastAt + 0.05) res();
+        else requestAnimationFrame(wait);
+      };
+      wait();
+    });
+    return;
+  }
+
+  // Animation loop tied to AudioContext time (only when animateDots = true)
   let i = 0;
   let hideAt = 0;
   let raf = 0;
@@ -255,7 +270,7 @@ async function scheduleDrill(
     const now = ctx.currentTime;
     while (i < plan.events.length && now + 0.005 >= plan.events[i].at) {
       setHighlighted(new Set([plan.events[i].deg]));
-      hideAt = plan.events[i].at + 0.70;
+      hideAt = plan.events[i].at + 0.70; // 700ms glow
       i++;
     }
     if (hideAt && now >= hideAt) {
@@ -456,20 +471,19 @@ export default function DegreesPage() {
   }, [setName]);
 
   async function playCurrent(index: number, animate = false) {
-    const d = queue[index] ?? (DRILL_SETS[setName] ?? [])[index];
-    if (!d) return;
-    const tonicMidi = TONIC4_MIDI[selectedKey];
+  const d = queue[index] ?? (DRILL_SETS[setName] ?? [])[index];
+  if (!d) return;
+  const tonicMidi = TONIC4_MIDI[selectedKey];
 
-    setDrillPlayed(false);
-    setAwaitingCheck(true);
+  setDrillPlayed(false);
+  setAwaitingCheck(true);
 
-    if (animate) setAriaReplay(`Replaying: ${d.pretty}`);
+  // if animate=false (initial plays & manual replays before CHECK): no dot pulses
+  // if animate=true  (auto-replay after CHECK): show dot pulses
+  await scheduleDrill(d.compact, tonicMidi, setName, true /* soundOn */, animate, setHighlighted);
 
-    // sample-accurate schedule (audio + dot pulses)
-    await scheduleDrill(d.compact, tonicMidi, setName, true, setHighlighted);
-
-    setDrillPlayed(true);
-  }
+  setDrillPlayed(true);
+}
 
   const onPressCenter = useCallback(async () => {
     const drills = DRILL_SETS[setName] ?? DRILL_SETS["1 Through 3"];
