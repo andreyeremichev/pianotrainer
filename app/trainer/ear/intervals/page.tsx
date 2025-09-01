@@ -593,11 +593,11 @@ last = choice;
       "All (m2–P8)";
     const range = `${octaves} octave${octaves>1?"s":""}`;
     return {
-      line1: `Key: ${selectedKey} (PU)`,
+      line1: `Root: ${selectedKey} (PU)`,
       line2: `Intervals: ${bucketLabel}`,
       line3: `Range: ${range}`,
       line4: `Direction: ${direction} • Playback: ${playback}`,
-      helper: `Press ▶ to start. Need help? Press 🎶 Play Cadence (1–3–5–1).`,
+      helper: `Press ▶ to start. Need help? Press 🎶 Play Cadence (PU-M3–P5–P8).`,
     };
   }, [selectedKey, bucket, octaves, direction, playback]);
 
