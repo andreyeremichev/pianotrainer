@@ -59,9 +59,16 @@ const earItems: Item[] = [
   },
   {
     label: "Intervals (Ear)",
-    // href: "/trainer/ear/intervals",
+    href: "/trainer/ear/intervals",
     desc: "Identify intervals by ear with simple references.",
-    badge: "Soon",
+    badge: "New",
+    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>👂</span>,
+  },
+  {
+    label: "Degrees(Ear)",
+    href: "/trainer/ear/degrees",
+    desc: "Hear a short context, then identify scale degrees by ear. Type your answer and check; after that, see an animated replay to lock it in.",
+    badge: "New",
     icon: <span aria-hidden="true" style={{ fontSize: 18 }}>👂</span>,
   },
   {
