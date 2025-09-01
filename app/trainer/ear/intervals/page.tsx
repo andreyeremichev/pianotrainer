@@ -66,10 +66,10 @@ const INTERVAL_SEMITONES: Record<IntervalName, number> = {
   m2: 1, M2: 2, m3: 3, M3: 4, P4: 5, TT: 6, P5: 7, m6: 8, M6: 9, m7: 10, M7: 11, P8: 12,
 };
 const BUCKETS = {
-  Steps: ["m2","M2","m3","M3"] as IntervalName[],
-  Mid:   ["P4","TT","P5","m6"] as IntervalName[],
-  Wide:  ["M6","m7","M7","P8"] as IntervalName[],
-  All:   INTERVALS as IntervalName[],
+  Steps: ["m2","M2","m3","M3"] as readonly IntervalName[],
+  Mid:   ["P4","TT","P5","m6"] as readonly IntervalName[],
+  Wide:  ["M6","m7","M7","P8"] as readonly IntervalName[],
+  All:   INTERVALS as readonly IntervalName[],
 } as const;
 type BucketKey = keyof typeof BUCKETS;
 
@@ -398,17 +398,20 @@ export default function IntervalsPage() {
     // cover each at least once where possible
     for (const p of pool) {
       if (q.length < 8) {
-        const pick = p === last && pool.length > 1 ? pool[(pool.indexOf(p)+1)%pool.length] : p;
-        q.push(pick);
-        last = pick;
+        const choice: IntervalName =
+  p === last && pool.length > 1
+    ? (pool[(pool.indexOf(p) + 1) % pool.length] as IntervalName)
+    : p;
+q.push(choice);
+last = choice;
       }
     }
     // fill remaining avoiding immediate repeats
     while (q.length < 8) {
       const opts = pool.filter(p => p !== last);
-      const pick = opts[Math.floor(Math.random()*opts.length)];
-      q.push(pick);
-      last = pick;
+      const choice: IntervalName = opts[Math.floor(Math.random() * opts.length)] as IntervalName;
+q.push(choice);
+last = choice;
     }
     return q;
   }, [bucket]);

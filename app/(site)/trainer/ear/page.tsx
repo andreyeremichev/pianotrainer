@@ -6,6 +6,8 @@ export const metadata = {
     "Develop your ear with beginner-friendly tools: degrees (piano-only), circle of fifths drone, interval recognition, and simple progressions. Free and browser-based.",
 };
 
+import Link from "next/link";
+
 export default function EarTrainerHubPage() {
   return (
     <main className="page" aria-labelledby="ear-hub-title">
