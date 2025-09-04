@@ -119,8 +119,8 @@ const StaveSVG = React.forwardRef<StaveSVGHandle, StaveSVGProps>(
       const make = (n: string, clef: "treble" | "bass") => {
         const info = parseNote(n) ?? { key: clef === "treble" ? "c/4" : "c/3", acc: null as string | null };
         const s = new StaveNote({ clef, keys: [info.key], duration });
-        if (info.acc) s.addAccidental(0, new Accidental(info.acc));
-        s.setStave(clef === "treble" ? treble : bass);
+if (info.acc) s.addModifier(new Accidental(info.acc), 0);
+s.setStave(clef === "treble" ? treble : bass);
         return s;
       };
 
@@ -128,10 +128,10 @@ const StaveSVG = React.forwardRef<StaveSVGHandle, StaveSVGProps>(
       const bassNotesArr   = (bassNotes?.length ? bassNotes   : ["C3"]).map(n => make(n, "bass"));
 
       // Voices (SOFT mode) → Format → apply optional X shifts → Draw
-      const tVoice = new Voice({ num_beats: 4, beat_value: 4 });
+      const tVoice = new Voice({ numBeats: 4, beatValue: 4 });
       tVoice.setMode(Voice.Mode.SOFT).addTickables(trebleNotesArr);
 
-      const bVoice = new Voice({ num_beats: 4, beat_value: 4 });
+      const bVoice = new Voice({ numBeats: 4, beatValue: 4 });
       bVoice.setMode(Voice.Mode.SOFT).addTickables(bassNotesArr);
 
       const formatWidth = Math.max(10, contentWidth - 10);
