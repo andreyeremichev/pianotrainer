@@ -18,7 +18,7 @@ export default function HowToReadMusicPage() {
             Music is written on a stave — five lines and four spaces. Pianists read two staves together:
             <strong> Treble Clef (G Clef)</strong> for the right hand and
             <strong> Bass Clef (F Clef)</strong> for the left hand. Instead of memorizing every note,
-            start with <strong>10 guide notes</strong> that anchor everything else. We will dive deeper into how to find these Guide notes in this section. Please, read it, it will help.
+            start with <strong>10 guide notes</strong> that anchor everything else. We will dive deeper into how to find these Guide notes in this section.
           </p>
 
           <div style={sx.actions}>
@@ -180,7 +180,7 @@ Do the same with your left hand: place the thumb on “Bottom G” and all finge
 
 {/* SECTION 8: Sharps & Flats (placeholder) */}
       <section aria-labelledby="accidentals" style={sx.section}>
-        <h2 id="accidentals" style={sx.h2}>Sharps &amp; Flats (Quick Recap)</h2>
+        <h2 id="accidentals" style={sx.h2}>Sharps &amp; Flats (Brief Introduction)</h2>
         <p style={sx.p}>
           A <strong>sharp (♯)</strong> raises a note one half step (to the right). A{" "}
           <strong>flat (♭)</strong> lowers a note one half step (to the left). Play any white key and then any black key to the left - see flat; play white key then any black key to the right - see sharp.
@@ -189,7 +189,7 @@ Do the same with your left hand: place the thumb on “Bottom G” and all finge
               ← Play Keys and see notes, including (♯) and (♭). 
             </Link>
             <p style={sx.p}>
-It's easier then you may think.
+It's easier than you may think.
             </p>
       </section>
 
