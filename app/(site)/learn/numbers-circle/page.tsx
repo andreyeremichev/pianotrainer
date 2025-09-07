@@ -190,13 +190,14 @@ function playBufferAtTracked(
    - 8 → "upper 1" (display node "1", but octave up for audio)
    - 9 → "upper 2" (display node "2", octave up for audio)
    ========================================= */
+
 type Step = {
   at: number;
   isPause: boolean;
-  // optional precomputed values (used by date/phone/custom)
+  // precomputed values (used by date/phone/custom paths)
   nodeIndex?: number;
   midi?: number;
-  // degree info (used by irrationals so we can recompute per-step key in Mixed)
+  // degree info (used by irrationals; we recompute midi/node per-step key)
   deg?: "1"|"2"|"3"|"4"|"5"|"6"|"7";
   octaveUp?: boolean;
 };
@@ -379,14 +380,10 @@ function sanitizeDigitsWithPauses(s: string): string[] {
   return s.split("").filter(ch => /[0-9\-]/.test(ch));
 }
   /* ---------- Build a sequence for the chosen section ---------- */
-  type Plan = { tones: { at:number; isPause:boolean; nodeIndex?:number; midi?:number }[]; lastAt: number };
+  type Plan = { tones: Step[]; lastAt: number };
 
   
 
-  function sanitizeDigitsWithPauses(s: string): string[] {
-    // Keep digits, treat '-' as pause marker; ignore spaces/parentheses etc.
-    return s.split("").filter(ch => /[0-9\-]/.test(ch));
-  }
 
 function planForIrrational(): Plan {
   const src = DIGITS[irr];
