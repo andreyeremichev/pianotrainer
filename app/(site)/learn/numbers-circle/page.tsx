@@ -466,6 +466,13 @@ function planForDate(): Plan {
 
   // mode
   params.set("mode", mixed ? "mixed" : "single");
+// encode frozen trails (last N nodes per color)
+if (nodesMajorRef.current.length > 1) {
+  params.set("trailMajor", nodesMajorRef.current.join(","));
+}
+if (nodesMinorRef.current.length > 1) {
+  params.set("trailMinor", nodesMinorRef.current.join(","));
+}
 
   if (section === "irrational") {
     params.set("constant", irr);
@@ -598,6 +605,39 @@ function formatPhoneInput(raw: string, region: "US"|"UK"): string {
     const n = searchParams.get("number");
     if (n) setCustomVal(n);
   }
+  // Pre-freeze trails if present in the URL (no audio)
+const tMaj = searchParams.get("trailMajor");
+const tMin = searchParams.get("trailMinor");
+if (tMaj || tMin) {
+  const newOverlays: OverlayTrail[] = [];
+
+  if (tMaj) {
+    const arr = tMaj.split(",").map(n => parseInt(n, 10)).filter(Number.isFinite);
+    nodesMajorRef.current = arr;
+    if (arr.length > 1) {
+      newOverlays.push({
+        id: "trail-major",
+        color: theme.gold,
+        path: pathFromNodes(arr),
+        expiresAt: Number.POSITIVE_INFINITY,
+      });
+    }
+  }
+  if (tMin) {
+    const arr = tMin.split(",").map(n => parseInt(n, 10)).filter(Number.isFinite);
+    nodesMinorRef.current = arr;
+    if (arr.length > 1) {
+      newOverlays.push({
+        id: "trail-minor",
+        color: theme.green, // or theme.teal if you preferred
+        path: pathFromNodes(arr),
+        expiresAt: Number.POSITIVE_INFINITY,
+      });
+    }
+  }
+
+  if (newOverlays.length) setOverlays(newOverlays);
+}
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
 
@@ -670,6 +710,13 @@ const appendTrail = useCallback((nodeIndex: number, keyForColor: KeyName) => {
   // Re-define start here to include appendTrail (override previous placeholder)
 const start = useCallback(async () => {
   clearAllTimeouts();
+  // Collapse iOS keyboard & restore viewport
+try { (document.activeElement as HTMLElement | null)?.blur(); } catch {}
+setTimeout(() => {
+  if ("visualViewport" in window) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}, 50);
   await unlockAudioCtx();
   // rotate the poster title each time Start is pressed
 setTitleIdx((i) => (i + 1) % TITLE_OPTIONS.length);
@@ -995,7 +1042,7 @@ if (i % dpcLen === 0) {
                 </select>
                 <input value={dateVal} onChange={e => setDateVal(formatDateInput(e.target.value, dateFmt))}
                   placeholder={dateFmt}
-                  style={{ flex:1, minWidth:0, background:"#0F1821", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:8, padding:"6px 8px" }} />
+                  style={{ flex:1, minWidth:0, background:"#0F1821", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:8, padding:"6px 8px", fontSize: 16 }} />
               </div>
               <div style={{ color: theme.muted, fontSize: 12, marginTop: 6 }}>Digits are played as degrees; “-” is a pause.</div>
             </div>
@@ -1011,7 +1058,7 @@ if (i % dpcLen === 0) {
                 </select>
                 <input value={phoneVal} onChange={e => setPhoneVal(formatPhoneInput(e.target.value, phoneRegion))}
                   placeholder={phoneRegion==="US"?"(555)-123-4567":"+44-7700-900123"}
-                  style={{ flex:1, minWidth:0, background:"#0F1821", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:8, padding:"6px 8px" }} />
+                  style={{ flex:1, minWidth:0, background:"#0F1821", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:8, padding:"6px 8px", fontSize: 16 }} />
               </div>
               <div style={{ color: theme.muted, fontSize: 12, marginTop: 6 }}>Digits are played as degrees; separators “-” are pauses.</div>
             </div>
@@ -1034,7 +1081,8 @@ if (i % dpcLen === 0) {
         color:theme.text,
         border:`1px solid ${theme.border}`,
         borderRadius:8,
-        padding:"6px 8px"
+        padding:"6px 8px",
+         fontSize: 16,
       }}
     />
   </div>
