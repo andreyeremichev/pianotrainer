@@ -308,9 +308,34 @@ export default function ChordsCirclePage() {
   const [qIndex, setQIndex] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [nowPlaying, setNowPlaying] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+
 
   const [overlays, setOverlays] = useState<OverlayShape[]>([]);
   const rafRef = useRef<number | null>(null);
+
+  // --- Rotating title + subtitle (3 options) ---
+const TITLE_OPTIONS = [
+  {
+    title: "Shapes of Harmony",
+    subtitle: "Watch major, minor, and seventh chords sketch bright triangles and squares on the circle of fifths.",
+  },
+  {
+    title: "Chord Constellations",
+    subtitle: "Every chord becomes a shape — like stars connected in the night sky, glowing for a moment before the next appears.",
+  },
+  {
+    title: "When Chords Draw",
+    subtitle: "Arpeggiated notes leave trails on the circle. Triads make triangles, sevenths make squares — each chord paints its own geometry.",
+  },
+] as const;
+
+const [titleIdx, setTitleIdx] = useState(0);
+
+// Pick a random title AFTER mount (avoid SSR hydration mismatches)
+useEffect(() => {
+  setTitleIdx(Math.floor(Math.random() * TITLE_OPTIONS.length));
+}, []);
 
   /* ---------- Live refs for timers ---------- */
   const isRunningRef = useRef(false);
@@ -452,13 +477,14 @@ export default function ChordsCirclePage() {
   }
 
   const onCopyLink = useCallback(async () => {
-    try {
-      const url = buildShareUrl();
-      await navigator.clipboard.writeText(url);
-    } catch (e) {
-      console.error("Copy link failed", e);
-    }
-  }, [startRoot, traversal, enabledTypes]);
+  try {
+    await navigator.clipboard.writeText(buildShareUrl());
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000); // hide after 2s
+  } catch (e) {
+    console.error("Copy link failed", e);
+  }
+}, [buildShareUrl]);
 
   const onDownloadPng = useCallback(async () => {
     try {
@@ -510,6 +536,8 @@ export default function ChordsCirclePage() {
   /* ---------- Start / Stop ---------- */
   const start = useCallback(async () => {
     clearAllTimeouts();
+    // Rotate poster title/subtitle on every Start
+setTitleIdx((i) => (i + 1) % TITLE_OPTIONS.length);
     await unlockAudioCtx();
     const q = buildQueue();
     setQueue(q);
@@ -650,10 +678,35 @@ addTimeout(async () => {
         `}</style>
 
         {/* Header */}
-        <header style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "6px 0 14px" }}>
-          <h1 style={{ margin: 0, fontSize: 26 }}>Circle of Fifths — Chords</h1>
-          <Link href="/" style={{ color: theme.blue, fontSize: 15 }}>Home</Link>
-        </header>
+        <header
+  style={{
+    textAlign: "center",
+    margin: "6px 0 16px",
+  }}
+>
+  <h1
+    style={{
+      margin: 0,
+      fontSize: 28,
+      lineHeight: 1.2,
+      letterSpacing: 0.2,
+      color: theme.text,
+    }}
+  >
+    {TITLE_OPTIONS[titleIdx].title}
+  </h1>
+  <p
+    style={{
+      margin: "6px auto 0",
+      maxWidth: 720,
+      color: theme.muted,
+      fontSize: 15,
+      lineHeight: 1.35,
+    }}
+  >
+    {TITLE_OPTIONS[titleIdx].subtitle}
+  </p>
+</header>
 
         {/* Options card */}
         <section
@@ -856,47 +909,59 @@ addTimeout(async () => {
 
             {/* Share controls (outside the SVG) */}
             <div
-              suppressHydrationWarning
-              style={{
-                marginTop: 10,
-                display: "flex",
-                gap: 10,
-                justifyContent: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                onClick={onCopyLink}
-                style={{
-                  background: "transparent",
-                  color: theme.text,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 999,
-                  padding: "8px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-                title="Copy link with current settings and last chord"
-              >
-                🔗 Copy Link
-              </button>
+  suppressHydrationWarning
+  style={{
+    marginTop: 10,
+    display: "flex",
+    gap: 10,
+    justifyContent: "center",
+    flexWrap: "wrap",
+    alignItems: "center",
+  }}
+>
+  {/* Copy Link highlighted as primary */}
+  <button
+    onClick={onCopyLink}
+    style={{
+      background: theme.blue,
+      color: "#081019",
+      border: "none",
+      borderRadius: 999,
+      padding: "8px 14px",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    🔗 Share Link
+  </button>
 
-              <button
-                onClick={onDownloadPng}
-                style={{
-                  background: theme.blue,
-                  color: "#081019",
-                  border: "none",
-                  borderRadius: 999,
-                  padding: "8px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-                title="Download a PNG snapshot of the current circle"
-              >
-                🖼️ Download PNG
-              </button>
-            </div>
+  {/* Confirmation text (2s) */}
+  {linkCopied && (
+    <span
+      role="status"
+      aria-live="polite"
+      style={{ color: theme.green, fontSize: 13, fontWeight: 600 }}
+    >
+      Link copied!
+    </span>
+  )}
+
+  {/* Download PNG as secondary */}
+  <button
+    onClick={onDownloadPng}
+    style={{
+      background: "transparent",
+      color: theme.text,
+      border: `1px solid ${theme.border}`,
+      borderRadius: 999,
+      padding: "8px 14px",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    🖼️ Download PNG
+  </button>
+</div>
           </div>
         </section>
       </main>
