@@ -255,7 +255,7 @@ const [keyName, setKeyName] = useState<KeyName>("BbMajor");
 const [section, setSection] = useState<Section>("irrational");
 // Mixed mode toggle (declare BEFORE JSX uses it)
 const [mixed, setMixed] = useState(false);
-
+const [linkCopied, setLinkCopied] = useState(false);
   {/* Mixed mode toggle */}
 <div style={{ marginTop: 8 }}>
   <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -495,9 +495,15 @@ if (nodesMinorRef.current.length > 1) {
   url.search = params.toString();
   return url.toString();
 }
-  const onCopyLink = useCallback(async ()=>{
-    try { await navigator.clipboard.writeText(buildShareUrl()); } catch(e){ console.error(e); }
-  },[keyName, section, irr, dateFmt, dateVal, phoneRegion, phoneVal, customVal]);
+  const onCopyLink = useCallback(async () => {
+  try {
+    await navigator.clipboard.writeText(buildShareUrl());
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000); // hide after 2s
+  } catch (e) {
+    console.error("Copy link failed", e);
+  }
+}, [buildShareUrl]);
 
   const onDownloadPng = useCallback(async ()=>{
     const svgEl = svgRef.current; if (!svgEl) return;
@@ -1141,17 +1147,57 @@ if (i % dpcLen === 0) {
             </svg>
 
             {/* Share row */}
-            <div suppressHydrationWarning
-              style={{ marginTop:10, display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap" }}>
-              <button onClick={onCopyLink}
-                style={{ background:"transparent", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:999, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}>
-                🔗 Share Link
-              </button>
-              <button onClick={onDownloadPng}
-                style={{ background: theme.blue, color:"#081019", border:"none", borderRadius:999, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}>
-                🖼️ Download PNG
-              </button>
-            </div>
+            
+            <div
+  suppressHydrationWarning
+  style={{
+    marginTop: 10,
+    display: "flex",
+    gap: 10,
+    justifyContent: "center",
+    flexWrap: "wrap",
+    alignItems: "center",
+  }}
+>
+  {/* Copy Link highlighted */}
+  <button
+    onClick={onCopyLink}
+    style={{
+      background: theme.blue,
+      color: "#081019",
+      border: "none",
+      borderRadius: 999,
+      padding: "8px 14px",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    🔗 Share Link
+  </button>
+
+  {/* Confirmation text */}
+  {linkCopied && (
+    <span style={{ color: theme.green, fontSize: 13, fontWeight: 600 }}>
+      Link copied!
+    </span>
+  )}
+
+  {/* Download PNG as secondary */}
+  <button
+    onClick={onDownloadPng}
+    style={{
+      background: "transparent",
+      color: theme.text,
+      border: `1px solid ${theme.border}`,
+      borderRadius: 999,
+      padding: "8px 14px",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    🖼️ Download PNG
+  </button>
+</div>
           </div>
         </section>
       </main>
