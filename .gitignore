@@ -3,3 +3,11 @@ node_modules/
 .out/
 .env*
 .DS_Store
+node_modules/
+.next/
+out/
+.vercel/
+dist/
+build/
+.DS_Store
+*.log
