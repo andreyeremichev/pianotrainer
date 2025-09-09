@@ -13,8 +13,8 @@ const theme = {
   border: "#1E2935",
   text: "#E6EBF2",
   muted: "#8B94A7",
-  blue: "#6FA8FF",
-  gold: "#F4C95D",
+  blue: "#EBCF7A",
+  gold: "#EBCF7A",
   green: "#69D58C",
   red: "#FF6B6B",
   purple: "#A78BFA",
@@ -87,10 +87,10 @@ const CHORD_OFFSETS: Record<ChordType, number[]> = {
 };
 
 const CHORD_COLOR: Record<ChordType, string> = {
-  Maj: theme.blue,
-  min: theme.green,
+  Maj: theme.gold,
+  min: theme.teal,
   dim: theme.red,
-  Maj7: theme.gold,
+  Maj7: theme.purple,
   Maj6: theme.rose,
   min7: theme.teal,
   min6: theme.lime,
@@ -719,20 +719,26 @@ addTimeout(async () => {
           }}
         >
           {/* Chord types */}
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ color: theme.muted, fontSize: 13, marginBottom: 6 }}>Chord types</div>
-            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-              {(Object.keys(CHORD_OFFSETS) as ChordType[]).map((t) => (
-                <label key={t} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={enabledTypes[t]}
-                    onChange={(e) => setEnabledTypes((prev) => ({ ...prev, [t]: e.target.checked }))}
-                  />
-                  <span style={{ color: theme.text, fontWeight: 700 }}>{t}</span>
-                </label>
-              ))}
-            </div>
+<div style={{ marginBottom: 12 }}>
+  {/* make native checkbox ticks gold */}
+  <style>{`
+    .gold-ticks input[type="checkbox"] {
+      accent-color: ${theme.gold};
+    }
+  `}</style>
+
+  <div className="gold-ticks" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+    {(Object.keys(CHORD_OFFSETS) as ChordType[]).map((t) => (
+      <label key={t} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={enabledTypes[t]}
+          onChange={(e) => setEnabledTypes((prev) => ({ ...prev, [t]: e.target.checked }))}
+        />
+        <span style={{ color: theme.text, fontWeight: 700 }}>{t}</span>
+      </label>
+    ))}
+  </div>
             <div style={{ marginTop: 8 }}>
               <button
                 onClick={clearAllChordTypes}
@@ -807,7 +813,7 @@ addTimeout(async () => {
               <button
                 onClick={start}
                 style={{
-                  background: theme.blue,
+                  background: theme.gold,
                   color: "#081019",
                   border: "none",
                   borderRadius: 999,
@@ -923,9 +929,9 @@ addTimeout(async () => {
   <button
     onClick={onCopyLink}
     style={{
-      background: theme.blue,
-      color: "#081019",
-      border: "none",
+      background: "transparent",
+  color: theme.gold,
+  border: "none",
       borderRadius: 999,
       padding: "8px 14px",
       fontWeight: 700,
@@ -946,21 +952,7 @@ addTimeout(async () => {
     </span>
   )}
 
-  {/* Download PNG as secondary */}
-  <button
-    onClick={onDownloadPng}
-    style={{
-      background: "transparent",
-      color: theme.text,
-      border: `1px solid ${theme.border}`,
-      borderRadius: 999,
-      padding: "8px 14px",
-      fontWeight: 700,
-      cursor: "pointer",
-    }}
-  >
-    🖼️ Download PNG
-  </button>
+
 </div>
           </div>
         </section>

@@ -13,7 +13,7 @@ const theme = {
   border: "#1E2935",
   text: "#E6EBF2",
   muted: "#8B94A7",
-  blue: "#6FA8FF",
+  blue: "#EBCF7A",
   gold: "#F4C95D",
   green: "#69D58C",
   red: "#FF6B6B",
@@ -1025,6 +1025,11 @@ if (i % dpcLen === 0) {
               </div>
               <div style={{ color: theme.muted, fontSize: 12, marginTop: 6 }}>Digits are played as degrees, 0 is a pause.</div>
             <div style={{ marginTop: 8 }}>
+  <style>{`
+  input[type="checkbox"] {
+    accent-color: ${theme.gold};
+  }
+`}</style>
   <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
     <input
       type="checkbox"
@@ -1182,21 +1187,7 @@ if (i % dpcLen === 0) {
     </span>
   )}
 
-  {/* Download PNG as secondary */}
-  <button
-    onClick={onDownloadPng}
-    style={{
-      background: "transparent",
-      color: theme.text,
-      border: `1px solid ${theme.border}`,
-      borderRadius: 999,
-      padding: "8px 14px",
-      fontWeight: 700,
-      cursor: "pointer",
-    }}
-  >
-    🖼️ Download PNG
-  </button>
+  
 </div>
           </div>
         </section>
