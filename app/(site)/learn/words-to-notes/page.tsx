@@ -7,18 +7,18 @@ import React, {
   useRef,
   useState,
 } from "react";
+import * as Tone from "tone";
 import {
   Renderer,
   Stave,
   StaveNote,
   Formatter,
   Voice,
-  Accidental,
   StaveConnector,
 } from "vexflow";
 
 /* =========================================
-   Theme (inline, matches your existing style)
+   Theme (gold UI)
    ========================================= */
 const theme = {
   bg: "#0B0F14",
@@ -27,7 +27,7 @@ const theme = {
   text: "#E6EBF2",
   muted: "#8B94A7",
   blue: "#6FA8FF",
-  gold: "#EBCF7A",
+  gold: "#EBCF7A", // soft gold
   green: "#69D58C",
 };
 
@@ -59,42 +59,9 @@ function trimToMaxLetters(raw: string, maxLetters: number): string {
 }
 
 /* =========================================
-   Mapping helpers (letters → degrees → note names → MIDI)
+   Mapping helpers (A..Z → A2..A6+)
    ========================================= */
-type KeyName = "Aminor" | "BbMajor";
-
-// Letter (A–Z) -> degree 1..7 (mod 7). Spaces are ignored upstream.
-function letterToDegree(ch: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
-  const code = ch.toUpperCase().charCodeAt(0); // 'A'..'Z'
-  const idx = ((code - 65) % 7 + 7) % 7; // 0..6
-  return (idx + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-}
-
-// Option A octave plan (one pitch per degree) for A minor and B♭ major
-// A minor natural: A–B–C–D–E–F–G
-const AMINOR_DEG_TO_NOTE: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> = {
-  1: "A3",
-  2: "B3",
-  3: "C4",
-  4: "D4",
-  5: "E4",
-  6: "F4",
-  7: "G4",
-};
-// B♭ major: B♭–C–D–E♭–F–G–A
-const BBMAJ_DEG_TO_NOTE: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> = {
-  1: "Bb3",
-  2: "C4",
-  3: "D4",
-  4: "Eb4",
-  5: "F4",
-  6: "G4",
-  7: "A4",
-};
-
-function degreeToNoteName(deg: 1 | 2 | 3 | 4 | 5 | 6 | 7, key: KeyName): string {
-  return key === "Aminor" ? AMINOR_DEG_TO_NOTE[deg] : BBMAJ_DEG_TO_NOTE[deg];
-}
+type KeyName = "Aminor" | "Amajor";
 
 // Note name (C, C#, Db...) + octave → MIDI (C-1 = 0)
 function noteNameToMidi(n: string): number {
@@ -110,25 +77,77 @@ function noteNameToMidi(n: string): number {
   return (oct + 1) * 12 + pc;
 }
 
-// Convert "Bb3" / "C#4" / "A3" → { vfKey: "bb/3", acc: "b" } (or "c#/4","#" ; "a/3", undefined)
-function noteNameToVF(note: string): { vfKey: string; acc?: "#" | "b" } {
+// Convert "C#6" → { vfKey: "c#/6" }
+function noteNameToVF(note: string): { vfKey: string } {
   const m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(note);
   if (!m) throw new Error(`Bad note: ${note}`);
-  const letter = m[1].toLowerCase(); // a..g
+  const letter = m[1].toLowerCase();
   const acc = m[2] as "#" | "b" | "";
   const oct = parseInt(m[3], 10);
   const base = acc === "#" ? `${letter}#` : acc === "b" ? `${letter}b` : letter;
-  return { vfKey: `${base}/${oct}`, acc: acc || undefined };
+  return { vfKey: `${base}/${oct}` };
 }
 
-// Map the phrase (letters only) to a sequence: { letter, degree, note, midi }
+// A..Z → 0..25
+function alphaIndex(ch: string): number {
+  return ch.toUpperCase().charCodeAt(0) - 65; // A→0, Z→25
+}
+
+// Letter → degree 1..7 (mod 7)
+function letterToDegree(ch: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
+  const idx = alphaIndex(ch);
+  return ((idx % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+}
+
+// A minor / A major scale (pitch classes)
+const A_MINOR_SCALE: Array<"A" | "B" | "C" | "D" | "E" | "F" | "G"> = [
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+];
+const A_MAJOR_SCALE: Array<"A" | "B" | "C#" | "D" | "E" | "F#" | "G#"> = [
+  "A",
+  "B",
+  "C#",
+  "D",
+  "E",
+  "F#",
+  "G#",
+];
+
+function degreeToPitchClass(deg: 1 | 2 | 3 | 4 | 5 | 6 | 7, key: KeyName): string {
+  return key === "Aminor" ? A_MINOR_SCALE[deg - 1] : (A_MAJOR_SCALE[deg - 1] as string);
+}
+
+// C-boundary: C–G live in the *next* octave number
+function pitchClassToOct(pc: string, baseOct: number): number {
+  const ltr = pc[0]; // 'A'..'G'
+  return ltr === "C" || ltr === "D" || ltr === "E" || ltr === "F" || ltr === "G"
+    ? baseOct + 1
+    : baseOct;
+}
+
+// Letter → scientific note name (e.g., "C#6") using A2..A6+ ladder
+function letterToNoteName(ch: string, key: KeyName): string {
+  const idx = alphaIndex(ch); // 0..25
+  const deg = letterToDegree(ch);
+  const baseOct = 2 + Math.floor(idx / 7); // A..G→2, H..N→3, O..U→4, V..Z→5
+  const pc = degreeToPitchClass(deg, key);
+  const oct = pitchClassToOct(pc, baseOct);
+  return `${pc}${oct}`;
+}
+
+// Map phrase to note/midi list (letters-only, up to LANDSCAPE_MAX)
 function mapPhraseToNotes(phrase: string, key: KeyName) {
-  const letters = (phrase.match(/[A-Za-z]/g) || []).slice(0, LANDSCAPE_MAX); // letters only
+  const letters = (phrase.match(/[A-Za-z]/g) || []).slice(0, LANDSCAPE_MAX);
   return letters.map((ch) => {
-    const deg = letterToDegree(ch);
-    const note = degreeToNoteName(deg, key);
+    const note = letterToNoteName(ch, key);
     const midi = noteNameToMidi(note);
-    return { letter: ch.toUpperCase(), degree: deg, note, midi };
+    return { letter: ch.toUpperCase(), degree: letterToDegree(ch), note, midi };
   });
 }
 
@@ -139,12 +158,12 @@ const PORTRAIT_MAX = 20;
 const LANDSCAPE_MAX = 40;
 
 /* =========================================
-   Page Component
+   Component
    ========================================= */
-type Mapped = { note: string; clef: "treble" | "bass"; vfKey: string; acc?: "#" | "b" };
+type Mapped = { note: string; clef: "treble" | "bass"; vfKey: string; midi: number };
 
 export default function WordsToNotesPage() {
-  /* ---------- Rotating poster title/subtitle ---------- */
+  /* Poster header */
   const TITLE_OPTIONS = [
     {
       title: "When Words Sing",
@@ -167,11 +186,9 @@ export default function WordsToNotesPage() {
     setTitleIdx(Math.floor(Math.random() * TITLE_OPTIONS.length));
   }, []);
 
-  /* ---------- Key & phrase ---------- */
+  /* State */
   const [keyName, setKeyName] = useState<KeyName>("Aminor");
   const [phrase, setPhrase] = useState("");
-
-  /* ---------- Orientation (portrait/landscape) ---------- */
   const [isLandscape, setIsLandscape] = useState(false);
   useEffect(() => {
     const update = () => setIsLandscape(window.innerWidth > window.innerHeight);
@@ -184,22 +201,16 @@ export default function WordsToNotesPage() {
     };
   }, []);
 
-  /* ---------- Derived counts & validation ---------- */
   const lettersCount = useMemo(() => countLetters(phrase), [phrase]);
-
   const startDisabled =
     lettersCount === 0 ||
     lettersCount > LANDSCAPE_MAX ||
     (lettersCount > PORTRAIT_MAX && !isLandscape);
 
-  /* ---------- Share: Copy Link confirmation ---------- */
   const [linkCopied, setLinkCopied] = useState(false);
-
-  /* ---------- Frozen state & labels ---------- */
   const [isFrozen, setIsFrozen] = useState(false);
   const [labelsLine, setLabelsLine] = useState<string>("");
 
-  /* ---------- VexFlow host & mapped notes ---------- */
   const staveHostRef = useRef<HTMLDivElement | null>(null);
   const [mappedNotes, setMappedNotes] = useState<Mapped[]>([]);
   const [resizeTick, setResizeTick] = useState(0);
@@ -213,7 +224,354 @@ export default function WordsToNotesPage() {
     };
   }, []);
 
-  /* ---------- Build share URL ---------- */
+  /* ====== Tone.js audio (no Transport) ====== */
+  const [isPlaying, setIsPlaying] = useState(false);
+  const samplerRef = useRef<Tone.Sampler | null>(null);
+  const timeoutsRef = useRef<number[]>([]);
+  const isPlayingRef = useRef(false);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+  const noteDurSec = 0.6;
+
+  function clearAllTimers() {
+    for (const id of timeoutsRef.current) clearTimeout(id);
+    timeoutsRef.current = [];
+  }
+
+  async function createSamplerForNotes(noteNames: string[]) {
+    if (samplerRef.current) {
+      try {
+        samplerRef.current.dispose();
+      } catch {}
+      samplerRef.current = null;
+    }
+    const urls: Record<string, string> = {};
+    for (const name of new Set(noteNames)) {
+      urls[name] = `${name.replace("#", "%23")}.wav`;
+    }
+    samplerRef.current = new Tone.Sampler({
+      urls,
+      baseUrl: "/audio/notes/",
+    }).toDestination();
+    await Tone.loaded();
+  }
+
+  function triggerNow(noteName: string) {
+    const s = samplerRef.current;
+    if (!s) return;
+    try {
+      s.triggerAttackRelease(noteName, noteDurSec * 0.8);
+    } catch {}
+  }
+
+  /* ====== Download PNG (embed fonts, nest live svg) ====== */
+  function arrayBufferToBase64(buf: ArrayBuffer) {
+    let binary = "";
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.byteLength; i++)
+      binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+  async function fetchFontDataUrlOTF(path: string) {
+    const res = await fetch(path, { cache: "no-cache" });
+    if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const b64 = arrayBufferToBase64(buf);
+    return `url('data:font/opentype;base64,${b64}') format('opentype')`;
+  }
+  async function buildEmbeddedFontStyle() {
+    let bravura = "",
+      bravuraText = "";
+    try {
+      bravura = await fetchFontDataUrlOTF("/fonts/Bravura.otf");
+      bravuraText = await fetchFontDataUrlOTF("/fonts/BravuraText.otf");
+    } catch (e) {
+      console.warn("Font embedding failed; PNG may show boxes:", e);
+    }
+    return `
+      @font-face { font-family: 'Bravura';     src: ${bravura || "local('Bravura')"};     font-weight: normal; font-style: normal; font-display: swap; }
+      @font-face { font-family: 'BravuraText'; src: ${bravuraText || "local('BravuraText')"}; font-weight: normal; font-style: normal; font-display: swap; }
+      svg, svg * { font-family: Bravura, BravuraText, serif !important; }
+    `.trim();
+  }
+
+  const onDownloadPng = useCallback(async () => {
+    try {
+      const host = staveHostRef.current;
+      if (!host) return;
+
+      const liveSvg = host.querySelector("svg") as SVGSVGElement | null;
+      if (!liveSvg) return;
+
+      const clone = liveSvg.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+      const panelW = Math.max(
+        320,
+        parseFloat(clone.getAttribute("width") || "520")
+      );
+      const panelH = Math.max(
+        180,
+        parseFloat(clone.getAttribute("height") || "260")
+      );
+      clone.setAttribute("width", String(panelW));
+      clone.setAttribute("height", String(panelH));
+
+      const cloneStr = new XMLSerializer()
+        .serializeToString(clone)
+        .replace("<svg", `<svg x="0" y="26"`);
+
+      const fontStyleCss = await buildEmbeddedFontStyle();
+
+      const MARGIN_TOP = 26;
+      const MARGIN_BOTTOM = 26;
+      const totalH = MARGIN_TOP + panelH + MARGIN_BOTTOM;
+
+      const esc = (s: string) =>
+        (s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      const phraseText = esc(phrase);
+      const labelsText = esc(labelsLine);
+
+      const svgExport = `
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="${panelW}" height="${totalH}" viewBox="0 0 ${panelW} ${totalH}">
+  <style>${fontStyleCss}</style>
+
+  <rect x="0" y="0" width="${panelW}" height="${totalH}" fill="${theme.bg}"/>
+  <rect x="0" y="${MARGIN_TOP}" width="${panelW}" height="${panelH}" fill="${theme.gold}" rx="10" ry="10"/>
+
+  <text x="${panelW / 2}" y="18" text-anchor="middle"
+        fill="${theme.gold}" font-size="14" font-weight="700"
+        font-family="Inter, -apple-system, system-ui, Segoe UI, Arial, sans-serif">
+    ${phraseText}
+  </text>
+
+  ${cloneStr}
+
+  <text x="${panelW / 2}" y="${MARGIN_TOP + panelH + 18}" text-anchor="middle"
+        fill="${theme.gold}" font-size="13.5"
+        font-family="Inter, -apple-system, system-ui, Segoe UI, Arial, sans-serif">
+    ${labelsText}
+  </text>
+</svg>`.trim();
+
+      const blob = new Blob([svgExport], {
+        type: "image/svg+xml;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = rej;
+        img.src = url;
+      });
+
+      const SCALE = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.floor(panelW * SCALE);
+      canvas.height = Math.floor(totalH * SCALE);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas 2D not available");
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob((png) => {
+        if (!png) return;
+        const a = document.createElement("a");
+        const shortPhrase = (phrase || "phrase")
+          .trim()
+          .replace(/\s+/g, "_")
+          .slice(0, 24);
+        a.download = `words-to-notes_${keyName}_${shortPhrase}.png`;
+        a.href = URL.createObjectURL(png);
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }, "image/png");
+    } catch (e) {
+      console.error("PNG export failed", e);
+    }
+  }, [phrase, labelsLine, keyName]);
+
+  /* ====== Start / Stop (no Transport) ====== */
+  const start = useCallback(async () => {
+    if (isPlaying) return;
+
+    // collapse keyboard only if needed (portrait + keyboard)
+    try {
+      (document.activeElement as HTMLElement | null)?.blur();
+    } catch {}
+    setTimeout(() => {
+      const vv = (window as any).visualViewport;
+      const keyboardLikelyOpen = vv && (window.innerHeight - vv.height) > 120;
+      const isPortrait = window.innerHeight >= window.innerWidth;
+      if (keyboardLikelyOpen && isPortrait) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }, 50);
+
+    // rotate poster title
+    setTitleIdx((i) => (i + 1) % TITLE_OPTIONS.length);
+
+    // map phrase -> notes
+    const mapping = mapPhraseToNotes(phrase, keyName);
+    console.table(mapping);
+
+    const labels = mapping.map((x) =>
+      x.note.replace("b", "♭").replace("#", "♯")
+    );
+    setLabelsLine(labels.join(" – "));
+
+    // clef-split + keep midi
+    const mapped: Mapped[] = mapping.map((x) => {
+      const { vfKey } = noteNameToVF(x.note);
+      const oct = parseInt(vfKey.split("/")[1], 10);
+      const clef: "treble" | "bass" = oct >= 4 ? "treble" : "bass";
+      return { note: x.note, vfKey, clef, midi: x.midi };
+    });
+    setMappedNotes(mapped);
+    setIsFrozen(true);
+
+    // audio
+    await Tone.start();
+    await createSamplerForNotes(mapped.map((n) => n.note));
+
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    clearAllTimers();
+
+    mapped.forEach((n, idx) => {
+      const id = window.setTimeout(() => {
+        if (!isPlayingRef.current) return;
+        triggerNow(n.note);
+      }, Math.round(idx * noteDurSec * 1000));
+      timeoutsRef.current.push(id);
+    });
+
+    const endId = window.setTimeout(() => {
+      if (isPlayingRef.current) stop();
+    }, Math.round(mapped.length * noteDurSec * 1000) + 50);
+    timeoutsRef.current.push(endId);
+  }, [isPlaying, phrase, keyName, TITLE_OPTIONS.length]);
+
+  const stop = useCallback(() => {
+    clearAllTimers();
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    // Keep sampler for reuse; uncomment to free memory:
+    // try { samplerRef.current?.dispose(); } catch {}
+    // samplerRef.current = null;
+  }, []);
+
+  /* ====== VexFlow render (fixed height, key sigs, stems) ====== */
+  useEffect(() => {
+    const host = staveHostRef.current;
+    if (!host) return;
+
+    host.innerHTML = "";
+
+    const renderer = new Renderer(host, Renderer.Backends.SVG);
+    const width = Math.max(320, host.clientWidth || 320);
+    const height = 260; // fixed panel height
+    renderer.resize(width, height);
+    const ctx = renderer.getContext();
+
+    const LEFT = 20;
+    const RIGHT_PAD = 28;
+    const innerWidth = width - LEFT - RIGHT_PAD;
+
+    // tighter inter-stave gap
+    const trebleY = 16;
+    const bassY = 120;
+
+    // key signature
+    const keySpec = keyName === "Amajor" ? "A" : "Am";
+
+    const treble = new Stave(LEFT, trebleY, innerWidth);
+    treble.addClef("treble").addKeySignature(keySpec);
+    treble.setContext(ctx).draw();
+
+    const bass = new Stave(LEFT, bassY, innerWidth);
+    bass.addClef("bass").addKeySignature(keySpec);
+    bass.setContext(ctx).draw();
+
+    // brace + connectors
+    const Type =
+      (StaveConnector as any).Type ?? (StaveConnector as any).type ?? {};
+    new (StaveConnector as any)(treble, bass)
+      .setType(Type.BRACE)
+      .setContext(ctx)
+      .draw();
+    new (StaveConnector as any)(treble, bass)
+      .setType(Type.SINGLE_LEFT)
+      .setContext(ctx)
+      .draw();
+    new (StaveConnector as any)(treble, bass)
+      .setType(Type.SINGLE_RIGHT)
+      .setContext(ctx)
+      .draw();
+
+    if (!mappedNotes.length) return;
+
+    // stem direction rule: below middle line → up; middle/above → down
+    const TREBLE_MIDDLE = noteNameToMidi("B4"); // 71
+    const BASS_MIDDLE = noteNameToMidi("D3"); // 50
+
+    const trebleData = mappedNotes.filter((n) => n.clef === "treble");
+    const bassData = mappedNotes.filter((n) => n.clef === "bass");
+
+    const trebleNotes = trebleData.map((n) => {
+      const stemDirection = n.midi < TREBLE_MIDDLE ? 1 : -1; // VexFlow 5: camelCase
+      return new StaveNote({
+        keys: [n.vfKey],
+        duration: "q",
+        clef: "treble",
+        stemDirection,
+      });
+    });
+
+    const bassNotes = bassData.map((n) => {
+      const stemDirection = n.midi < BASS_MIDDLE ? 1 : -1;
+      return new StaveNote({
+        keys: [n.vfKey],
+        duration: "q",
+        clef: "bass",
+        stemDirection,
+      });
+    });
+
+    if (trebleNotes.length) {
+      const vT = new Voice({
+        numBeats: Math.max(1, trebleNotes.length),
+        beatValue: 4,
+      }).setStrict(false);
+      vT.addTickables(trebleNotes);
+      const fT = new Formatter();
+      fT.joinVoices([vT]).formatToStave([vT], treble);
+      vT.draw(ctx, treble);
+    }
+
+    if (bassNotes.length) {
+      const vB = new Voice({
+        numBeats: Math.max(1, bassNotes.length),
+        beatValue: 4,
+      }).setStrict(false);
+      vB.addTickables(bassNotes);
+      const fB = new Formatter();
+      fB.joinVoices([vB]).formatToStave([vB], bass);
+      vB.draw(ctx, bass);
+    }
+  }, [mappedNotes, resizeTick, keyName]);
+
+  /* ====== Share URL ====== */
   const buildShareUrl = useCallback(() => {
     const params = new URLSearchParams();
     params.set("key", keyName);
@@ -236,136 +594,7 @@ export default function WordsToNotesPage() {
     }
   }, [buildShareUrl]);
 
-  /* ---------- Start/Stop ---------- */
-  const start = useCallback(async () => {
-   // collapse the keyboard if present
-try { (document.activeElement as HTMLElement | null)?.blur(); } catch {}
-
-// Only fix viewport when the keyboard has actually shrunk it (portrait)
-// This prevents the jump in landscape.
-setTimeout(() => {
-  const vv = (window as any).visualViewport;
-  const keyboardLikelyOpen = vv && (window.innerHeight - vv.height) > 120; // ~keyboard height
-  const isPortrait = window.innerHeight >= window.innerWidth;
-  if (keyboardLikelyOpen && isPortrait) {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-}, 50);
-
-    // rotate poster title each run
-    setTitleIdx((i) => (i + 1) % TITLE_OPTIONS.length);
-
-    // 1) Compute mapping (letters only, up to allowed cap)
-    const mapping = mapPhraseToNotes(phrase, keyName);
-
-    // 2) Console output for verification
-    console.table(mapping); // columns: letter, degree, note, midi
-
-    // 3) Labels line (note names joined with en dashes)
-    const labels = mapping.map((x) =>
-      x.note.replace("b", "♭").replace("#", "♯")
-    );
-    setLabelsLine(labels.join(" – "));
-
-    // 3.5) Build mapped notes for VexFlow: split treble/bass by octave
-    const mapped: Mapped[] = mapping.map((x) => {
-      const { vfKey, acc } = noteNameToVF(x.note);
-      // <= B3 → bass, >= C4 → treble
-      const oct = parseInt(vfKey.split("/")[1], 10);
-      const clef: "treble" | "bass" = oct >= 4 ? "treble" : "bass";
-      return { note: x.note, vfKey, acc, clef };
-    });
-    setMappedNotes(mapped);
-
-    // 4) Freeze for scaffold
-    setIsFrozen(true);
-  }, [phrase, keyName, TITLE_OPTIONS.length]);
-
-  const stop = useCallback(() => {
-    // (no audio yet)
-  }, []);
-
-  /* ---------- VexFlow render ---------- */
-  useEffect(() => {
-  const host = staveHostRef.current;
-  if (!host) return;
-
-  // Clear previous render
-  host.innerHTML = "";
-
-  // Create renderer (fit to container width; safe minimum)
-  const renderer = new Renderer(host, Renderer.Backends.SVG);
-  const width = Math.max(320, host.clientWidth || 320);
-  const height = 260;
-  renderer.resize(width, height);
-  const ctx = renderer.getContext();
-
-  // Layout
-  const LEFT = 20;
-  const RIGHT_PAD = 28;                 // extra breathing room at the right
-  const innerWidth = width - LEFT - RIGHT_PAD;
-  const trebleY = 20;
-  const bassY = 130;
-
-  // Staves (always draw them so the grand stave is visible before Start)
-  const treble = new Stave(LEFT, trebleY, innerWidth);
-  treble.addClef("treble");
-  treble.setContext(ctx).draw();
-
-  const bass = new Stave(LEFT, bassY, innerWidth);
-  bass.addClef("bass");
-  bass.setContext(ctx).draw();
-
-  // Brace + connectors (works for v3/v4 enum names)
-  const Type = (StaveConnector as any).Type ?? (StaveConnector as any).type ?? {};
-  new (StaveConnector as any)(treble, bass)
-    .setType(Type.BRACE)
-    .setContext(ctx)
-    .draw();
-  new (StaveConnector as any)(treble, bass)
-    .setType(Type.SINGLE_LEFT)
-    .setContext(ctx)
-    .draw();
-  new (StaveConnector as any)(treble, bass)
-    .setType(Type.SINGLE_RIGHT)
-    .setContext(ctx)
-    .draw();
-
-  // If there are no notes yet, stop here (empty grand stave is visible)
-  if (!mappedNotes.length) return;
-
-  // Prepare notes per clef
-  const trebleData = mappedNotes.filter((n) => n.clef === "treble");
-  const bassData   = mappedNotes.filter((n) => n.clef === "bass");
-
-  const trebleNotes = trebleData.map((n) => {
-    const sn = new StaveNote({ keys: [n.vfKey], duration: "q", clef: "treble" });
-    if (n.acc) sn.addModifier(new Accidental(n.acc), 0);
-    return sn;
-  });
-  const bassNotes = bassData.map((n) => {
-    const sn = new StaveNote({ keys: [n.vfKey], duration: "q", clef: "bass" });
-    if (n.acc) sn.addModifier(new Accidental(n.acc), 0);
-    return sn;
-  });
-
-  if (trebleNotes.length) {
-    const vT = new Voice({ numBeats: Math.max(1, trebleNotes.length), beatValue: 4 }).setStrict(false);
-    vT.addTickables(trebleNotes);
-    const fT = new Formatter();
-    fT.joinVoices([vT]).formatToStave([vT], treble);
-    vT.draw(ctx, treble);
-  }
-
-  if (bassNotes.length) {
-    const vB = new Voice({ numBeats: Math.max(1, bassNotes.length), beatValue: 4 }).setStrict(false);
-    vB.addTickables(bassNotes);
-    const fB = new Formatter();
-    fB.joinVoices([vB]).formatToStave([vB], bass);
-    vB.draw(ctx, bass);
-  }
-}, [mappedNotes, resizeTick]);      // ← include resizeTick
-
+  /* ====== Render ====== */
   return (
     <div
       style={{
@@ -387,6 +616,7 @@ setTimeout(() => {
         <style>{`
           @media (min-width: 768px) { main { max-width: 680px !important; } }
           @media (min-width: 1024px){ main { max-width: 760px !important; } }
+          @media (max-width: 420px) { .action-text { display: none; } }
         `}</style>
 
         {/* Poster header */}
@@ -414,246 +644,260 @@ setTimeout(() => {
             {TITLE_OPTIONS[titleIdx].subtitle}
           </p>
         </header>
-{/* --- Words → Notes: content-first unified section (tight) --- */}
-<section
-  style={{
-    background: theme.card,
-    border: `1px solid ${theme.border}`,
-    borderRadius: 16,
-    padding: 12,
-    display: "grid",
-    gap: 2, // tighter global rhythm
-  }}
->
-  {/* 1) Phrase input (gold) */}
-  <div style={{ marginBottom: 4 }}>
-    <style>{`
-      .phrase-input::placeholder { color: ${theme.gold}; opacity: 1; }
-      @media (max-width: 420px) { .action-text { display: none; } }
-    `}</style>
 
-    <input
-      className="phrase-input"
-      value={phrase}
-      onChange={(e) => {
-        const sanitized = sanitizePhraseInput(e.target.value);
-        const trimmed = trimToMaxLetters(sanitized, LANDSCAPE_MAX);
-        setPhrase(trimmed);
-      }}
-      placeholder="Type a short phrase (letters & spaces)"
-      inputMode="text"
-      style={{
-        width: "100%",
-        background: "#0F1821",
-        color: theme.gold,         // gold typed text
-        border: `1px solid ${theme.border}`,
-        borderRadius: 8,
-        padding: "12px 14px",      // slightly tighter than before
-        fontSize: 18,
-        lineHeight: 1.35,
-      }}
-    />
-
-    {/* counters */}
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
-      <span style={{ fontSize: 12, color: theme.muted }}>
-        Portrait: {Math.min(lettersCount, PORTRAIT_MAX)} / {PORTRAIT_MAX}
-        {lettersCount > PORTRAIT_MAX
-          ? " (over)"
-          : ` — ${Math.max(0, PORTRAIT_MAX - lettersCount)} left`}
-      </span>
-      <span style={{ fontSize: 12, color: theme.muted }}>
-        Landscape: {Math.min(lettersCount, LANDSCAPE_MAX)} / {LANDSCAPE_MAX}
-        {lettersCount > LANDSCAPE_MAX
-          ? " (over)"
-          : ` — ${Math.max(0, LANDSCAPE_MAX - lettersCount)} left`}
-      </span>
-    </div>
-
-    {/* rotate warning (blocks Play in portrait) */}
-    {lettersCount > PORTRAIT_MAX && !isLandscape && (
-      <div
-        style={{
-          background: "#fff7d1",
-          border: "1px solid #ffe066",
-          color: "#111",
-          fontSize: 13,
-          padding: "6px 10px",
-          borderRadius: 8,
-          marginTop: 6,
-        }}
-      >
-        ⚠️ Too many letters for portrait. Rotate your device to landscape to continue.
-      </div>
-    )}
-  </div>
-
-  {/* 2) Grand Stave (soft gold panel) */}
-  <div
-    style={{
-      background: theme.gold,    // high-contrast panel for black notation
-      borderRadius: 10,
-      padding: 10,
-    }}
-  >
-    <div
-      ref={staveHostRef}
-      className="stave-host"
-      style={{
-        width: "100%",
-        minHeight: 280,
-        display: "block",
-      }}
-    />
-  </div>
-
-  {/* 3) Labels line (gold) */}
-  {labelsLine && (
-    <div
-      style={{
-        marginTop: -2,
-        color: theme.gold,
-        fontSize: 13.5,          // slightly smaller so long lines wrap better
-        textAlign: "center",
-        wordWrap: "break-word",
-      }}
-    >
-      {labelsLine}
-    </div>
-  )}
-
-  {/* 4) Actions row: two columns */}
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 8,
-      alignItems: "center",
-    }}
-  >
-    {/* Left: Play / Stop (gold, strong) */}
-    <div style={{ display: "flex", justifyContent: "flex-start" }}>
-      <button
-        onClick={start}
-        disabled={startDisabled}
-        style={{
-          background: startDisabled ? "#1a2430" : theme.gold,
-          color: startDisabled ? theme.muted : "#081019",
-          border: "none",
-          borderRadius: 999,
-          padding: "10px 16px",
-          fontWeight: 700,
-          cursor: startDisabled ? "not-allowed" : "pointer",
-          fontSize: 16,
-          minHeight: 40,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-        aria-label="Play"
-        title="Play"
-      >
-        <span aria-hidden="true">▶</span>
-        <span className="action-text">Play</span>
-      </button>
-    </div>
-
-    {/* Right: Copy · Download (gold text, no border) */}
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "flex-end",
-        gap: 12,
-        alignItems: "center",
-      }}
-    >
-      <button
-        onClick={onCopyLink}
-        style={{
-          background: "transparent",
-          color: theme.gold,
-          border: "none",
-          borderRadius: 999,
-          padding: "6px 10px",
-          fontWeight: 700,
-          cursor: "pointer",
-          minHeight: 32,
-          fontSize: 14,
-        }}
-        title="Copy Link"
-      >
-        🔗 <span className="action-text">Copy Link</span>
-      </button>
-
-      {linkCopied && (
-        <span
-          role="status"
-          aria-live="polite"
-          style={{ color: theme.green, fontSize: 12, fontWeight: 600 }}
-        >
-          Link copied!
-        </span>
-      )}
-
-      <button
-        onClick={() => { /* TODO: PNG export */ }}
-        style={{
-          background: "transparent",
-          color: theme.gold,
-          border: "none",
-          borderRadius: 999,
-          padding: "6px 10px",
-          fontWeight: 700,
-          cursor: "pointer",
-          minHeight: 32,
-          fontSize: 14,
-        }}
-        title="Download PNG"
-      >
-        🖼️ <span className="action-text">Download PNG</span>
-      </button>
-    </div>
-  </div>
-
-  {/* 5) Key selection (subtle) */}
-  <div style={{ marginTop: 2 }}>
-    <div
-      style={{ color: theme.muted, fontSize: 12.5, marginBottom: 4, textAlign: "center" }}
-    >
-      Key
-    </div>
-    <div
-      style={{
-        display: "flex",
-        gap: 6,
-        flexWrap: "wrap",
-        justifyContent: "center",
-        maxWidth: 360,
-        margin: "0 auto",
-      }}
-    >
-      {(["Aminor", "BbMajor"] as KeyName[]).map((k) => (
-        <button
-          key={k}
-          onClick={() => setKeyName(k)}
+        {/* Unified section: Input → Stave → Labels → Actions → Key */}
+        <section
           style={{
-            background: "#0F1821",
-            color: keyName === k ? theme.gold : theme.muted,
-            border: `1px solid ${keyName === k ? theme.gold : theme.border}`,
-            borderRadius: 999,
-            padding: "6px 10px",
-            fontWeight: 700,
-            fontSize: 13,
+            background: theme.card,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 16,
+            padding: 12,
+            display: "grid",
+            gap: 6,
           }}
-          aria-pressed={keyName === k}
         >
-          {k === "Aminor" ? "A minor" : "B♭ major"}
-        </button>
-      ))}
-    </div>
-  </div>
-</section>
-              </main>
+          {/* 1) Phrase input */}
+          <div style={{ marginBottom: 4 }}>
+            <style>{`
+              .phrase-input::placeholder { color: ${theme.gold}; opacity: 1; }
+            `}</style>
+
+            <input
+              className="phrase-input"
+              value={phrase}
+              onChange={(e) => {
+                const sanitized = sanitizePhraseInput(e.target.value);
+                const trimmed = trimToMaxLetters(sanitized, LANDSCAPE_MAX);
+                setPhrase(trimmed);
+              }}
+              placeholder="Type a short phrase (letters & spaces)"
+              inputMode="text"
+              style={{
+                width: "100%",
+                background: "#0F1821",
+                color: theme.gold, // gold typed text
+                border: `1px solid ${theme.border}`,
+                borderRadius: 8,
+                padding: "12px 14px",
+                fontSize: 18,
+                lineHeight: 1.35,
+              }}
+            />
+
+            {/* counters */}
+            <div
+              style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}
+            >
+              <span style={{ fontSize: 12, color: theme.muted }}>
+                Portrait: {Math.min(lettersCount, PORTRAIT_MAX)} / {PORTRAIT_MAX}
+                {lettersCount > PORTRAIT_MAX
+                  ? " (over)"
+                  : ` — ${Math.max(0, PORTRAIT_MAX - lettersCount)} left`}
+              </span>
+              <span style={{ fontSize: 12, color: theme.muted }}>
+                Landscape: {Math.min(lettersCount, LANDSCAPE_MAX)} /{" "}
+                {LANDSCAPE_MAX}
+                {lettersCount > LANDSCAPE_MAX
+                  ? " (over)"
+                  : ` — ${Math.max(0, LANDSCAPE_MAX - lettersCount)} left`}
+              </span>
+            </div>
+
+            {/* rotate warning */}
+            {lettersCount > PORTRAIT_MAX && !isLandscape && (
+              <div
+                style={{
+                  background: "#fff7d1",
+                  border: "1px solid #ffe066",
+                  color: "#111",
+                  fontSize: 13,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  marginTop: 6,
+                }}
+              >
+                ⚠️ Too many letters for portrait. Rotate your device to landscape
+                to continue.
+              </div>
+            )}
+          </div>
+
+          {/* 2) Grand stave (soft gold panel) */}
+          <div
+            style={{
+              background: theme.gold,
+              borderRadius: 10,
+              paddingTop: 10,
+              paddingBottom: 0, // tight for landscape as you liked
+              paddingLeft: 10,
+              paddingRight: 10,
+            }}
+          >
+            <div
+              ref={staveHostRef}
+              className="stave-host"
+              style={{
+                width: "100%",
+                minHeight: 280,
+                display: "block",
+              }}
+            />
+          </div>
+
+          {/* 3) Labels line (gold) */}
+          {labelsLine && (
+            <div
+              style={{
+                marginTop: -2,
+                color: theme.gold,
+                fontSize: 13.5,
+                textAlign: "center",
+                wordWrap: "break-word",
+              }}
+            >
+              {labelsLine}
+            </div>
+          )}
+
+          {/* 4) Actions: two columns */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            {/* Left: Play / Stop toggle */}
+            <div style={{ display: "flex", justifyContent: "flex-start" }}>
+              <button
+                onClick={() => (isPlaying ? stop() : start())}
+                disabled={startDisabled}
+                style={{
+                  background: startDisabled ? "#1a2430" : theme.gold,
+                  color: startDisabled ? theme.muted : "#081019",
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "10px 16px",
+                  fontWeight: 700,
+                  cursor: startDisabled ? "not-allowed" : "pointer",
+                  fontSize: 16,
+                  minHeight: 40,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+                aria-label={isPlaying ? "Stop" : "Play"}
+                title={isPlaying ? "Stop" : "Play"}
+              >
+                <span aria-hidden="true">{isPlaying ? "⏹" : "▶"}</span>
+                <span className="action-text">{isPlaying ? "Stop" : "Play"}</span>
+              </button>
+            </div>
+
+            {/* Right: Copy / Download (gold text, no border) */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 12,
+                alignItems: "center",
+              }}
+            >
+              <button
+                onClick={onCopyLink}
+                style={{
+                  background: "transparent",
+                  color: theme.gold,
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  minHeight: 32,
+                  fontSize: 14,
+                }}
+                title="Copy Link"
+              >
+                🔗 <span className="action-text">Copy Link</span>
+              </button>
+
+              {linkCopied && (
+                <span
+                  role="status"
+                  aria-live="polite"
+                  style={{ color: theme.green, fontSize: 12, fontWeight: 600 }}
+                >
+                  Link copied!
+                </span>
+              )}
+
+              <button
+                onClick={onDownloadPng}
+                style={{
+                  background: "transparent",
+                  color: theme.gold,
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  minHeight: 32,
+                  fontSize: 14,
+                }}
+                title="Download PNG"
+              >
+                🖼️ <span className="action-text">Download PNG</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 5) Key (subtle) */}
+          <div style={{ marginTop: 2 }}>
+            <div
+              style={{
+                color: theme.muted,
+                fontSize: 12.5,
+                marginBottom: 4,
+                textAlign: "center",
+              }}
+            >
+              Key
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                flexWrap: "wrap",
+                justifyContent: "center",
+                maxWidth: 360,
+                margin: "0 auto",
+              }}
+            >
+              {(["Aminor", "Amajor"] as KeyName[]).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setKeyName(k)}
+                  style={{
+                    background: "#0F1821",
+                    color: keyName === k ? theme.gold : theme.muted,
+                    border: `1px solid ${
+                      keyName === k ? theme.gold : theme.border
+                    }`,
+                    borderRadius: 999,
+                    padding: "6px 10px",
+                    fontWeight: 700,
+                    fontSize: 13,
+                  }}
+                  aria-pressed={keyName === k}
+                >
+                  {k === "Aminor" ? "A minor" : "A major"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
