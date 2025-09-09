@@ -17,6 +17,8 @@ import {
   StaveConnector,
 } from "vexflow";
 
+import { useSearchParams } from "next/navigation";
+
 /* =========================================
    Theme (gold UI)
    ========================================= */
@@ -185,6 +187,47 @@ export default function WordsToNotesPage() {
   useEffect(() => {
     setTitleIdx(Math.floor(Math.random() * TITLE_OPTIONS.length));
   }, []);
+
+  // --- Restore from shared link (key + phrase) ---
+const searchParams = useSearchParams();
+
+useEffect(() => {
+  if (!searchParams) return;
+
+  // read params
+  const k = searchParams.get("key");         // "Aminor" | "Amajor"
+  const p = searchParams.get("phrase") || ""; // full phrase with spaces
+
+  // if nothing provided, do nothing
+  if (!p && !k) return;
+
+  // set key if valid
+  if (k === "Aminor" || k === "Amajor") {
+    setKeyName(k);
+  }
+
+  // sanitize & trim phrase to landscape cap (we still enforce portrait cap at runtime)
+  const sanitized = sanitizePhraseInput(p);
+  const trimmed   = trimToMaxLetters(sanitized, LANDSCAPE_MAX);
+  setPhrase(trimmed);
+
+  // Rebuild mapping FROZEN (no audio), using the *param key* if present, else current keyName
+  const effectiveKey = (k === "Aminor" || k === "Amajor") ? k : keyName;
+  const mapping = mapPhraseToNotes(trimmed, effectiveKey);
+  const labels = mapping.map(x => x.note.replace("b","♭").replace("#","♯"));
+  setLabelsLine(labels.join(" – "));
+
+  // Build mapped notes for VexFlow
+  const mapped: Mapped[] = mapping.map((x) => {
+    const { vfKey } = noteNameToVF(x.note);
+    const oct = parseInt(vfKey.split("/")[1], 10);
+    const clef: "treble" | "bass" = oct >= 4 ? "treble" : "bass";
+    return { note: x.note, vfKey, clef, midi: x.midi };
+  });
+  setMappedNotes(mapped);
+  setIsFrozen(true); // show stave+labels immediately (no audio)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [searchParams]);
 
   /* State */
   const [keyName, setKeyName] = useState<KeyName>("Aminor");
