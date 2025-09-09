@@ -1107,7 +1107,7 @@ if (i % dpcLen === 0) {
             {!isRunning ? (
               <button onClick={start}
                 style={{ background: theme.blue, color:"#081019", border:"none", borderRadius:999, padding:"10px 16px", fontWeight:700, cursor:"pointer", fontSize:16 }}>
-                ▶ Start
+                ▶ Play
               </button>
             ) : (
               <button onClick={stop}

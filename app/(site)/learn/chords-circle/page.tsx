@@ -823,7 +823,7 @@ addTimeout(async () => {
                   fontSize: 16,
                 }}
               >
-                ▶ Start
+                ▶ Play
               </button>
             ) : (
               <button
