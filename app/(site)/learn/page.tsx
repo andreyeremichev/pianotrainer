@@ -146,7 +146,7 @@ export default function LearnHubPage() {
         {/* How to Read Music (rebranded) */}
         <article className="card">
           <span className="chip">📖 Read</span>
-          <h3 className="heading">How to Read Music (Made Friendly)</h3>
+          <h3 className="heading">Turn The Stave Into Sound</h3>
           <p className="blurb">
             From “where is middle C?” to reading both staves with confidence. Simple visuals,
             tiny steps, and a few tips that actually stick.
