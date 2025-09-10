@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
 
 import ResponsiveKeyboardC2toC6, { NoteName } from "../../../components/ResponsiveKeyboardC2toC6";
+import PosterHeader from "@/components/PosterHeader";
 
 /* ========= note ↔ midi helpers ========= */
 const PITCH_CLASS: Record<string, number> = {
@@ -159,13 +160,22 @@ export default function KeysToNotesPage() {
             </p>
           </div>
 
-          <div className="header">
-            <div className="title-line">
-              <h1>Keys to Notes</h1>
-              <Link href="/" className="title-home">HOME</Link>
-            </div>
-            <p>Play any piano key — the note instantly appears on the stave with sound.</p>
-          </div>
+          <PosterHeader
+  options={[
+    {
+      title: "Keys → Notes (Grand Stave)",
+      subtitle: "Press a piano key and see the exact note on the treble/bass staves—instant mapping.",
+    },
+    {
+      title: "See What You Play",
+      subtitle: "Every key press paints a note on the stave. Sharps, flats, treble and bass—no guessing.",
+    },
+    {
+      title: "From Keyboard to Stave",
+      subtitle: "Build a direct link between your fingers and notation. One key press at a time.",
+    },
+  ]}
+/>
 
           <div className="stave-center">
             <div className="stave-narrow">
