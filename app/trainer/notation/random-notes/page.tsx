@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
 
 import ResponsiveKeyboardC2toC6 from "../../../components/ResponsiveKeyboardC2toC6";
+import PosterHeader from "@/components/PosterHeader";
 
 /* ========= utils: note name <-> midi (C4 = 60) ========= */
 const PITCH_CLASS: Record<string, number> = {
@@ -305,13 +306,22 @@ export default function NotationRandomStable() {
             </p>
           </div>
 
-          <div className="header">
-            <div className="title-line">
-              <h1>Read & Play Random Notes</h1>
-              <Link href="/" className="title-home">HOME</Link>
-            </div>
-            <p>•Guide, Sharps, Flats, Bass and Treble - each session trains your ear and eyes together, one note at a time.</p>
-          </div>
+         <PosterHeader
+  options={[
+    {
+      title: "Read & Play Random Notes",
+      subtitle: "Guide notes, sharps, flats, bass and treble — each session trains your ear and eyes together, one note at a time.",
+    },
+    {
+      title: "One Note at a Time",
+      subtitle: "Random notes across the grand stave. Quick drills that build instant recognition.",
+    },
+    {
+      title: "Daily Reading Workout",
+      subtitle: "Treble and bass clefs together. Short reps keep your sight-reading sharp.",
+    },
+  ]}
+/>
 
           <div className="grid">
             <div className="child child--stave">
