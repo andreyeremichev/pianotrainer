@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import PosterHeader from "@/components/PosterHeader";
 
 /* ===========================
    Theme tokens
@@ -462,7 +463,7 @@ export default function DegreesPage() {
 
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
   const [ariaReplay, setAriaReplay] = useState<string>("");
-
+const [posterRotate, setPosterRotate] = useState(0);
   // --- iOS keyboard handling ---
   const [kbdOpen, setKbdOpen] = useState(false);
   useEffect(() => {
@@ -514,6 +515,7 @@ export default function DegreesPage() {
 
     // Start new run (idle or finished)
     if (!inSession || sessionDone) {
+      setPosterRotate((x) => x + 1);  // ← rotate the poster header
       await unlockAudioCtx();
       setQueue(drills.slice()); // keep order; change to shuffle if desired
       setIdx(0);
@@ -613,13 +615,26 @@ setAnswer("");           // then clear input
           @media (min-width: 1024px){ main { max-width: 720px !important; } }
         `}</style>
 
-        {/* Header */}
-        <header style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "6px 0 14px" }}>
-          <h1 style={{ margin: 0, fontSize: 26 }}>Degrees Trainer</h1>
-          <Link href="/" style={{ color: theme.blue, fontSize: 15 }}>
-            Home
-          </Link>
-        </header>
+        <PosterHeader
+  options={[
+    {
+      title: "Degrees Trainer (Piano)",
+      subtitle:
+        "Hear 1–7 inside one key, then sing and type what you hear. Gentle tonicizing, clear drills.",
+    },
+    {
+      title: "Find the Center, Feel the Steps",
+      subtitle:
+        "Start on tonic, then walk the scale degrees. Build reliable pitch sense one short drill at a time.",
+    },
+    {
+      title: "From Numbers to Notes",
+      subtitle:
+        "1–3–5, 1–7–1, full scale—train degrees until they feel like home on the keyboard.",
+    },
+  ]}
+  rotateSignal={posterRotate}
+/>
 
         {/* Options (collapsed on start; reopen when finished) */}
         {!collapsed || sessionDone ? (
