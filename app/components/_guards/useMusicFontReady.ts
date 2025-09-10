@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
  * Pass a ref to the container (e.g., your VexFlow host <div ref={staveHostRef} />).
  * The hook waits for a child <svg> to appear, then probes font readiness.
  */
-export default function useMusicFontReady(containerRef: React.RefObject<HTMLElement>) {
+export default function useMusicFontReady(containerRef: React.RefObject<HTMLElement | null>) {
   const [ready, setReady] = useState(false);
   const rafRef = useRef<number | null>(null);
   const obsRef = useRef<MutationObserver | null>(null);

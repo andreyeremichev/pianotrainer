@@ -65,7 +65,7 @@ export default function GrandStaveVF({
   triadNotes = null,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const fontReady = useMusicFontReady(); // trigger re-draw; do NOT block on it
+  const fontReady = useMusicFontReady(hostRef); // pass the container <div> ref
 
   // Tiny CSS once
   useLayoutEffect(() => {
