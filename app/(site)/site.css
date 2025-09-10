@@ -99,3 +99,16 @@
 .site-shell .home .badge {
   color: var(--site-text);
 }
+.pt-link {
+  font-weight: 700;        /* bold */
+  font-size: 15px;         /* a little bigger */
+  letter-spacing: 0.3px;   /* subtle spacing */
+  text-decoration: none;   /* remove underline */
+  color: inherit;          /* keep current theme color */
+  margin-left: 16px;       /* spacing between links */
+}
+
+.pt-link:hover {
+  color: #EBCF7A;          /* gold highlight on hover */
+  text-decoration: none;
+}

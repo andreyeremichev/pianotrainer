@@ -62,10 +62,10 @@ export default function SiteHeader({ variant = "global" }: Props) {
         <StandardLogo orientation="vertical" />
       </Link>
 
-      <nav aria-label="Main" className="pt-nav">
+            <nav aria-label="Main" className="pt-nav">
         <Link href="/trainer/notation" className="pt-link">Notation Trainer</Link>
         <Link href="/trainer/ear" className="pt-link">Ear Trainer</Link>
-        <Link href="/learn" className="pt-link">Learn</Link>
+        <Link href="/learn" className="pt-link">Explore</Link>
       </nav>
     </header>
   );

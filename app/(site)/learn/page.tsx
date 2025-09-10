@@ -1,173 +1,179 @@
 
 // app/learn/page.tsx
-import Link from "next/link";
+"use client";
 
-export const metadata = {
-  title: "Learn Hub • PianoTrainer",
-  description:
-    "Your starting point for reading music, intervals, circle of fifths, and ear training — with simple, focused guides.",
-};
+import Link from "next/link";
 
 export default function LearnHubPage() {
   return (
-    <main aria-labelledby="learn-hub-title" style={sx.page}>
+    <main className="learn-hub">
+      <style>{`
+        .learn-hub {
+          max-width: 1000px;
+          margin: 0 auto;
+          padding: 16px;
+          color: #111;
+        }
+        .title {
+          margin: 0 0 6px;
+          font-size: 34px;
+          line-height: 1.2;
+          letter-spacing: .2px;
+        }
+        .subtitle {
+          margin: 0 0 12px;
+          font-size: 16px;
+          line-height: 1.6;
+          color: #333;
+        }
+
+        /* Cards grid */
+        .deck {
+          display: grid;
+          gap: 16px;
+          grid-template-columns: 1fr;
+          margin-top: 12px;
+        }
+        @media (min-width: 720px) { .deck { grid-template-columns: 1fr 1fr; } }
+        @media (min-width: 980px) { .deck { grid-template-columns: 1fr 1fr 1fr; } }
+
+        .card {
+          border: 1px solid #ddd;
+          background: #fff;
+          border-radius: 12px;
+          padding: 16px;
+          display: grid;
+          gap: 10px;
+          min-height: 220px;
+          transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(0,0,0,.12);
+        }
+        .card.disabled {
+          opacity: .6;
+          filter: grayscale(0.1);
+        }
+
+        .chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-weight: 800;
+          letter-spacing: .2px;
+          font-size: 14px;
+          color: #111;
+          background: #EBCF7A; /* gold */
+          border-radius: 999px;
+          padding: 4px 10px;
+          width: max-content;
+        }
+        .heading {
+          margin: 0;
+          font-size: 18px;
+          line-height: 1.35;
+          letter-spacing: .2px;
+        }
+        .blurb {
+          margin: -2px 0 0 0;
+          line-height: 1.55;
+          color: #222;
+        }
+        .meta {
+          font-size: 13px;
+          color: #555;
+          margin-top: -4px;
+        }
+        .cta {
+          margin-top: auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-weight: 800;
+          text-decoration: none;
+          color: #111;
+          background: #EBCF7A; /* gold */
+          border-radius: 8px;
+          padding: 10px 14px;
+          transition: filter .15s ease, transform .15s ease;
+        }
+        .cta:hover { filter: brightness(1.05); transform: translateY(-1px); }
+        .cta--ghost {
+          background: transparent;
+          color: #111;
+          text-decoration: underline;
+          padding: 0;
+          border-radius: 0;
+        }
+
+        .soon {
+          margin-top: auto;
+          display: inline-block;
+          padding: 8px 12px;
+          border: 1px dashed #bbb;
+          border-radius: 8px;
+          color: #444;
+          background: #fafafa;
+          font-weight: 700;
+        }
+      `}</style>
+
       {/* Header */}
-      <header style={sx.header}>
-        <div style={sx.headerInner}>
-          <h1 id="learn-hub-title" style={sx.h1}>Learn Hub</h1>
-          <p style={sx.p}>
-            Build solid foundations with concise, visual guides. Start with reading music,
-            then branch out to intervals, the circle of fifths, and beginner-friendly ear training.
+      <h1 className="title">Spin. Read. Explore.</h1>
+      <p className="subtitle">
+        Music theory doesn’t have to be dry — here you’ll spin wheels, press keys, type words,
+        and see harmony turn into shapes. Pick a card and dive in.
+      </p>
+
+      {/* Cards */}
+      <section className="deck" aria-label="Learn topics">
+        {/* Spin the Circle of Fifths */}
+        <article className="card">
+          <span className="chip">🎡 Spin</span>
+          <h3 className="heading">Spin the Circle of Fifths</h3>
+          <p className="blurb">
+            The Circle of Fifths made fun — spin it, watch numbers & chords come alive, and
+            feel how keys connect. See it, hear it, and play with it right in your browser.
           </p>
-          <div style={sx.actions}>
-            <Link href="/" style={sx.btn} aria-label="Back to Home">
-              ← Home
+          <div className="meta">Includes interactive Numbers & Chords demos.</div>
+          <Link href="/learn/spin-circle-of-fifths" className="cta" aria-label="Open Spin the Circle of Fifths">
+            Explore the Circle →
+          </Link>
+        </article>
+
+        {/* How to Read Music (rebranded) */}
+        <article className="card">
+          <span className="chip">📖 Read</span>
+          <h3 className="heading">How to Read Music (Made Friendly)</h3>
+          <p className="blurb">
+            From “where is middle C?” to reading both staves with confidence. Simple visuals,
+            tiny steps, and a few tips that actually stick.
+          </p>
+          <div className="meta">
+            Bonus: turn phrases into melody with{" "}
+            <Link href="/learn/words-to-notes" className="cta--ghost" aria-label="Open Words to Notes">
+              Words → Notes
             </Link>
+            .
           </div>
-        </div>
-      </header>
-
-      {/* Grid of learn items */}
-      <section aria-label="Learn topics" style={sx.grid}>
-        {/* NOW — How to Read Music */}
-        <article style={sx.card}>
-          <div style={sx.cardHeader}>
-            <h2 style={sx.cardTitle}>
-              <Link href="/learn/how-to-read-music" style={sx.cardLink}>
-                How to Read Music
-              </Link>
-            </h2>
-            <span style={{ ...sx.badge, ...sx.badgeNow }} aria-label="Available now">Now</span>
-          </div>
-          <p style={sx.p}>
-            Learn the grand staff, guide notes (C2–C6), and how to anchor new notes by steps and skips.
-            Includes clear diagrams aligned to a keyboard.
-          </p>
-          <div style={sx.cardActions}>
-            <Link href="/learn/how-to-read-music" style={sx.btnSm} aria-label="Open How to Read Music">
-              Open
-            </Link>
-            
-          </div>
+          <Link href="/learn/turn-the-stave-into-sound" className="cta" aria-label="Open How to Read Music">
+            Start Reading →
+          </Link>
         </article>
 
-        {/* SOON — Circle of Fifths */}
-        <article style={sx.card}>
-          <div style={sx.cardHeader}>
-            <h2 style={sx.cardTitle}>
-              <span style={sx.cardLinkDisabled}>Circle of Fifths Explained</span>
-            </h2>
-            <span style={{ ...sx.badge, ...sx.badgeSoon }} aria-label="Coming soon">Soon</span>
-          </div>
-          <p style={sx.p}>
-            A visual map for keys and accidentals. Quickly see related keys, common modulations,
-            and practical patterns for learning.
+        {/* Intervals Guide (Coming Soon) */}
+        <article className="card disabled" aria-disabled="true">
+          <span className="chip">🎶 Intervals</span>
+          <h3 className="heading">Intervals Guide</h3>
+          <p className="blurb">
+            See steps and skips on the staff, then link what you see to what you hear:
+            seconds to octaves, ascending & descending.
           </p>
-          <div style={sx.cardActions}>
-            <span style={sx.btnDisabled} aria-disabled="true">Coming soon</span>
-          </div>
-        </article>
-
-        {/* SOON — Ear Training for Beginners */}
-        <article style={sx.card}>
-          <div style={sx.cardHeader}>
-            <h2 style={sx.cardTitle}>
-              <span style={sx.cardLinkDisabled}>Ear Training for Beginners</span>
-            </h2>
-            <span style={{ ...sx.badge, ...sx.badgeSoon }} aria-label="Coming soon">Soon</span>
-          </div>
-          <p style={sx.p}>
-            Step-by-step listening drills to recognize tonic, direction, and simple patterns —
-            built for daily 5–10 minute sessions.
-          </p>
-          <div style={sx.cardActions}>
-            <span style={sx.btnDisabled} aria-disabled="true">Coming soon</span>
-          </div>
-        </article>
-
-        {/* SOON — Intervals Guide */}
-        <article style={sx.card}>
-          <div style={sx.cardHeader}>
-            <h2 style={sx.cardTitle}>
-              <span style={sx.cardLinkDisabled}>Intervals Guide</span>
-            </h2>
-            <span style={{ ...sx.badge, ...sx.badgeSoon }} aria-label="Coming soon">Soon</span>
-          </div>
-          <p style={sx.p}>
-            Understand unisons to octaves with crisp, side-by-side examples on staff and keyboard.
-            Mnemonics, shapes, and quick checks.
-          </p>
-          <div style={sx.cardActions}>
-            <span style={sx.btnDisabled} aria-disabled="true">Coming soon</span>
-          </div>
+          <span className="soon" aria-hidden="true">Coming Soon</span>
         </article>
       </section>
-
-      {/* Footer */}
-      <footer style={sx.footer}>
-        <div style={sx.footerInner}>
-          <p style={{ margin: 0 }}>
-            Have feedback or requests?{" "}
-            <Link href="/contact" style={sx.footerLink}>Tell us what to build next</Link>.
-          </p>
-        </div>
-      </footer>
     </main>
   );
 }
-
-const sx: Record<string, React.CSSProperties> = {
-  page: { maxWidth: 980, margin: "0 auto", padding: "16px 20px 40px" },
-  header: { background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 20 },
-  headerInner: { maxWidth: 920, margin: "0 auto" },
-  h1: { margin: "0 0 8px", fontSize: 32, lineHeight: 1.2 },
-  p: {
-    margin: "8px 0 12px",
-    fontSize: 16,
-    lineHeight: 1.6,
-    textAlign: "justify",
-    hyphens: "auto",
-    WebkitHyphens: "auto",
-    msHyphens: "auto",
-  },
-  actions: { display: "flex", gap: 12, flexWrap: "wrap" },
-  btn: { border: "1px solid #d1d5db", padding: "8px 12px", borderRadius: 10, textDecoration: "none", color: "#111827", background: "#fff" },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: 16,
-  },
-  card: {
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    padding: 16,
-    background: "#fff",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  cardHeader: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-  cardTitle: { margin: 0, fontSize: 18, lineHeight: 1.3 },
-  cardLink: { color: "#111827", textDecoration: "none" },
-  cardLinkDisabled: { color: "#6b7280", cursor: "default" },
-  cardActions: { display: "flex", gap: 8, flexWrap: "wrap" },
-  btnSm: { border: "1px solid #d1d5db", padding: "6px 10px", borderRadius: 10, textDecoration: "none", color: "#111827", background: "#fff", fontSize: 14 },
-  btnGhostSm: { border: "1px solid #e5e7eb", padding: "6px 10px", borderRadius: 10, textDecoration: "none", color: "#374151", background: "#f9fafb", fontSize: 14 },
-  btnDisabled: { border: "1px dashed #e5e7eb", padding: "6px 10px", borderRadius: 10, color: "#9ca3af", background: "#f9fafb", fontSize: 14 },
-
-  badge: {
-    display: "inline-block",
-    padding: "2px 8px",
-    borderRadius: 999,
-    fontSize: 12,
-    lineHeight: 1.2,
-    border: "1px solid",
-  },
-  badgeNow: { background: "#ecfdf5", color: "#059669", borderColor: "#a7f3d0" },   // green
-  badgeSoon: { background: "#fffbeb", color: "#b45309", borderColor: "#fde68a" }, // amber
-
-  footer: { marginTop: 32, background: "#f8fafc", borderTop: "1px solid #e5e7eb", padding: "16px 0", borderRadius: 12 },
-  footerInner: { maxWidth: 920, margin: "0 auto", padding: "0 8px" },
-  footerLink: { color: "#1d4ed8", textDecoration: "underline" },
-};
