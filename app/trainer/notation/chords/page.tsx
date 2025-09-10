@@ -15,6 +15,7 @@ import {
   rollRandomFromSelections,
   audioUrlFromDisplay,
 } from "../../../../utils/chords";
+import PosterHeader from "@/components/PosterHeader";
 
 /* ======================= styles ======================= */
 const styles = `
@@ -56,7 +57,7 @@ const styles = `
 
 /* Center (stave) */
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: flex-start; }
-.stave-narrow { width: 260px; } /* 🔒 FROZEN size */
+.stave-narrow { width: 380px; } /* 🔒 FROZEN size */
 .explain { text-align:center; font-size: 13px; margin-top: 6px; min-height: 1.2em; }
 
 /* Right (picker before start; MCQ after start) */
@@ -271,14 +272,22 @@ export default function ChordsRecognitionPage() {
           <p><strong>Please rotate your device to landscape</strong><br/>(or use a device with a larger screen)</p>
         </div>
 
-        {/* header */}
-        <div className="header">
-          <div className="title-line">
-            <h1>Chords — Name That Chord</h1>
-            <Link href="/" className="title-home">HOME</Link>
-          </div>
-          <p>Choose key/degree/inversions, press <strong>Start</strong>, then pick the correct name. We’ll show keys and play the chord.</p>
-        </div>
+        <PosterHeader
+  options={[
+    {
+      title: "Chords on the Stave",
+      subtitle: "Triads and sevenths drawn as clean stacks on the grand stave—see the shapes, learn the sound.",
+    },
+    {
+      title: "Stack It. See It.",
+      subtitle: "Simple chord stacks that make root, third, and fifth crystal clear in treble and bass.",
+    },
+    {
+      title: "Harmony, Visible",
+      subtitle: "From triads to sevenths: tidy chord shapes that train your eye to recognize harmony at a glance.",
+    },
+  ]}
+/>
 
         {/* Row 1: left stats | center stave | right picker/MCQ */}
         <div className="child">
@@ -316,9 +325,9 @@ export default function ChordsRecognitionPage() {
             <div className="stave-center">
               <div className="stave-narrow">
                 <GrandStaveVF
-                  // draw the triad (center column stays clean)
-                  triadNotes={started && currentChord ? currentChord.display : null}
-                />
+  triadNotes={started && currentChord ? currentChord.display : null}
+  triadArpeggio={playMode === "arp"}
+/>
                 <div className="explain">{explain}</div>
               </div>
             </div>

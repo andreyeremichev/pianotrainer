@@ -10,6 +10,7 @@ import {
   Voice,
   Formatter,
   Barline,
+  Accidental,
 } from "vexflow";
 import useMusicFontReady from "./_guards/useMusicFontReady";
 
@@ -42,10 +43,8 @@ function noteNameToMidi(n: string): number {
 }
 
 // Middle line references (scientific pitch)
-// Treble middle line = B4 (MIDI 71)
-// Bass   middle line = D3 (MIDI 50)
-const TREBLE_MIDDLE = 71;
-const BASS_MIDDLE   = 50;
+const TREBLE_MIDDLE = 71; // B4
+const BASS_MIDDLE   = 50; // D3
 
 // Decide stem direction per clef: below middle → up (1); on/above → down (-1)
 function stemDirFor(midi: number, clef: "treble" | "bass"): 1 | -1 {
@@ -74,8 +73,11 @@ type Props = {
   /** Force clef for the PRIMARY note (intervals, single-note modes) */
   forceClef?: Clef | null;
 
-  /** NEW: Triad render — three note spellings, e.g. ["F#3","A3","C#4"] */
+  /** Triad render — three note spellings, e.g. ["F#3","A3","C#4"] */
   triadNotes?: string[] | null;
+
+  /** When true, triads render as 3 sequential notes (arpeggio) instead of a single chord */
+  triadArpeggio?: boolean;
 };
 
 const NAMES_SHARP = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
@@ -88,11 +90,10 @@ function parseNoteName(n: string) {
   const letter = m[1].toLowerCase();
   const acc = (m[2] || "") as "" | "#" | "b";
   const oct = parseInt(m[3], 10);
-  const key = `${letter}${acc ? acc : ""}/${oct}`; // e.g., "db/4"
+  const key = `${letter}${acc ? acc : ""}/${oct}`;
   return { key, accidental: acc, octave: oct as number };
 }
 
-/** Default clef if none is forced & no MIDI is given */
 const clefByOctave = (oct: number): Clef => (oct >= 4 ? "treble" : "bass");
 
 /** Fixed-size grand staff: 260 × 170 px (frozen) */
@@ -104,6 +105,7 @@ export default function GrandStaveVF({
   secondaryXShift = 10,
   forceClef = null,
   triadNotes = null,
+  triadArpeggio = false,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const fontReady = useMusicFontReady(hostRef); // pass the container <div> ref
@@ -150,7 +152,6 @@ export default function GrandStaveVF({
     host.appendChild(canvasHost);
 
     try {
-      // client-only renderer
       const renderer = new Renderer(canvasHost, Renderer.Backends.SVG);
       renderer.resize(baseW, baseH);
       const ctx = renderer.getContext();
@@ -168,64 +169,152 @@ export default function GrandStaveVF({
       new StaveConnector(treble, bass).setType(StaveConnector.type.SINGLE_RIGHT).setContext(ctx).draw();
 
       // ----------------- NOTE DRAWING MODES -----------------
+
       // Helper: create a VexFlow note with our conventions
-      const makeVF = (p: NonNullable<ReturnType<typeof parseNoteName>>, forcedClef?: Clef, xShift?: number) => {
+      const makeVF = (
+        p: NonNullable<ReturnType<typeof parseNoteName>>,
+        forcedClef?: Clef,
+        xShift?: number,
+        duration: "h" | "q" = "h",
+        addAccidental = false
+      ) => {
         const clef: Clef = forcedClef ?? clefByOctave(p.octave);
-        // compute direction from the actual pitch + clef
-const vfKey = p.key;                         // e.g., "c#/4"
-const midi  = midiFromVfKey(vfKey);
-const dir   = stemDirFor(midi, clef as "treble" | "bass");
+        const vfKey = p.key;
+        const midi  = midiFromVfKey(vfKey);
+        const dir   = stemDirFor(midi, clef);
 
-// create the note with direction set, and disable autostem so it won't flip
-const sn = new StaveNote({
-  clef,
-  keys: [vfKey],
-  duration: "h",          // keep your duration
-  stemDirection: dir      // VexFlow v5 camelCase option
-});
-(sn as any).setAutoStem?.(false);            // turn off autostem (v5: optional method)
+        const sn = new StaveNote({
+          clef,
+          keys: [vfKey],
+          duration,
+          stemDirection: dir,
+        });
+        (sn as any).setAutoStem?.(false);
 
-// keep your X-shift logic (for the second note spacing)
-if (typeof xShift === "number" && (sn as any).setXShift) {
-  try { (sn as any).setXShift(xShift); } catch {}
-}
-        return { sn, clef, acc: p.accidental };
+        if (addAccidental && p.accidental) {
+          sn.addModifier(new Accidental(p.accidental), 0);
+        }
+
+        if (typeof xShift === "number" && (sn as any).setXShift) {
+          try { (sn as any).setXShift(xShift); } catch {}
+        }
+        return { sn, clef, acc: p.accidental || "" as ""|"#"|"b" };
       };
 
-      // We support three modes, in this order of precedence:
-      // 1) triadNotes[] (chords page) → draw all three as half notes at same time position
-      // 2) interval (noteName + secondaryNoteName) → two half notes, second can be x-shifted
-      // 3) single (noteName or noteMidi) → one WHOLE note
+      // 1) triadNotes[] (chords page)
+      // 2) interval (noteName + secondaryNoteName)
+      // 3) single (noteName or noteMidi)
       let stavenoteGroupsToOverlay: { groupIndex: number; acc: ""|"#"|"b" }[] = [];
 
       if (triadNotes && triadNotes.length) {
-        // --- Triad mode ---
-        const parsed = triadNotes.map(n => parseNoteName(n)).filter(Boolean) as NonNullable<ReturnType<typeof parseNoteName>>[];
+        // ===== TRIAD MODE =====
+        const parsed = triadNotes
+          .map(n => parseNoteName(n))
+          .filter(Boolean) as NonNullable<ReturnType<typeof parseNoteName>>[];
+
         if (parsed.length) {
-          const items = parsed.map(p => makeVF(p));
-          // voices: one per note, at the same time
-          const voices: Voice[] = [];
-          items.forEach(it => {
-            const v = new Voice({ numBeats: 1, beatValue: 2 }); // half-note time for visual consistency
-            v.addTickable(it.sn);
-            voices.push(v);
-          });
+          if (triadArpeggio) {
+            // --- draw as sequential notes (arpeggio) ---
+            const trebleNotes: StaveNote[] = [];
+            const bassNotesArr: StaveNote[] = [];
 
-          const fmt = new Formatter();
-          try { fmt.joinVoices(voices as any); } catch {}
-          fmt.format(voices as any, Math.max(60, drawW - 40));
+            parsed.forEach(p => {
+              const clefFor = clefByOctave(p.octave);
+              const { sn } = makeVF(p, clefFor, undefined, "q", true); // quarter notes, add accidental glyphs
+              if (clefFor === "treble") trebleNotes.push(sn);
+              else bassNotesArr.push(sn);
+            });
 
-          // draw each where it belongs
-          items.forEach((it, i) => {
-            const staveFor = it.clef === "bass" ? bass : treble;
-            voices[i].draw(ctx, staveFor);
-          });
+            // modest margin from clef/key
+            treble.setNoteStartX(treble.getNoteStartX() + 12);
+            bass.setNoteStartX(bass.getNoteStartX() + 12);
 
-          // overlay order = the order VexFlow creates <g.vf-stavenote> groups
-          stavenoteGroupsToOverlay = items.map((it, i) => ({ groupIndex: i, acc: it.acc }));
+            // format and draw each staff sequence independently
+            if (trebleNotes.length) {
+              const vT = new Voice({ numBeats: Math.max(1, trebleNotes.length), beatValue: 4 }).setStrict(false);
+              vT.addTickables(trebleNotes);
+              const fT = new Formatter();
+              try { fT.joinVoices([vT] as any); } catch {}
+              fT.format([vT] as any, Math.max(80, drawW - 80));
+              vT.draw(ctx, treble);
+            }
+
+            if (bassNotesArr.length) {
+              const vB = new Voice({ numBeats: Math.max(1, bassNotesArr.length), beatValue: 4 }).setStrict(false);
+              vB.addTickables(bassNotesArr);
+              const fB = new Formatter();
+              try { fB.joinVoices([vB] as any); } catch {}
+              fB.format([vB] as any, Math.max(80, drawW - 80));
+              vB.draw(ctx, bass);
+            }
+
+            // No manual overlay needed (we added Accidental modifiers)
+            stavenoteGroupsToOverlay = [];
+          } else {
+            // --- draw as a single chord per staff (block) ---
+            const trebleKeys: string[] = [];
+            const trebleAccs: ("" | "#" | "b")[] = [];
+            const bassKeys: string[] = [];
+            const bassAccs: ("" | "#" | "b")[] = [];
+
+            parsed.forEach(p => {
+              const clefFor = clefByOctave(p.octave);
+              if (clefFor === "treble") {
+                trebleKeys.push(p.key);
+                trebleAccs.push(p.accidental || "");
+              } else {
+                bassKeys.push(p.key);
+                bassAccs.push(p.accidental || "");
+              }
+            });
+
+            const voices: Voice[] = [];
+            const drawPlan: Array<{ voice: Voice; staff: "treble" | "bass" }> = [];
+
+            const chordStemDir = (keys: string[], clef: "treble" | "bass") => {
+              const avg = keys.reduce((s, k) => s + midiFromVfKey(k), 0) / keys.length;
+              return stemDirFor(avg, clef);
+            };
+
+            if (trebleKeys.length) {
+              const chord = new StaveNote({
+                clef: "treble", keys: trebleKeys, duration: "h",
+                stemDirection: chordStemDir(trebleKeys, "treble"),
+              });
+              trebleAccs.forEach((acc, idx) => { if (acc) chord.addModifier(new Accidental(acc), idx); });
+              const vT = new Voice({ numBeats: 1, beatValue: 2 }).setStrict(false);
+              vT.addTickable(chord); voices.push(vT); drawPlan.push({ voice: vT, staff: "treble" });
+            }
+
+            if (bassKeys.length) {
+              const chord = new StaveNote({
+                clef: "bass", keys: bassKeys, duration: "h",
+                stemDirection: chordStemDir(bassKeys, "bass"),
+              });
+              bassAccs.forEach((acc, idx) => { if (acc) chord.addModifier(new Accidental(acc), idx); });
+              const vB = new Voice({ numBeats: 1, beatValue: 2 }).setStrict(false);
+              vB.addTickable(chord); voices.push(vB); drawPlan.push({ voice: vB, staff: "bass" });
+            }
+
+            const fmt = new Formatter();
+            try { fmt.joinVoices(voices as any); } catch {}
+
+            treble.setNoteStartX(treble.getNoteStartX() + 12);
+            bass.setNoteStartX(bass.getNoteStartX() + 12);
+
+            fmt.format(voices as any, Math.max(80, drawW - 80));
+
+            drawPlan.forEach(({ voice, staff }) => {
+              voice.draw(ctx, staff === "treble" ? treble : bass);
+            });
+
+            // no manual overlay here either (accidentals added on the chord)
+            stavenoteGroupsToOverlay = [];
+          }
         }
       } else {
-        // interval or single
+        // ===== INTERVAL or SINGLE =====
+
         let primParsed: ReturnType<typeof parseNoteName> | null = null;
         if (noteName) {
           primParsed = parseNoteName(noteName);
@@ -238,16 +327,20 @@ if (typeof xShift === "number" && (sn as any).setXShift) {
         if (primParsed || secParsed) {
           if (primParsed && secParsed) {
             // --- Interval mode (two half notes; second can be x-shifted) ---
-            const prim = makeVF(primParsed, forceClef ?? undefined, undefined);
-            const sec  = makeVF(secParsed, undefined, secondaryXShift ?? 10);
-// set stem direction for both notes based on their clef & pitch
-{
-  const k1 = prim.sn.getKeys()[0], m1 = midiFromVfKey(k1);
-  prim.sn.setStemDirection(stemDirFor(m1, prim.clef as "treble" | "bass"));
+            const prim = makeVF(primParsed, forceClef ?? undefined, undefined, "h", false);
+            const sec  = makeVF(secParsed, undefined, secondaryXShift ?? 10, "h", false);
 
-  const k2 = sec.sn.getKeys()[0],  m2 = midiFromVfKey(k2);
-  sec.sn.setStemDirection(stemDirFor(m2,  sec.clef  as "treble" | "bass"));
-}
+            // set stem direction explicitly (already set inside makeVF; kept here for clarity)
+            {
+              const k1 = prim.sn.getKeys()[0], m1 = midiFromVfKey(k1);
+              (prim.sn as any).setStemDirection?.(stemDirFor(m1, prim.clef));
+              (prim.sn as any).setAutoStem?.(false);
+
+              const k2 = sec.sn.getKeys()[0],  m2 = midiFromVfKey(k2);
+              (sec.sn  as any).setStemDirection?.(stemDirFor(m2,  sec.clef ));
+              (sec.sn  as any).setAutoStem?.(false);
+            }
+
             const v1 = new Voice({ numBeats: 1, beatValue: 2 });
             v1.addTickable(prim.sn);
             const v2 = new Voice({ numBeats: 1, beatValue: 2 });
@@ -260,6 +353,7 @@ if (typeof xShift === "number" && (sn as any).setXShift) {
             v1.draw(ctx, prim.clef === "bass" ? bass : treble);
             v2.draw(ctx, sec.clef === "bass" ? bass : treble);
 
+            // use manual overlay only for interval mode (your existing UI)
             stavenoteGroupsToOverlay = [
               { groupIndex: 0, acc: prim.acc },
               { groupIndex: 1, acc: sec.acc  },
@@ -273,12 +367,12 @@ if (typeof xShift === "number" && (sn as any).setXShift) {
             voice.addTickable(note);
             new Formatter().joinVoices([voice] as any).format([voice] as any, Math.max(60, drawW - 40));
             voice.draw(ctx, clef === "bass" ? bass : treble);
-            stavenoteGroupsToOverlay = [{ groupIndex: 0, acc: src.accidental }];
+            stavenoteGroupsToOverlay = [{ groupIndex: 0, acc: src.accidental || "" }];
           }
         }
       }
 
-      /* ===== Manual accidental overlay for each drawn note (Unicode ♯/♭) ===== */
+      /* ===== Manual accidental overlay for intervals only (Unicode ♯/♭) ===== */
       try {
         const svg = canvasHost.querySelector("svg") as SVGSVGElement | null;
         if (svg && stavenoteGroupsToOverlay.length) {
@@ -368,7 +462,7 @@ if (typeof xShift === "number" && (sn as any).setXShift) {
     // single/interval props
     noteMidi, noteName, secondaryNoteName, secondaryXShift, forceClef,
     // triad mode
-    triadNotes,
+    triadNotes, triadArpeggio,
   ]);
 
   return <div ref={hostRef} className="grandstave-host" />;
