@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import PosterHeader from "@/components/PosterHeader";
 
 /* ===========================
    Theme (frozen)
@@ -372,6 +373,8 @@ export default function IntervalsPage() {
   const inSession = idx < 8 && queue.length === 8;
   const sessionDone = queue.length === 8 && idx >= 8;
 
+  const [posterRotate, setPosterRotate] = useState(0);
+
   /* iOS sticky safeguard (grid doesn't open keyboard but keep parity) */
   const [kbdOpen, setKbdOpen] = useState(false);
   useEffect(() => {
@@ -443,11 +446,12 @@ last = choice;
 
   /* Start / Next / Replay */
   const onPressCenter = useCallback(async () => {
-    const drills = buildQueue();
+  const drills = buildQueue();
 
     // Start or restart
     if (!inSession || sessionDone) {
       await unlockAudioCtx();
+      setPosterRotate(c => c + 1);  // ← rotate the poster header on each new run
       setQueue(drills);
       setIdx(0);
       setSelectedAnswer(null);
@@ -609,11 +613,23 @@ last = choice;
           @media (min-width:1024px){ main{ max-width:720px !important; } }
         `}</style>
 
-        {/* Header */}
-        <header style={{ display:"flex", alignItems:"baseline", gap:12, margin:"6px 0 14px" }}>
-          <h1 style={{ margin:0, fontSize:26 }}>Intervals Trainer</h1>
-          <Link href="/" style={{ color: theme.blue, fontSize: 15 }}>Home</Link>
-        </header>
+        <PosterHeader
+  options={[
+    {
+      title: "Intervals Trainer (Ear)",
+      subtitle: "Hear two-note patterns—minor 2nd to octave—then identify what you hear in any key.",
+    },
+    {
+      title: "Hear the Distance",
+      subtitle: "Ascending, descending, harmonic. Train your ear to label each interval on sound alone.",
+    },
+    {
+      title: "From Sound to Name",
+      subtitle: "Short drills, instant feedback. Seconds to octaves become unmistakable shapes in your ear.",
+    },
+  ]}
+   rotateSignal={posterRotate}
+/>
 
         {/* Options (show before start or after finish) */}
         {!inSession || sessionDone ? (
