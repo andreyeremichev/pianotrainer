@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
 import ResponsiveKeyboardC2toC6 from "../../../components/ResponsiveKeyboardC2toC6";
+import PosterHeader from "@/components/PosterHeader";
 
 type IntervalCode = "m2"|"M2"|"m3"|"M3"|"P4"|"TT"|"P5"|"m6"|"M6"|"m7"|"M7"|"P8";
 type Clef = "bass" | "treble";
@@ -146,6 +147,7 @@ function initialSelected(): Record<IntervalCode, boolean> {
 }
 
 export default function IntervalsSequentialPage() {
+  const [playCount, setPlayCount] = useState(0);
   /* Picker starts EMPTY; user must choose & press Start */
   const [selected, setSelected] = useState<Record<IntervalCode, boolean>>(initialSelected);
   const [started, setStarted] = useState(false);
@@ -199,28 +201,47 @@ export default function IntervalsSequentialPage() {
   }
 
   // Start button handler
-  const handleStart = () => {
-    if (!activeIntervals.length) return;
-    setStarted(true);
-    setProgress(0);
-    setCorrect(0);
-    setFirstTry(true);
-    setIntervalLabel("");
-    setLowerMidi(null);
-    setUpperMidi(null);
-    setStep(1);
-    awaitingNextRef.current = false;
-    rollNew();
-  };
+const handleStart = () => {
+  if (!activeIntervals.length) return;
 
-  // judge for keyboard
-  const judge = (noteName: string) => {
-    if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) return undefined;
-    const expected = step === 1 ? lowerMidi : upperMidi;
-    const pressed = noteNameToMidi(noteName);
-    if (pressed == null) return undefined;
-    return (pressed === expected ? "correct" : "wrong") as "correct" | "wrong";
-  };
+  setPlayCount(c => c + 1);   // ← rotate poster header each time Play starts
+
+  setStarted(true);
+  setProgress(0);
+  setCorrect(0);
+  setFirstTry(true);
+  setIntervalLabel("");
+  setLowerMidi(null);
+  setUpperMidi(null);
+  setStep(1);
+  awaitingNextRef.current = false;
+  rollNew();
+};
+
+  // judge for keyboard (don't re-judge the first note during step 2)
+const judge = (noteName: string) => {
+  if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) {
+    return undefined;
+  }
+
+  const pressed = noteNameToMidi(noteName);
+  if (pressed == null) return undefined;
+
+  if (step === 1) {
+    // Only judge the lower note in step 1
+    return pressed === lowerMidi ? "correct" : "wrong";
+  }
+
+  if (step === 2) {
+    // We're waiting for the upper note now.
+    // Do NOT mark the lower note as wrong anymore—treat it as neutral.
+    if (pressed === lowerMidi) return undefined;
+    return pressed === upperMidi ? "correct" : "wrong";
+  }
+
+  // step === 3 (completed) or any other state: show no judgement
+  return undefined;
+};
 
   const onKeyPressMidi = (midi: number) => {
     if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) return;
@@ -296,6 +317,16 @@ export default function IntervalsSequentialPage() {
     }
     setSelected(next);
   };
+// --- horizontal spacing for the second note (tighter for seconds) ---
+const currentSemitones =
+  lowerMidi != null && upperMidi != null ? (upperMidi - lowerMidi) : null;
+
+// Base shift for normal intervals = 30px (your previous value).
+// Add extra for seconds (m2/M2) so accidentals don't collide.
+const secondXShift =
+  started && currentSemitones != null
+    ? (currentSemitones <= 2 ? 50 : 30)  // m2/M2 → 50; others → 30
+    : 30;
 
   return (
     <>
@@ -307,13 +338,23 @@ export default function IntervalsSequentialPage() {
             <p><strong>Please rotate your device to landscape</strong><br/>(or use a device with a larger screen)</p>
           </div>
 
-          <div className="header">
-            <div className="title-line">
-              <h1>Intervals (Sequential)</h1>
-              <Link href="/" className="title-home">HOME</Link>
-            </div>
-            <p>Choose intervals, press <strong>Start</strong>, then play the <strong>lower</strong> note first and the <strong>upper</strong> note. The name shows on success.</p>
-          </div>
+          <PosterHeader
+  options={[
+    {
+      title: "Intervals on the Stave",
+      subtitle: "See two notes at a time—seconds to octaves, ascending and descending—right on the grand stave.",
+    },
+    {
+      title: "Mind the Space & Line",
+      subtitle: "Learn interval spacing at a glance: steps, skips, perfects and octaves in treble and bass.",
+    },
+    {
+      title: "See the Distance, Hear the Shape",
+      subtitle: "Two-note patterns that train your eyes to recognize intervals instantly.",
+    },
+  ]}
+rotateSignal={playCount}
+/>
 
           <div className="child">
             <div className="stats-bar">
@@ -352,7 +393,7 @@ export default function IntervalsSequentialPage() {
                   <GrandStaveVF
                     noteName={started ? lowerNameDisplay : null}
                     secondaryNoteName={started ? upperNameDisplay : null}
-                    secondaryXShift={30}
+                    secondaryXShift={secondXShift}
                   />
                   <div className="interval-label">
                     {started && step === 3 ? intervalLabel : "\u00A0"}

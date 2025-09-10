@@ -13,6 +13,47 @@ import {
 } from "vexflow";
 import useMusicFontReady from "./_guards/useMusicFontReady";
 
+// Convert a VexFlow key like "c#/4" or "db/3" → MIDI number
+function midiFromVfKey(vfKey: string): number {
+  const m = /^([a-g])([#b]?)[/](\-?\d+)$/.exec(vfKey);
+  if (!m) throw new Error(`Bad VexFlow key: ${vfKey}`);
+  const letter = m[1].toUpperCase();
+  const acc = (m[2] || "") as "" | "#" | "b";
+  const oct = parseInt(m[3], 10);
+  const BASE_PC: Record<string, number> = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+  let pc = BASE_PC[letter];
+  if (acc === "#") pc = (pc + 1) % 12;
+  else if (acc === "b") pc = (pc + 11) % 12;
+  return (oct + 1) * 12 + pc;
+}
+
+// Convert "C#4" / "Db4" / "A3" → MIDI
+function noteNameToMidi(n: string): number {
+  const m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(n);
+  if (!m) throw new Error(`Bad note name: ${n}`);
+  const letter = m[1].toUpperCase();
+  const acc = m[2] as "" | "#" | "b";
+  const oct = parseInt(m[3], 10);
+  const BASE_PC: Record<string, number> = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+  let pc = BASE_PC[letter];
+  if (acc === "#") pc = (pc + 1) % 12;
+  else if (acc === "b") pc = (pc + 11) % 12;
+  return (oct + 1) * 12 + pc;
+}
+
+// Middle line references (scientific pitch)
+// Treble middle line = B4 (MIDI 71)
+// Bass   middle line = D3 (MIDI 50)
+const TREBLE_MIDDLE = 71;
+const BASS_MIDDLE   = 50;
+
+// Decide stem direction per clef: below middle → up (1); on/above → down (-1)
+function stemDirFor(midi: number, clef: "treble" | "bass"): 1 | -1 {
+  return clef === "treble"
+    ? (midi < TREBLE_MIDDLE ? 1 : -1)
+    : (midi < BASS_MIDDLE   ? 1 : -1);
+}
+
 type Clef = "treble" | "bass";
 
 type Props = {
@@ -130,10 +171,24 @@ export default function GrandStaveVF({
       // Helper: create a VexFlow note with our conventions
       const makeVF = (p: NonNullable<ReturnType<typeof parseNoteName>>, forcedClef?: Clef, xShift?: number) => {
         const clef: Clef = forcedClef ?? clefByOctave(p.octave);
-        const sn = new StaveNote({ clef, keys: [p.key], duration: "h" }); // half notes for intervals/triads
-        if (typeof xShift === "number" && (sn as any).setXShift) {
-          try { (sn as any).setXShift(xShift); } catch {}
-        }
+        // compute direction from the actual pitch + clef
+const vfKey = p.key;                         // e.g., "c#/4"
+const midi  = midiFromVfKey(vfKey);
+const dir   = stemDirFor(midi, clef as "treble" | "bass");
+
+// create the note with direction set, and disable autostem so it won't flip
+const sn = new StaveNote({
+  clef,
+  keys: [vfKey],
+  duration: "h",          // keep your duration
+  stemDirection: dir      // VexFlow v5 camelCase option
+});
+(sn as any).setAutoStem?.(false);            // turn off autostem (v5: optional method)
+
+// keep your X-shift logic (for the second note spacing)
+if (typeof xShift === "number" && (sn as any).setXShift) {
+  try { (sn as any).setXShift(xShift); } catch {}
+}
         return { sn, clef, acc: p.accidental };
       };
 
@@ -185,7 +240,14 @@ export default function GrandStaveVF({
             // --- Interval mode (two half notes; second can be x-shifted) ---
             const prim = makeVF(primParsed, forceClef ?? undefined, undefined);
             const sec  = makeVF(secParsed, undefined, secondaryXShift ?? 10);
+// set stem direction for both notes based on their clef & pitch
+{
+  const k1 = prim.sn.getKeys()[0], m1 = midiFromVfKey(k1);
+  prim.sn.setStemDirection(stemDirFor(m1, prim.clef as "treble" | "bass"));
 
+  const k2 = sec.sn.getKeys()[0],  m2 = midiFromVfKey(k2);
+  sec.sn.setStemDirection(stemDirFor(m2,  sec.clef  as "treble" | "bass"));
+}
             const v1 = new Voice({ numBeats: 1, beatValue: 2 });
             v1.addTickable(prim.sn);
             const v2 = new Voice({ numBeats: 1, beatValue: 2 });
