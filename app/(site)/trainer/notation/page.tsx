@@ -5,7 +5,7 @@ export const metadata = {
 };
 
 import Link from "next/link";
-import SiteHeader from "../../components/SiteHeader";
+
 
 type Item = {
   label: string;
@@ -77,9 +77,7 @@ function Card({ item }: { item: Item }) {
 
 export default function NotationHubPage() {
   return (
-    <>
-      {/* Global header at top (trainer pages use their own inline header) */}
-      <SiteHeader />
+    <> 
 
       <main className="notation-hub">
         <style>{`
