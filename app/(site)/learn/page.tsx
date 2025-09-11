@@ -1,8 +1,24 @@
 
-// app/learn/page.tsx
-"use client";
+// app/(site)/learn/page.tsx
 
 import Link from "next/link";
+
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Explore Hub — Spin. Read. Explore. • PianoTrainer",
+  description:
+    "Interactive music lessons and demos: Spin the Circle of Fifths, Turn the Stave into Sound, Intervals Guide, and more.",
+  alternates: { canonical: "/learn" },
+  openGraph: {
+    type: "website",
+    url: "https://pianotrainer.app/learn",
+    title: "Explore Hub — Spin. Read. Explore. • PianoTrainer",
+    description:
+      "Pick a card and dive in: Circle of Fifths, How to Read Music, Intervals Guide, and interactive demos.",
+  },
+  robots: { index: true, follow: true },
+};
 
 export default function LearnHubPage() {
   return (
@@ -139,7 +155,7 @@ export default function LearnHubPage() {
           </p>
           <div className="meta">Includes interactive Numbers & Chords demos.</div>
           <Link href="/learn/spin-circle-of-fifths" className="cta" aria-label="Open Spin the Circle of Fifths">
-            Explore the Circle →
+            Spin the Circle →
           </Link>
         </article>
 
@@ -159,20 +175,22 @@ export default function LearnHubPage() {
             .
           </div>
           <Link href="/learn/turn-the-stave-into-sound" className="cta" aria-label="Open How to Read Music">
-            Start Reading →
+            Read Music →
           </Link>
         </article>
 
-        {/* Intervals Guide (Coming Soon) */}
-        <article className="card disabled" aria-disabled="true">
-          <span className="chip">🎶 Intervals</span>
-          <h3 className="heading">Intervals Guide</h3>
-          <p className="blurb">
-            See steps and skips on the staff, then link what you see to what you hear:
-            seconds to octaves, ascending & descending.
-          </p>
-          <span className="soon" aria-hidden="true">Coming Soon</span>
-        </article>
+       {/* Intervals Guide */}
+<article className="card">
+  <span className="chip">🎶 Intervals</span>
+  <h3 className="heading">Intervals Guide</h3>
+  <p className="blurb">
+    Mind the gap between notes: see intervals as shapes on the stave and hear them as distinct colors in your ear.
+    From half-steps to octaves, connect sight and sound.
+  </p>
+  <Link href="/learn/intervals-guide" className="cta" aria-label="Open Intervals Guide">
+    Explore Intervals →
+  </Link>
+</article> 
       </section>
     </main>
   );

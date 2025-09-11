@@ -1,6 +1,29 @@
-"use client";
 
 import Link from "next/link";
+
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Spin the Circle of Fifths • PianoTrainer",
+  description:
+    "Spin the Circle of Fifths and explore how keys connect. See, hear, and play with interactive demos for numbers and chords.",
+  alternates: { canonical: "/learn/spin-circle-of-fifths" },
+  openGraph: {
+    type: "website",
+    url: "https://pianotrainer.app/learn/spin-circle-of-fifths",
+    title: "Spin the Circle of Fifths • PianoTrainer",
+    description:
+      "The Circle of Fifths made fun. Explore neighbors, sharps & flats growth, and interactive Numbers/Chords demos.",
+  },
+  keywords: [
+    "circle of fifths",
+    "spin the circle",
+    "key relationships",
+    "modulation",
+    "interactive music theory",
+  ],
+  robots: { index: true, follow: true },
+};
 
 export default function CircleOfFifthsExplainedPage() {
   return (
