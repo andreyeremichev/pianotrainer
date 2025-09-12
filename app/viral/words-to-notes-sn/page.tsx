@@ -324,9 +324,11 @@ async function buildEmbeddedFontStyle() {
 
 /** Wait two frames so React + VexFlow redraw the live SVG before snapshotting */
 function raf2(): Promise<void> {
-  return new Promise((r) =>
-    requestAnimationFrame(() => requestAnimationFrame(r))
-  );
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
 }
 
 /* ====== VexFlow render (fixed height, key sigs, stems, visibleCount) ====== */
