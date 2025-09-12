@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import * as Tone from "tone";
+import Link from "next/link";
 import {
   Renderer,
   Stave,
@@ -964,22 +965,23 @@ return (
 
       {/* Footer CTA (page-only) */}
       <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
-        <a
-          href="/learn/why-these-notes/"
-          style={{
-            color: theme.gold,
-            fontWeight: 800,
-            letterSpacing: 0.3,
-            textDecoration: "none",
-            padding: "10px 14px",
-            border: `1px solid ${theme.border}`,
-            borderRadius: 10,
-            background: "#0F1821"
-          }}
-          aria-label="Why these notes?"
-        >
-          Why these notes? →
-        </a>
+        <Link
+  href="/learn/why-these-notes"
+  style={{
+    color: theme.gold,
+    fontWeight: 800,
+    letterSpacing: 0.3,
+    textDecoration: "none",
+    padding: "10px 14px",
+    border: `1px solid ${theme.border}`,
+    borderRadius: 10,
+    background: "#0F1821"
+  }}
+  aria-label="Why these notes?"
+>
+  Why these notes? →
+</Link>
+        
       </div>
     </main>
   </div>
