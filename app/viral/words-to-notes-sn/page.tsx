@@ -695,7 +695,13 @@ return (
         }}
       >
         {/* Input (headline-sized) */}
-        <div style={{ padding: "0 10px", maxWidth: "calc(100% - 20px)", margin: "0 auto" }}>
+        <div
+  style={{
+    padding: "0 10px",
+    maxWidth: "calc(100% - 8px)", // was 20px, now wider
+    margin: "0 auto"
+  }}
+>
   <style>{`.phrase-input::placeholder { color: ${theme.gold}; opacity: 1; }`}</style>
   <input
             className="phrase-input"
@@ -959,7 +965,7 @@ return (
       {/* Footer CTA (page-only) */}
       <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
         <a
-          href="/learn/words-to-notes-explained"
+          href="/learn/why-these-notes/"
           style={{
             color: theme.gold,
             fontWeight: 800,
