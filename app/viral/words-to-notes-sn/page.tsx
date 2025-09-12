@@ -16,7 +16,7 @@ import {
   Voice,
   StaveConnector,
 } from "vexflow";
-import { useSearchParams } from "next/navigation";
+
 /* =========================================
    Theme (gold UI)
    ========================================= */
@@ -130,7 +130,7 @@ const MAX_LETTERS = 20;
 type Mapped = { note: string; clef: "treble" | "bass"; vfKey: string; midi: number };
 
 export default function WordsToNotesViralPage() {
-  const searchParams = useSearchParams();
+  
   /* Phrase / key */
   const [keyName, setKeyName] = useState<KeyName>("Aminor");
   const [phrase, setPhrase] = useState("");
@@ -161,13 +161,14 @@ export default function WordsToNotesViralPage() {
     };
   }, []);
 
-  // Restore from share link (freeze view; no autoplay)
+
+// Restore from share link (freeze view; no autoplay) — no Suspense needed
 useEffect(() => {
-  if (!searchParams) return;
+  if (typeof window === "undefined") return;
 
-  const k = searchParams.get("key");                    // "Aminor" | "Amajor"
-  const p = searchParams.get("phrase") || searchParams.get("q") || "";  // prefer phrase, fallback to q
-
+  const sp = new URLSearchParams(window.location.search);
+  const k = sp.get("key");                                 // "Aminor" | "Amajor"
+  const p = sp.get("phrase") || sp.get("q") || "";         // prefer phrase, fallback to q
   if (!k && !p) return;
 
   if (k === "Aminor" || k === "Amajor") {
@@ -181,7 +182,8 @@ useEffect(() => {
   setPhrase(trimmed);
 
   // Build mapping and freeze all notes visible
-  const mapping = mapPhraseToNotes(trimmed, (k === "Aminor" || k === "Amajor") ? k : keyName);
+  const effectiveKey: KeyName = (k === "Aminor" || k === "Amajor") ? (k as KeyName) : keyName;
+  const mapping = mapPhraseToNotes(trimmed, effectiveKey);
   const mapped: Mapped[] = mapping.map((x) => {
     const { vfKey } = noteNameToVF(x.note);
     const oct = parseInt(vfKey.split("/")[1], 10);
@@ -194,8 +196,9 @@ useEffect(() => {
   setIsPlaying(false);
   isPlayingRef.current = false;
   clearAllTimers();
+  // run once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [searchParams]);
+}, []); 
 
   /* Audio */
   const samplerRef = useRef<Tone.Sampler | null>(null);
