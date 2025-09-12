@@ -16,7 +16,7 @@ import {
   Voice,
   StaveConnector,
 } from "vexflow";
-
+import { useSearchParams } from "next/navigation";
 /* =========================================
    Theme (gold UI)
    ========================================= */
@@ -130,6 +130,7 @@ const MAX_LETTERS = 20;
 type Mapped = { note: string; clef: "treble" | "bass"; vfKey: string; midi: number };
 
 export default function WordsToNotesViralPage() {
+  const searchParams = useSearchParams();
   /* Phrase / key */
   const [keyName, setKeyName] = useState<KeyName>("Aminor");
   const [phrase, setPhrase] = useState("");
@@ -159,6 +160,42 @@ export default function WordsToNotesViralPage() {
       window.removeEventListener("orientationchange", onResize);
     };
   }, []);
+
+  // Restore from share link (freeze view; no autoplay)
+useEffect(() => {
+  if (!searchParams) return;
+
+  const k = searchParams.get("key");                    // "Aminor" | "Amajor"
+  const p = searchParams.get("phrase") || searchParams.get("q") || "";  // prefer phrase, fallback to q
+
+  if (!k && !p) return;
+
+  if (k === "Aminor" || k === "Amajor") {
+    setKeyName(k);
+  }
+
+  const sanitized = sanitizePhraseInput(p);
+  const trimmed = trimToMaxLetters(sanitized, MAX_LETTERS);
+  if (!trimmed) return;
+
+  setPhrase(trimmed);
+
+  // Build mapping and freeze all notes visible
+  const mapping = mapPhraseToNotes(trimmed, (k === "Aminor" || k === "Amajor") ? k : keyName);
+  const mapped: Mapped[] = mapping.map((x) => {
+    const { vfKey } = noteNameToVF(x.note);
+    const oct = parseInt(vfKey.split("/")[1], 10);
+    const clef: "treble" | "bass" = oct >= 4 ? "treble" : "bass";
+    return { note: x.note, vfKey, clef, midi: x.midi };
+  });
+
+  setMappedNotes(mapped);
+  setVisibleCount(mapped.length);   // show ALL notes immediately
+  setIsPlaying(false);
+  isPlayingRef.current = false;
+  clearAllTimers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [searchParams]);
 
   /* Audio */
   const samplerRef = useRef<Tone.Sampler | null>(null);
@@ -247,31 +284,34 @@ export default function WordsToNotesViralPage() {
 
   /* ====== Share helpers ====== */
   const [linkCopied, setLinkCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   function buildShareUrl() {
-    const params = new URLSearchParams();
-    params.set("key", keyName);
-    params.set("phrase", phrase);
-    params.set("letters", String(lettersCount));
-    params.set("freeze", "1");
-    const url = new URL(window.location.href);
-    url.search = params.toString();
-    return url.toString();
-  }
-  const onShare = useCallback(async () => {
-    const url = buildShareUrl();
-    const title = "Words → Notes (PianoTrainer)";
-    const text = "I turned a phrase into melody on pianotrainer.app 🎹";
-    if ((navigator as any).share) {
-      try { await (navigator as any).share({ title, text, url }); return; } catch {}
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 1600);
-    } catch {
-      alert(url);
-    }
-  }, [keyName, phrase, lettersCount]);
+  const url = new URL(window.location.href);
+  // Preserve existing params for frozen load
+  url.searchParams.set("key", keyName);
+  url.searchParams.set("phrase", phrase);
+  url.searchParams.set("letters", String(lettersCount));
+  url.searchParams.set("freeze", "1");
+  // Add campaign params
+  const q = sanitizePhraseInput(phrase).trim();
+  if (q) url.searchParams.set("q", q);
+  url.searchParams.set("utm_source", "share");
+  url.searchParams.set("utm_medium", "social");
+  url.searchParams.set("utm_campaign", "words_to_notes");
+  return url.toString();
+}
+function buildTweetIntent(text: string, url: string, hashtags = ["piano","music","pianotrainer"]) {
+  const u = new URL("https://twitter.com/intent/tweet");
+  u.searchParams.set("text", text);
+  u.searchParams.set("url", url);
+  u.searchParams.set("hashtags", hashtags.join(","));
+  return u.toString();
+}
+
+const onShare = useCallback(() => {
+  // Always open our custom share sheet (more useful options for this app)
+  setShareOpen(true);
+}, []); 
 
   /* ====== Input handlers (20 letters, Enter/blur autoplay) ====== */
   const onInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -652,9 +692,9 @@ return (
         }}
       >
         {/* Input (headline-sized) */}
-        <div>
-          <style>{`.phrase-input::placeholder { color: ${theme.gold}; opacity: 1; }`}</style>
-          <input
+        <div style={{ padding: "0 10px", maxWidth: "calc(100% - 20px)", margin: "0 auto" }}>
+  <style>{`.phrase-input::placeholder { color: ${theme.gold}; opacity: 1; }`}</style>
+  <input
             className="phrase-input"
             value={phrase}
             onChange={onInputChange}
@@ -669,7 +709,7 @@ return (
               width: "100%",
               background: "#0F1821",
               color: theme.gold,
-              border: `1px solid ${theme.border}`,
+              border: "none",
               borderRadius: 8,
               padding: "14px 16px",
               fontSize: 30,              // headline size
@@ -784,6 +824,133 @@ return (
             Link copied!
           </div>
         )}
+      {/* Share Sheet (fallback when Web Share is unavailable/cancelled) */}
+{shareOpen && (
+  <div
+    role="dialog"
+    aria-modal="true"
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.6)",
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center",
+      zIndex: 9999,
+    }}
+    onClick={() => setShareOpen(false)}
+  >
+    <div
+      className="share-sheet"
+      style={{
+        width: "100%",
+        maxWidth: 520,
+        background: "#0F1821",
+        borderTop: `1px solid ${theme.border}`,
+        borderLeft: `1px solid ${theme.border}`,
+        borderRight: `1px solid ${theme.border}`,
+        borderRadius: "12px 12px 0 0",
+        padding: 12,
+        boxSizing: "border-box",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div style={{ textAlign: "center", color: theme.text, fontWeight: 800, marginBottom: 8 }}>Share your melody</div>
+
+      {/* Share Link (fastest) */}
+      <button
+        onClick={async () => {
+          const url = buildShareUrl();
+          try {
+            await navigator.clipboard.writeText(url);
+            setShareOpen(false);
+            setLinkCopied(true);
+            setTimeout(() => setLinkCopied(false), 1600);
+          } catch {
+            alert(url);
+          }
+        }}
+        style={{
+          width: "100%", padding: "10px 12px", marginBottom: 6,
+          background: theme.gold, color: "#081019", borderRadius: 8, border: "none", fontWeight: 800
+        }}
+      >
+        🔗 Copy Link
+      </button>
+
+      {/* X / Twitter */}
+      <a
+        href={buildTweetIntent(`My word → melody: ${sanitizePhraseInput(phrase).trim() || "my word"}`, buildShareUrl())}
+        target="_blank" rel="noopener noreferrer"
+        style={{
+          display: "block", textAlign: "center",
+          width: "100%", padding: "10px 12px", marginBottom: 6,
+          background: "transparent", color: theme.gold, borderRadius: 8, border: `1px solid ${theme.border}`,
+          textDecoration: "none", fontWeight: 800
+        }}
+        onClick={() => setShareOpen(false)}
+      >
+        𝕏 Share on X
+      </a>
+
+      {/* TikTok */}
+      <button
+        onClick={() => {
+          // Encourage download first
+          alert("Tap Download first, then post the clip in TikTok.");
+          const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+          if (isMobile) {
+            // Try opening app; if not installed, user sees nothing—hence the alert
+            try { window.location.href = "tiktok://"; } catch {}
+          } else {
+            window.open("https://studio.tiktok.com", "_blank", "noopener,noreferrer");
+          }
+          setShareOpen(false);
+        }}
+        style={{
+          width: "100%", padding: "10px 12px", marginBottom: 6,
+          background: "transparent", color: theme.gold, borderRadius: 8, border: `1px solid ${theme.border}`,
+          fontWeight: 800
+        }}
+      >
+        🎵 Post to TikTok (download then upload)
+      </button>
+
+      {/* Instagram Reels */}
+      <button
+        onClick={() => {
+          alert("Tap Download first, then open Instagram → Reels → upload.");
+          const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+          if (isMobile) {
+            try { window.location.href = "instagram://camera"; } catch {}
+          } else {
+            window.open("https://www.instagram.com/create/reel/", "_blank", "noopener,noreferrer");
+          }
+          setShareOpen(false);
+        }}
+        style={{
+          width: "100%", padding: "10px 12px",
+          background: "transparent", color: theme.gold, borderRadius: 8, border: `1px solid ${theme.border}`,
+          fontWeight: 800
+        }}
+      >
+        📸 Post to Instagram Reels (download then upload)
+      </button>
+
+      {/* Close */}
+      <button
+        onClick={() => setShareOpen(false)}
+        style={{
+          width: "100%", padding: "8px 12px", marginTop: 8,
+          background: "#0B0F14", color: theme.muted, borderRadius: 8, border: `1px solid ${theme.border}`,
+          fontWeight: 700
+        }}
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}  
       </section>
 
       {/* Footer CTA (page-only) */}
