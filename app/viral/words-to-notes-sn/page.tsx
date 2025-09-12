@@ -335,7 +335,7 @@ function raf2(): Promise<void> {
 useEffect(() => {
   const host = staveHostRef.current;
   if (!host) return;
-
+  
   host.innerHTML = "";
 
   const renderer = new Renderer(host, Renderer.Backends.SVG);
@@ -430,6 +430,7 @@ const onDownloadVideo = useCallback(async () => {
     setIsPlaying(false);
     setVisibleCount(0);
     await raf2(); // allow re-render
+   
 
     // Canvas target (with bottom safe padding to avoid timestamp overlap)
     const svgLive = host.querySelector("svg") as SVGSVGElement | null;
@@ -451,33 +452,46 @@ const onDownloadVideo = useCallback(async () => {
     let currentUrl = "";
     let currentImg: HTMLImageElement | null = null;
 
-    async function snapshotLiveSvgIntoImage() {
-      const svgNow = host.querySelector("svg") as SVGSVGElement | null;
-      if (!svgNow) return;
+  // Snapshot the current LIVE SVG (re-queried each step), embed SMuFL fonts, rasterize to Image
+async function snapshotLiveSvgIntoImage(
+  hostEl: HTMLDivElement,
+  w: number,
+  h: number,
+  fontCss: string
+): Promise<void> {
+  const svgNow = hostEl.querySelector("svg") as SVGSVGElement | null;
+  if (!svgNow) return;
 
-      const inner = new XMLSerializer()
-        .serializeToString(svgNow)
-        .replace("<svg", `<svg x="0" y="26"`); // space for CTA band
-      const svgFramed = `
-<svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="${panelW}" height="${panelH + 52}" viewBox="0 0 ${panelW} ${panelH + 52}">
-  <style>${fontStyleCss}</style>
-  ${inner}
-</svg>`.trim();
+  const inner = new XMLSerializer()
+    .serializeToString(svgNow)
+    .replace("<svg", `<svg x="0" y="26"`); // reserve the CTA band at top
 
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
-      const blob = new Blob([svgFramed], { type: "image/svg+xml;charset=utf-8" });
-      currentUrl = URL.createObjectURL(blob);
+  // Build framed SVG string with concatenation (avoid TSX parsing issues)
+  const widthAttr = String(w);
+  const heightAttr = String(h + 52);
+  const viewBoxAttr = "0 0 " + w + " " + (h + 52);
+  const svgFramed =
+    '<svg xmlns="http://www.w3.org/2000/svg" ' +
+    'xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+    'width="' + widthAttr + '" height="' + heightAttr + '" viewBox="' + viewBoxAttr + '">' +
+    '<style>' + fontCss + '</style>' +
+    inner +
+    '</svg>';
 
-      const img = new Image();
-      await new Promise<void>((res, rej) => {
-        img.onload = () => res();
-        img.onerror = rej;
-        img.src = currentUrl;
-      });
-      currentImg = img;
-    }
+  if (currentUrl) URL.revokeObjectURL(currentUrl);
+  const blob = new Blob([svgFramed], { type: "image/svg+xml;charset=utf-8" });
+  currentUrl = URL.createObjectURL(blob);
+
+  const img = new Image();
+  await new Promise<void>((res, rej) => {
+    img.onload = () => res();
+    img.onerror = rej;
+    img.src = currentUrl;
+  });
+  currentImg = img;
+}   
+// Prepare the very first snapshot before starting the draw loop
+await snapshotLiveSvgIntoImage(host!, panelW, panelH, fontStyleCss);
 
     // Audio: merge canvas video + WebAudio master
     const rawCtx = (Tone.getContext() as any).rawContext as AudioContext;
@@ -505,10 +519,10 @@ const onDownloadVideo = useCallback(async () => {
 
     // Reveal steps with audio + snapshot
     async function revealStep(i: number): Promise<void> {
-      setVisibleCount(i + 1);
-      await raf2();
-      await snapshotLiveSvgIntoImage();
-    }
+  setVisibleCount(i + 1);
+  await raf2();
+  await snapshotLiveSvgIntoImage(host!, panelW, panelH, fontStyleCss);
+}
     await revealStep(0); // first frame ready
 
     const timers: number[] = [];
