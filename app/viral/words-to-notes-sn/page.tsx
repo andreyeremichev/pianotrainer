@@ -34,7 +34,7 @@ async function buildEmbeddedFontStyle(){
 function raf2(){ return new Promise<void>(res=>requestAnimationFrame(()=>requestAnimationFrame(()=>res()))); }
 
 /** -------- Filename sanitize + builder -------- */
-export function sanitizeForFilename(
+function sanitizeForFilename(
   input: string,
   opts: { maxLen?: number; replacement?: string } = {}
 ): string {
@@ -53,7 +53,7 @@ export function sanitizeForFilename(
   }
   return s || "clip";
 }
-export function buildDownloadName(phrase: string): string {
+function buildDownloadName(phrase: string): string {
   const base = sanitizeForFilename(phrase, { maxLen: 32, replacement: "_" });
   return `${base}-to-notes.mp4`;
 }
