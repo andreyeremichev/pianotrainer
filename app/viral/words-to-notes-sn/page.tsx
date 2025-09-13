@@ -33,6 +33,66 @@ async function buildEmbeddedFontStyle(){
 }
 function raf2(){ return new Promise<void>(res=>requestAnimationFrame(()=>requestAnimationFrame(()=>res()))); }
 
+/** -------- Filename sanitize + builder -------- */
+export function sanitizeForFilename(
+  input: string,
+  opts: { maxLen?: number; replacement?: string } = {}
+): string {
+  const maxLen = Math.max(4, opts.maxLen ?? 32);
+  const rep = opts.replacement ?? "_";
+  if (!input || typeof input !== "string") return "clip";
+  let s = input.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  s = s.replace(/[<>:"/\\|?*\x00-\x1F]/g, "");
+  s = s.replace(/\s+/g, rep);
+  s = s.replace(/[^\p{L}\p{N}_-]/gu, rep);
+  const sep = rep.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  s = s.replace(new RegExp(`${sep}{2,}`, "g"), rep).replace(new RegExp(`^${sep}+|${sep}+$`, "g"), "");
+  s = s.toLowerCase();
+  if (s.length > maxLen) {
+    s = s.slice(0, maxLen).replace(new RegExp(`${sep}+$`), "");
+  }
+  return s || "clip";
+}
+export function buildDownloadName(phrase: string): string {
+  const base = sanitizeForFilename(phrase, { maxLen: 32, replacement: "_" });
+  return `${base}-to-notes.mp4`;
+}
+
+/** -------- Telemetry (no-op stub; replace with your analytics) -------- */
+function track(event: string, props: Record<string, any> = {}) {
+  // TODO: send to your analytics (e.g., post to /api/telemetry)
+  // console.log("[telemetry]", event, props);
+}
+
+/** -------- Recorder MIME picker (prefer MP4 if browser supports it) -------- */
+function pickRecorderMime(): string {
+  const candidates = [
+    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm",
+  ];
+  for (const t of candidates) {
+    try {
+      if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t;
+    } catch {}
+  }
+  return "video/webm";
+}
+
+/** -------- Server-side conversion WebM → MP4 (recommended) -------- */
+async function convertWebmToMp4Server(webmBlob: Blob): Promise<Blob> {
+  // Requires a server route that runs ffmpeg (H.264/AAC, yuv420p, +faststart)
+  // POST body = webmBlob; response = MP4 blob
+  const resp = await fetch("/api/convert-webm-to-mp4", {
+    method: "POST",
+    headers: { "Content-Type": "video/webm" },
+    body: webmBlob,
+  });
+  if (!resp.ok) throw new Error("server convert failed");
+  return await resp.blob(); // MP4
+}
+
 /* Mapping */
 function alphaIndex(ch:string){ return ch.toUpperCase().charCodeAt(0)-65; }
 function letterToDegree(ch:string){ return ((alphaIndex(ch)%7)+1) as 1|2|3|4|5|6|7; }
@@ -105,6 +165,7 @@ export default function WordsToNotesViralPage(){
   function buildShareUrl(){ const url=new URL(window.location.href); url.searchParams.set("key",keyName); url.searchParams.set("phrase",phrase); url.searchParams.set("letters",String(lettersCount)); url.searchParams.set("freeze","1"); const q=sanitizePhraseInput(phrase).trim(); if(q) url.searchParams.set("q",q); url.searchParams.set("utm_source","share"); url.searchParams.set("utm_medium","social"); url.searchParams.set("utm_campaign","words_to_notes"); return url.toString(); }
   function buildTweetIntent(text:string, url:string, hashtags=["piano","music","pianotrainer"]){ const u=new URL("https://twitter.com/intent/tweet"); u.searchParams.set("text",text); u.searchParams.set("url",url); u.searchParams.set("hashtags",hashtags.join(",")); return u.toString(); }
   const onShare=useCallback(()=>setShareOpen(true),[]);
+  track("share_opened", { phrase });
   /* VexFlow render */
   useEffect(()=>{ const host=staveHostRef.current; if(!host) return;
     host.innerHTML="";
@@ -128,7 +189,8 @@ export default function WordsToNotesViralPage(){
   },[mappedNotes,visibleCount,resizeTick,keyName]);
 
   /* Export video (unchanged logic, width now from host rect) */
-  const onDownloadVideo=useCallback(async ()=>{ try{
+const onDownloadVideo=useCallback(async ()=>{
+  try {
     const host=staveHostRef.current; if(!host||!mappedNotes.length) return;
     const total=mappedNotes.length, noteMs=noteDurSec*1000; clearAllTimers(); isPlayingRef.current=false; setIsPlaying(false); setVisibleCount(0); await raf2();
     const r=host.getBoundingClientRect(); const panelW=Math.max(320,Math.floor(r.width)); const panelH=260, SCALE=2, SAFE_BOTTOM=60;
@@ -143,7 +205,10 @@ export default function WordsToNotesViralPage(){
     // audio
     const rawCtx=(Tone.getContext() as any).rawContext as AudioContext; const audioDest=rawCtx.createMediaStreamDestination(); try{ (Tone as any).Destination.connect(audioDest);}catch{}
     const stream=(canvas as any).captureStream(30) as MediaStream; const mixed=new MediaStream([...stream.getVideoTracks(),...audioDest.stream.getAudioTracks()]);
-    const rec=new MediaRecorder(mixed,{mimeType:"video/webm;codecs=vp9"}); const chunks:BlobPart[]=[]; rec.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
+    const mimeType = pickRecorderMime();
+    const chunks: BlobPart[] = [];
+    const rec = new MediaRecorder(mixed, { mimeType });
+    rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
     await Tone.start(); if(!samplerRef.current) await createSamplerForNotes(mappedNotes.map(n=>n.note));
 
@@ -171,11 +236,71 @@ export default function WordsToNotesViralPage(){
       if(elapsed<DURATION_MS) requestAnimationFrame(loop); else { rec.stop(); try{(Tone as any).Destination.disconnect(audioDest);}catch{} timers.forEach(id=>clearTimeout(id)); if(currentUrl) URL.revokeObjectURL(currentUrl); }
     })();
 
-    const blobOut:Blob=await new Promise(res=>{ rec.onstop=()=>res(new Blob(chunks,{type:"video/webm"})); });
-    setVisibleCount(total); setIsPlaying(false); isPlayingRef.current=false;
-    const a=document.createElement("a"); const short=(phrase||"phrase").trim().replace(/\s+/g,"_").slice(0,24); a.download=`words-to-notes_snippet_${short}.webm`; a.href=URL.createObjectURL(blobOut);
-    document.body.appendChild(a); a.click(); a.remove();
-  }catch(e){ console.error("Video export failed",e); }},[phrase,mappedNotes,noteDurSec,keyName]);
+    // Gather recorded blob with the chosen MIME
+    const recorded: Blob = await new Promise((res) => {
+      rec.onstop = () => res(new Blob(chunks, { type: mimeType }));
+    });
+
+    // If we already recorded MP4 (Safari), great; else convert WebM → MP4 on server
+    let mp4Blob: Blob;
+    try {
+      if (mimeType.startsWith("video/mp4")) {
+        mp4Blob = recorded;
+      } else {
+        track("video_convert_start", { from: mimeType });
+        mp4Blob = await convertWebmToMp4Server(recorded);
+        track("video_convert_done", { size: mp4Blob.size });
+      }
+    } catch (e) {
+      // As a last resort (if conversion fails), fall back to recorded blob
+      // But we still log the failure. Most users should get MP4 via server conversion.
+      console.error("MP4 convert failed; falling back to original blob", e);
+      track("video_convert_failed", { err: String(e) });
+      mp4Blob = recorded;
+    }
+
+    // Download MP4 (or fallback) with sanitized filename "{phrase}-to-notes.mp4"
+    const a = document.createElement("a");
+    const fname = buildDownloadName(phrase); // e.g., "hello-world-to-notes.mp4"
+    a.download = fname;
+    a.href = URL.createObjectURL(mp4Blob);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    track("video_downloaded", { mime: mp4Blob.type, size: mp4Blob.size }); 
+  } catch (err) {
+    console.error("Video export failed", err);
+    alert("Sorry, something went wrong while exporting the video.");
+  }
+},[
+  mappedNotes,
+  noteDurSec,
+  staveHostRef,
+  raf2,
+  buildEmbeddedFontStyle,
+  createSamplerForNotes,
+  triggerNow,
+  canPlay,
+  isPlaying,
+  phrase,
+  keyName,
+  samplerRef,
+  Tone,
+  ctaPieces,
+  theme,
+  buildDownloadName,
+  convertWebmToMp4Server,
+  pickRecorderMime,
+  track,
+  setVisibleCount,
+  setIsPlaying,
+  setMappedNotes,
+  setResizeTick,
+  setShareOpen,
+  setLinkCopied,
+  clearAllTimers,
+  isPlayingRef
+]);
 
   /* Input handlers */
   const onInputChange=useCallback((e:React.ChangeEvent<HTMLInputElement>)=>{ setPhrase(trimToMaxLetters(sanitizePhraseInput(e.target.value),MAX_LETTERS)); },[]);
@@ -262,23 +387,27 @@ export default function WordsToNotesViralPage(){
                 style={{background:"transparent",color:theme.gold,border:"none",borderRadius:999,padding:"6px 10px",fontWeight:700,cursor:!canPlay||mappedNotes.length===0?"not-allowed":"pointer",minHeight:32,fontSize:14}}>
                 💾 <span className="action-text">Download</span>
               </button>
-              <button
-                onClick={() => setShareOpen(true)}
-                title="Share"
-                style={{
-                  background: "transparent",
-                  color: theme.gold,
-                  border: "none",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  minHeight: 32,
-                  fontSize: 14,
-                }}
-              >
-                📤 <span className="action-text">Share</span>
-              </button>
+              
+            <button
+  onClick={() => {
+    track("share_opened", { phrase });
+    setShareOpen(true);
+  }}
+  title="Share"
+  style={{
+    background: "transparent",
+    color: theme.gold,
+    border: "none",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontWeight: 700,
+    cursor: "pointer",
+    minHeight: 32,
+    fontSize: 14,
+  }}
+>
+  📤 <span className="action-text">Share</span>
+</button>  
             </div>
           </div>
 
@@ -344,6 +473,8 @@ export default function WordsToNotesViralPage(){
                     const url = buildShareUrl();
                     try {
                       await navigator.clipboard.writeText(url);
+                      
+                      track("share_channel_clicked", { channel: "copy_link", phrase });
                       setShareOpen(false);
                       setLinkCopied(true);
                       setTimeout(() => setLinkCopied(false), 1600);
@@ -367,13 +498,12 @@ export default function WordsToNotesViralPage(){
 
                 {/* X / Twitter */}
                 <a
-                  href={buildTweetIntent(
-                    `My word → melody: ${sanitizePhraseInput(phrase).trim() || "my word"}`,
-                    buildShareUrl()
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setShareOpen(false)}
+  href={buildTweetIntent(`My word → melody: ${phrase}`, buildShareUrl())}
+  target="_blank"
+  rel="noopener noreferrer"
+  onClick={() => {
+    track("share_channel_clicked", { channel: "x", phrase });  // ✅ inside
+  }}
                   style={{
                     display: "block",
                     textAlign: "center",
@@ -394,6 +524,7 @@ export default function WordsToNotesViralPage(){
                 {/* TikTok */}
                 <button
                   onClick={() => {
+                    track("share_channel_clicked", { channel: "tiktok", phrase });
                     alert("Tap Download first, then post the clip in TikTok.");
                     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
                     if (isMobile) {
@@ -422,6 +553,7 @@ export default function WordsToNotesViralPage(){
                 {/* Instagram Reels */}
                 <button
                   onClick={() => {
+                    track("share_channel_clicked", { channel: "instagram", phrase });
                     alert("Tap Download first, then open Instagram → Reels → upload.");
                     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
                     if (isMobile) {
@@ -467,6 +599,7 @@ export default function WordsToNotesViralPage(){
         </section>
 
         {/* Footer CTA */}
+      
         <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
           <Link
             href="/learn/why-these-notes"
