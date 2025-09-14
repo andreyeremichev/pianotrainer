@@ -81,16 +81,33 @@ function pickRecorderMime(): string {
 }
 
 /** -------- Server-side conversion WebM → MP4 (recommended) -------- */
-async function convertWebmToMp4Server(webmBlob: Blob): Promise<Blob> {
-  // Requires a server route that runs ffmpeg (H.264/AAC, yuv420p, +faststart)
-  // POST body = webmBlob; response = MP4 blob
-  const resp = await fetch("/api/convert-webm-to-mp4", {
-    method: "POST",
-    headers: { "Content-Type": "video/webm" },
-    body: webmBlob,
-  });
-  if (!resp.ok) throw new Error("server convert failed");
-  return await resp.blob(); // MP4
+/** Try to normalize on server; if the API fails or returns empty, pass through the original blob. */
+async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
+  try {
+    const resp = await fetch("/api/convert-webm-to-mp4", {
+      method: "POST",
+      headers: { "Content-Type": inputBlob.type || "application/octet-stream" },
+      body: inputBlob,
+    });
+
+    if (!resp.ok) {
+      console.warn("[download] server convert failed:", resp.status);
+      return inputBlob; // fallback — return original recording
+    }
+
+    const out = await resp.blob();
+    console.log("[download] server mp4 blob:", { ok: resp.ok, status: resp.status, size: out.size });
+
+    if (!out || out.size === 0) {
+      console.warn("[download] server returned empty mp4 — falling back to original blob");
+      return inputBlob;
+    }
+
+    return out;
+  } catch (e) {
+    console.warn("[download] server convert error — falling back:", e);
+    return inputBlob;
+  }
 }
 
 /* Mapping */
@@ -202,72 +219,120 @@ const onDownloadVideo=useCallback(async ()=>{
       if(currentUrl) URL.revokeObjectURL(currentUrl); const blob=new Blob([svgStr],{type:"image/svg+xml;charset=utf-8"}); currentUrl=URL.createObjectURL(blob);
       const img=new Image(); await new Promise<void>((res,rej)=>{img.onload=()=>res(); img.onerror=rej; img.src=currentUrl;}); currentImg=img;
     }
-    // audio
-    const rawCtx=(Tone.getContext() as any).rawContext as AudioContext; const audioDest=rawCtx.createMediaStreamDestination(); try{ (Tone as any).Destination.connect(audioDest);}catch{}
-    const stream=(canvas as any).captureStream(30) as MediaStream; const mixed=new MediaStream([...stream.getVideoTracks(),...audioDest.stream.getAudioTracks()]);
-    const mimeType = pickRecorderMime();
-    const chunks: BlobPart[] = [];
-    const rec = new MediaRecorder(mixed, { mimeType });
-    rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+  // audio
+const rawCtx = (Tone.getContext() as any).rawContext as AudioContext;
+const audioDest = rawCtx.createMediaStreamDestination();
+try { (Tone as any).Destination.connect(audioDest); } catch {}
 
-    await Tone.start(); if(!samplerRef.current) await createSamplerForNotes(mappedNotes.map(n=>n.note));
+const stream = (canvas as any).captureStream(30) as MediaStream;
+const mixed = new MediaStream([
+  ...stream.getVideoTracks(),
+  ...audioDest.stream.getAudioTracks(),
+]);
 
-    async function revealStep(i:number){ setVisibleCount(i+1); await raf2(); await snapLive(host!,panelW,panelH,fontCss); }
-    await revealStep(0);
-    const timers:number[]=[]; mappedNotes.forEach((n,idx)=>{ const id=window.setTimeout(()=>{try{triggerNow(n.note);}catch{}}, Math.round(idx*noteMs)); timers.push(id); });
-    const MAIN_MS=Math.round(total*noteMs)+200, TAIL_MS=800, DURATION_MS=Math.min(16000,MAIN_MS+TAIL_MS);
+// Prefer MP4 if supported; Chrome will fall back to WebM (we'll normalize on server)
+const mimeType = pickRecorderMime();
+const chunks: BlobPart[] = [];
+const rec = new MediaRecorder(mixed, { mimeType });
+rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-    rec.start(); const t0=performance.now(); let lastIdx=0;
-    (async function loop(){
-      const now=performance.now(), elapsed=now-t0, idx=Math.min(total-1,Math.floor(elapsed/noteMs));
-      if(idx>lastIdx){ lastIdx=idx; await revealStep(idx).catch(()=>{}); }
-      // bg + gold
-      ctx.fillStyle=theme.bg; ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle=theme.gold; ctx.fillRect(0,26*SCALE,panelW*SCALE,panelH*SCALE);
-      if(currentImg) ctx.drawImage(currentImg,0,0,panelW*SCALE,(panelH+52)*SCALE);
-      // CTA
-      const {t1,t2,t3}=ctaPieces(phrase); ctx.font=`${18*SCALE}px Inter, system-ui, sans-serif`; ctx.textAlign="left"; ctx.textBaseline="middle";
-      const cx=(panelW*SCALE)/2, y=14*SCALE; const w1=ctx.measureText(t1).width, w2=ctx.measureText(t2).width, w3=ctx.measureText(t3).width; let x=cx-(w1+w2+w3)/2;
-      ctx.fillStyle=theme.text; ctx.fillText(t1,x,y); x+=w1; ctx.fillStyle=theme.gold; ctx.fillText(t2,x,y); x+=w2; ctx.fillStyle=theme.text; ctx.fillText(t3,x,y);
-      // watermark deeper
-      ctx.save(); ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.font=`${13*SCALE}px Inter, system-ui, sans-serif`; ctx.fillStyle="rgba(8,16,25,0.96)";
-      ctx.fillText("pianotrainer.app",(panelW*SCALE)-(18*SCALE),(26+panelH-10)*SCALE); ctx.restore();
+await Tone.start();
+if (!samplerRef.current) await createSamplerForNotes(mappedNotes.map(n => n.note));
 
-      if(elapsed<DURATION_MS) requestAnimationFrame(loop); else { rec.stop(); try{(Tone as any).Destination.disconnect(audioDest);}catch{} timers.forEach(id=>clearTimeout(id)); if(currentUrl) URL.revokeObjectURL(currentUrl); }
-    })();
+// reveal scheduler (unchanged)
+async function revealStep(i: number) {
+  setVisibleCount(i + 1);
+  await raf2();
+  await snapLive(host!, panelW, panelH, fontCss);
+}
+await revealStep(0);
+const timers: number[] = [];
+mappedNotes.forEach((n, idx) => {
+  const id = window.setTimeout(() => { try { triggerNow(n.note); } catch {} }, Math.round(idx * noteMs));
+  timers.push(id);
+});
+const MAIN_MS = Math.round(total * noteMs) + 200;
+const TAIL_MS = 800;
+const DURATION_MS = Math.min(16000, MAIN_MS + TAIL_MS);
 
-    // Gather recorded blob with the chosen MIME
-    const recorded: Blob = await new Promise((res) => {
-      rec.onstop = () => res(new Blob(chunks, { type: mimeType }));
-    });
+rec.start();
+const t0 = performance.now();
+let lastIdx = 0;
+(async function loop() {
+  const now = performance.now();
+  const elapsed = now - t0;
+  const idx = Math.min(total - 1, Math.floor(elapsed / noteMs));
+  if (idx > lastIdx) { lastIdx = idx; await revealStep(idx).catch(() => {}); }
 
-    // If we already recorded MP4 (Safari), great; else convert WebM → MP4 on server
-    let mp4Blob: Blob;
-    try {
-      if (mimeType.startsWith("video/mp4")) {
-        mp4Blob = recorded;
-      } else {
-        track("video_convert_start", { from: mimeType });
-        mp4Blob = await convertWebmToMp4Server(recorded);
-        track("video_convert_done", { size: mp4Blob.size });
-      }
-    } catch (e) {
-      // As a last resort (if conversion fails), fall back to recorded blob
-      // But we still log the failure. Most users should get MP4 via server conversion.
-      console.error("MP4 convert failed; falling back to original blob", e);
-      track("video_convert_failed", { err: String(e) });
-      mp4Blob = recorded;
-    }
+  // background + gold panel
+  ctx.fillStyle = theme.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = theme.gold; ctx.fillRect(0, 26 * SCALE, panelW * SCALE, panelH * SCALE);
 
-    // Download MP4 (or fallback) with sanitized filename "{phrase}-to-notes.mp4"
-    const a = document.createElement("a");
-    const fname = buildDownloadName(phrase); // e.g., "hello-world-to-notes.mp4"
-    a.download = fname;
-    a.href = URL.createObjectURL(mp4Blob);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    track("video_downloaded", { mime: mp4Blob.type, size: mp4Blob.size }); 
+  // live snapshot at this step
+  if (currentImg) ctx.drawImage(currentImg, 0, 0, panelW * SCALE, (panelH + 52) * SCALE);
+
+  // CTA (white “Turn ” + gold phrase + white “ into sound”)
+  const { t1, t2, t3 } = ctaPieces(phrase);
+  ctx.font = `${18 * SCALE}px Inter, system-ui, sans-serif`;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  const cx = (panelW * SCALE) / 2, y = 14 * SCALE;
+  const w1 = ctx.measureText(t1).width, w2 = ctx.measureText(t2).width, w3 = ctx.measureText(t3).width;
+  let x = cx - (w1 + w2 + w3) / 2;
+  ctx.fillStyle = theme.text;  ctx.fillText(t1, x, y); x += w1;
+  ctx.fillStyle = theme.gold;  ctx.fillText(t2, x, y); x += w2;
+  ctx.fillStyle = theme.text;  ctx.fillText(t3, x, y);
+
+  // watermark (deeper inset)
+  ctx.save();
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  ctx.font = `${13 * SCALE}px Inter, system-ui, sans-serif`;
+  ctx.fillStyle = "rgba(8,16,25,0.96)";
+  ctx.fillText("pianotrainer.app", (panelW * SCALE) - (18 * SCALE), (26 + panelH - 10) * SCALE);
+  ctx.restore();
+
+  if (elapsed < DURATION_MS) requestAnimationFrame(loop);
+  else {
+    rec.stop();
+    try { (Tone as any).Destination.disconnect(audioDest); } catch {}
+    timers.forEach(id => clearTimeout(id));
+    if (currentUrl) URL.revokeObjectURL(currentUrl);
+  }
+})();
+
+// Gather recorded blob with the chosen MIME
+const recorded: Blob = await new Promise((res) => {
+  rec.onstop = () => res(new Blob(chunks, { type: mimeType || "video/webm" }));
+});
+
+console.log("[download] recorded blob:", { type: recorded.type, size: recorded.size });
+
+// 🔒 ALWAYS normalize via server → IG/TikTok-friendly MP4 (1080x1920, 30fps, H.264/AAC, -14 LUFS, 8px safe margin)
+// (Even if Safari recorded MP4 natively, we still normalize for consistency.)
+let mp4Blob: Blob;
+try {
+  track?.("video_convert_start", { from: recorded.type });
+  mp4Blob = await convertToMp4Server(recorded); // <-- your server route returns final MP4
+  track?.("video_convert_done", { size: mp4Blob.size });
+} catch (e) {
+  console.error("MP4 convert failed; falling back to original blob", e);
+  track?.("video_convert_failed", { err: String(e) });
+  mp4Blob = recorded; // fallback (not ideal for IG), but we won't block download
+}
+
+// Download with phrase-only filename: "{phrase}.mp4"
+const safeBase =
+  (typeof sanitizeForFilename === "function"
+    ? sanitizeForFilename(phrase, { maxLen: 32, replacement: "_" })
+    : (phrase || "clip").trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 32)) || "clip";
+
+const a = document.createElement("a");
+a.download = `${safeBase}.mp4`; // phrase only, per your requirement
+a.href = URL.createObjectURL(mp4Blob);
+document.body.appendChild(a);
+a.click();
+a.remove();
+track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });  
+
   } catch (err) {
     console.error("Video export failed", err);
     alert("Sorry, something went wrong while exporting the video.");
@@ -289,7 +354,7 @@ const onDownloadVideo=useCallback(async ()=>{
   ctaPieces,
   theme,
   buildDownloadName,
-  convertWebmToMp4Server,
+  convertToMp4Server,
   pickRecorderMime,
   track,
   setVisibleCount,
