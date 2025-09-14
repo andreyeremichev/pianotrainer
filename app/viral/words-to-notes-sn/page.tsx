@@ -199,7 +199,9 @@ const onDownloadVideo = useCallback(async () => {
     canvas.width  = FRAME_W * SCALE;
     canvas.height = FRAME_H * SCALE;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+if (!ctx) return;
+// non-nullable alias for helper functions below
+const c = ctx as CanvasRenderingContext2D;
 
     // ===== 3) Layout constants (tweak if desired) =====
     const CTA_TOP       = 60;
@@ -211,10 +213,10 @@ const onDownloadVideo = useCallback(async () => {
 
     // Dynamic CTA sizing
     function measureCtaTotalWidth(px: number): number {
-      const { t1, t2, t3 } = ctaPieces(phrase);
-      ctx.font = `${px * SCALE}px Inter, system-ui, sans-serif`;
-      return ctx.measureText(t1).width + ctx.measureText(t2).width + ctx.measureText(t3).width;
-    }
+  const { t1, t2, t3 } = ctaPieces(phrase);
+  c.font = `${px * SCALE}px Inter, system-ui, sans-serif`;
+  return c.measureText(t1).width + c.measureText(t2).width + c.measureText(t3).width;
+}
     function pickCtaPx(): number {
       let lo = CTA_MIN_PX, hi = CTA_MAX_PX, best = CTA_MIN_PX;
       const maxWidth = FRAME_W * SCALE * CTA_TARGET;
@@ -287,39 +289,42 @@ const onDownloadVideo = useCallback(async () => {
 
     // Drawing helpers
     function drawCTA() {
-      const { t1, t2, t3 } = ctaPieces(phrase);
-      ctx.font = `${CTA_PX * SCALE}px Inter, system-ui, sans-serif`;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      const y = CTA_BASELINE;
-      const w1 = ctx.measureText(t1).width;
-      const w2 = ctx.measureText(t2).width;
-      const w3 = ctx.measureText(t3).width;
-      const total = w1 + w2 + w3;
-      const x0 = (FRAME_W * SCALE - total) / 2;
-      let x = x0;
-      ctx.fillStyle = theme.text;  ctx.fillText(t1, x + w1 / 2, y); x += w1;
-      ctx.fillStyle = theme.gold;  ctx.fillText(t2, x + w2 / 2, y); x += w2;
-      ctx.fillStyle = theme.text;  ctx.fillText(t3, x + w3 / 2, y);
-    }
+  const { t1, t2, t3 } = ctaPieces(phrase);
+  c.font = `${CTA_PX * SCALE}px Inter, system-ui, sans-serif`;
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  const y = CTA_BASELINE;
+
+  const w1 = c.measureText(t1).width;
+  const w2 = c.measureText(t2).width;
+  const w3 = c.measureText(t3).width;
+  const total = w1 + w2 + w3;
+  const x0 = (FRAME_W * SCALE - total) / 2;
+
+  let x = x0;
+  c.fillStyle = theme.text;  c.fillText(t1, x + w1 / 2, y); x += w1;
+  c.fillStyle = theme.gold;  c.fillText(t2, x + w2 / 2, y); x += w2;
+  c.fillStyle = theme.text;  c.fillText(t3, x + w3 / 2, y);
+}
     function drawFrame(img: HTMLImageElement) {
-      // bg
-      ctx.fillStyle = theme.bg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // CTA
-      drawCTA();
-      // golden panel
-      ctx.fillStyle = theme.gold;
-      ctx.fillRect(goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
-      // live snapshot scaled into gold (proportional)
-      ctx.drawImage(img, 0, 0, liveW, liveH, goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
-      // watermark inside gold
-      ctx.save();
-      ctx.textAlign = "right"; ctx.textBaseline = "middle";
-      ctx.font = `${22 * SCALE}px Inter, system-ui, sans-serif`;
-      ctx.fillStyle = "rgba(8,16,25,0.96)";
-      ctx.fillText("pianotrainer.app", (goldX + drawW - 18) * SCALE, (goldY + drawH - 14) * SCALE);
-      ctx.restore();
-    }
+  // bg
+  c.fillStyle = theme.bg;
+  c.fillRect(0, 0, canvas.width, canvas.height);
+  // CTA
+  drawCTA();
+  // golden panel
+  c.fillStyle = theme.gold;
+  c.fillRect(goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
+  // live snapshot proportional
+  c.drawImage(img, 0, 0, liveW, liveH, goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
+  // watermark
+  c.save();
+  c.textAlign = "right"; c.textBaseline = "middle";
+  c.font = `${22 * SCALE}px Inter, system-ui, sans-serif`;
+  c.fillStyle = "rgba(8,16,25,0.96)";
+  c.fillText("pianotrainer.app", (goldX + drawW - 18) * SCALE, (goldY + drawH - 14) * SCALE);
+  c.restore();
+}
 
     // Draw pre-roll
     drawFrame(currentImg);
@@ -359,7 +364,7 @@ const onDownloadVideo = useCallback(async () => {
       if (elapsed < DURATION_MS) requestAnimationFrame(loop);
       else {
         rec.stop();
-        try { (Tone as any).Destination.disconnect(audioDest); } catch {}
+        try { (Tone as any).Destination.disconnect(audioDst); } catch {}
         timers.forEach(id => clearTimeout(id));
       }
     })();
