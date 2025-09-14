@@ -33,91 +33,6 @@ async function buildEmbeddedFontStyle(){
 }
 function raf2(){ return new Promise<void>(res=>requestAnimationFrame(()=>requestAnimationFrame(()=>res()))); }
 
-/** -------- Filename sanitize + builder -------- */
-function sanitizeForFilename(
-  input: string,
-  opts: { maxLen?: number; replacement?: string } = {}
-): string {
-  const maxLen = Math.max(4, opts.maxLen ?? 32);
-  const rep = opts.replacement ?? "_";
-  if (!input || typeof input !== "string") return "clip";
-  let s = input.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
-  s = s.replace(/[<>:"/\\|?*\x00-\x1F]/g, "");
-  s = s.replace(/\s+/g, rep);
-  s = s.replace(/[^\p{L}\p{N}_-]/gu, rep);
-  const sep = rep.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  s = s.replace(new RegExp(`${sep}{2,}`, "g"), rep).replace(new RegExp(`^${sep}+|${sep}+$`, "g"), "");
-  s = s.toLowerCase();
-  if (s.length > maxLen) {
-    s = s.slice(0, maxLen).replace(new RegExp(`${sep}+$`), "");
-  }
-  return s || "clip";
-}
-function buildDownloadName(phrase: string): string {
-  const base = sanitizeForFilename(phrase, { maxLen: 32, replacement: "_" });
-  return `${base}-to-notes.mp4`;
-}
-
-/** -------- Telemetry (no-op stub; replace with your analytics) -------- */
-function track(event: string, props: Record<string, any> = {}) {
-  // TODO: send to your analytics (e.g., post to /api/telemetry)
-  // console.log("[telemetry]", event, props);
-}
-
-/** -------- Recorder MIME picker (prefer MP4 if browser supports it) -------- */
-function pickRecorderMime(): string {
-  const candidates = [
-    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
-    "video/mp4",
-    "video/webm;codecs=vp9,opus",
-    "video/webm",
-  ];
-  for (const t of candidates) {
-    try {
-      if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t;
-    } catch {}
-  }
-  return "video/webm";
-}
-
-/** Convert to social-ready MP4 on the server when needed.
- *  If the blob is already MP4 (Safari), skip the server.
- *  If the server fails/returns empty, fall back and notify the user.
- */
-async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
-  // Safari often records MP4 natively; no need to re-encode in that case.
-  if (inputBlob.type && inputBlob.type.includes("mp4")) {
-    return inputBlob;
-  }
-
-  try {
-    const resp = await fetch("/api/convert-webm-to-mp4", {
-      method: "POST",
-      headers: { "Content-Type": inputBlob.type || "application/octet-stream" },
-      body: inputBlob,
-    });
-
-    if (!resp.ok) {
-      console.warn("[download] server convert failed:", resp.status);
-      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
-      return inputBlob;
-    }
-
-    const out = await resp.blob();
-    if (!out || out.size === 0) {
-      console.warn("[download] server returned empty mp4 — falling back to original blob");
-      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
-      return inputBlob;
-    }
-
-    return out;
-  } catch (e) {
-    console.warn("[download] server convert error — falling back:", e);
-    try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
-    return inputBlob;
-  }
-}
-
 /* Mapping */
 function alphaIndex(ch:string){ return ch.toUpperCase().charCodeAt(0)-65; }
 function letterToDegree(ch:string){ return ((alphaIndex(ch)%7)+1) as 1|2|3|4|5|6|7; }
@@ -190,7 +105,58 @@ export default function WordsToNotesViralPage(){
   function buildShareUrl(){ const url=new URL(window.location.href); url.searchParams.set("key",keyName); url.searchParams.set("phrase",phrase); url.searchParams.set("letters",String(lettersCount)); url.searchParams.set("freeze","1"); const q=sanitizePhraseInput(phrase).trim(); if(q) url.searchParams.set("q",q); url.searchParams.set("utm_source","share"); url.searchParams.set("utm_medium","social"); url.searchParams.set("utm_campaign","words_to_notes"); return url.toString(); }
   function buildTweetIntent(text:string, url:string, hashtags=["piano","music","pianotrainer"]){ const u=new URL("https://twitter.com/intent/tweet"); u.searchParams.set("text",text); u.searchParams.set("url",url); u.searchParams.set("hashtags",hashtags.join(",")); return u.toString(); }
   const onShare=useCallback(()=>setShareOpen(true),[]);
-  track("share_opened", { phrase });
+/** Try to normalize on server; if the API fails or returns empty, pass through the original blob. */
+async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
+  try {
+    const resp = await fetch("/api/convert-webm-to-mp4", {
+      method: "POST",
+      headers: { "Content-Type": inputBlob.type || "application/octet-stream" },
+      body: inputBlob,
+    });
+    if (!resp.ok) {
+      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
+      return inputBlob;
+    }
+    const out = await resp.blob();
+    if (!out || out.size === 0) {
+      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
+      return inputBlob;
+    }
+    return out;
+  } catch {
+    try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
+    return inputBlob;
+  }
+}
+
+/** Prefer MP4 when supported; Chrome will fall back to WebM. */
+function pickRecorderMime(): string {
+  const candidates = [
+    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm",
+  ];
+  for (const t of candidates) {
+    try {
+      if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t;
+    } catch {}
+  }
+  return "video/webm";
+}
+
+/** Safe filename from phrase: "{phrase}.mp4" (phrase only, sanitized) */
+function buildDownloadName(phrase: string): string {
+  const base = (phrase || "clip")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+    .trim().toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 32) || "clip";
+  return `${base}.mp4`;
+}
+
   /* VexFlow render */
   useEffect(()=>{ const host=staveHostRef.current; if(!host) return;
     host.innerHTML="";
@@ -213,167 +179,208 @@ export default function WordsToNotesViralPage(){
     if(bassNotes.length){ const v=new Voice({numBeats:Math.max(1,bassNotes.length),beatValue:4}).setStrict(false); v.addTickables(bassNotes); new Formatter().joinVoices([v]).formatToStave([v],bass); v.draw(ctx,bass); }
   },[mappedNotes,visibleCount,resizeTick,keyName]);
 
-  /* Export video (unchanged logic, width now from host rect) */
-const onDownloadVideo=useCallback(async ()=>{
+/* Export video (Reels-ready: live SVG snapshot + proportional letterbox + animation) */
+const onDownloadVideo = useCallback(async () => {
+  const host = staveHostRef.current;
+  if (!host || !mappedNotes.length) return;
+
   try {
-    const host=staveHostRef.current; if(!host||!mappedNotes.length) return;
-    const total=mappedNotes.length, noteMs=noteDurSec*1000; clearAllTimers(); isPlayingRef.current=false; setIsPlaying(false); setVisibleCount(0); await raf2();
-    const r=host.getBoundingClientRect(); const panelW=Math.max(320,Math.floor(r.width)); const panelH=260, SCALE=2, SAFE_BOTTOM=60;
-    const canvas=document.createElement("canvas"); canvas.width=Math.floor(panelW*SCALE); canvas.height=Math.floor((panelH+52+SAFE_BOTTOM)*SCALE); const ctx=canvas.getContext("2d"); if(!ctx) return;
-    const fontCss=await buildEmbeddedFontStyle(); let currentUrl=""; let currentImg:HTMLImageElement|null=null;
-    async function snapLive(hostEl:HTMLDivElement,w:number,h:number,css:string){ const svgNow=hostEl.querySelector("svg") as SVGSVGElement|null; if(!svgNow) return;
-      const inner=new XMLSerializer().serializeToString(svgNow).replace("<svg",`<svg x="0" y="26"`); const wAttr=String(w), hAttr=String(h+52), vb="0 0 "+w+" "+(h+52);
-      const svgStr='<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+wAttr+'" height="'+hAttr+'" viewBox="'+vb+'"><style>'+css+'</style>'+inner+'</svg>';
-      if(currentUrl) URL.revokeObjectURL(currentUrl); const blob=new Blob([svgStr],{type:"image/svg+xml;charset=utf-8"}); currentUrl=URL.createObjectURL(blob);
-      const img=new Image(); await new Promise<void>((res,rej)=>{img.onload=()=>res(); img.onerror=rej; img.src=currentUrl;}); currentImg=img;
+    // ===== 1) Measure live SVG exactly as rendered =====
+    const liveSvgEl = host.querySelector("svg") as SVGSVGElement | null;
+    if (!liveSvgEl) return;
+
+    const rect = liveSvgEl.getBoundingClientRect();
+    const liveW = Math.max(2, Math.floor(rect.width));
+    const liveH = Math.max(2, Math.floor(rect.height));
+
+    // ===== 2) Export canvas 1080×1920 =====
+    const FRAME_W = 1080, FRAME_H = 1920, SCALE = 2;
+    const canvas  = document.createElement("canvas");
+    canvas.width  = FRAME_W * SCALE;
+    canvas.height = FRAME_H * SCALE;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // ===== 3) Layout constants (tweak if desired) =====
+    const CTA_TOP       = 60;
+    const CTA_MIN_PX    = 28;
+    const CTA_MAX_PX    = 72;
+    const CTA_TARGET    = 0.82; // CTA total width should fit ~82% of frame width
+    const GOLD_SIDE_PAD = 36;   // left/right inset
+    const BOTTOM_PAD    = 140;  // breathing room at bottom
+
+    // Dynamic CTA sizing
+    function measureCtaTotalWidth(px: number): number {
+      const { t1, t2, t3 } = ctaPieces(phrase);
+      ctx.font = `${px * SCALE}px Inter, system-ui, sans-serif`;
+      return ctx.measureText(t1).width + ctx.measureText(t2).width + ctx.measureText(t3).width;
     }
-  // audio
-const rawCtx = (Tone.getContext() as any).rawContext as AudioContext;
-const audioDest = rawCtx.createMediaStreamDestination();
-try { (Tone as any).Destination.connect(audioDest); } catch {}
+    function pickCtaPx(): number {
+      let lo = CTA_MIN_PX, hi = CTA_MAX_PX, best = CTA_MIN_PX;
+      const maxWidth = FRAME_W * SCALE * CTA_TARGET;
+      while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        const w = measureCtaTotalWidth(mid);
+        if (w <= maxWidth) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+      }
+      return best;
+    }
+    const CTA_PX       = pickCtaPx();
+    const CTA_BASELINE = CTA_TOP * SCALE;
 
-const stream = (canvas as any).captureStream(30) as MediaStream;
-const mixed = new MediaStream([
-  ...stream.getVideoTracks(),
-  ...audioDest.stream.getAudioTracks(),
-]);
+    // Golden box destination (proportional to live)
+    const availW = FRAME_W - GOLD_SIDE_PAD * 2;
+    const goldTopPx = Math.round(CTA_TOP + CTA_PX * 1.45);               // push below CTA
+    const availH = FRAME_H - goldTopPx - BOTTOM_PAD;
+    const scale  = Math.min(availW / liveW, availH / liveH);
+    const drawW  = Math.round(liveW * scale);
+    const drawH  = Math.round(liveH * scale);
+    const goldX  = Math.round((FRAME_W - drawW) / 2);
+    const goldY  = goldTopPx;
 
-// Prefer MP4 if supported; Chrome will fall back to WebM (we'll normalize on server)
-const mimeType = pickRecorderMime();
-const chunks: BlobPart[] = [];
-const rec = new MediaRecorder(mixed, { mimeType });
-rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    // ===== 4) Audio mix & recorder (30 fps) =====
+    const rawCtx   = (Tone.getContext() as any).rawContext as AudioContext;
+    const audioDst = rawCtx.createMediaStreamDestination();
+    try { (Tone as any).Destination.connect(audioDst); } catch {}
+    const stream   = (canvas as any).captureStream(30) as MediaStream; // 30 fps
+    const mixed    = new MediaStream([
+      ...stream.getVideoTracks(),
+      ...audioDst.stream.getAudioTracks(),
+    ]);
 
-await Tone.start();
-if (!samplerRef.current) await createSamplerForNotes(mappedNotes.map(n => n.note));
+    const mimeType = pickRecorderMime();
+    const chunks: BlobPart[] = [];
+    const rec = new MediaRecorder(mixed, { mimeType });
+    rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-// reveal scheduler (unchanged)
-async function revealStep(i: number) {
-  setVisibleCount(i + 1);
-  await raf2();
-  await snapLive(host!, panelW, panelH, fontCss);
-}
-await revealStep(0);
-const timers: number[] = [];
-mappedNotes.forEach((n, idx) => {
-  const id = window.setTimeout(() => { try { triggerNow(n.note); } catch {} }, Math.round(idx * noteMs));
-  timers.push(id);
-});
-const MAIN_MS = Math.round(total * noteMs) + 200;
-const TAIL_MS = 800;
-const DURATION_MS = Math.min(16000, MAIN_MS + TAIL_MS);
+    // ===== 5) Build snapshot from FULL live SVG (preserve VexFlow inline styles) =====
+    const fontCss = await buildEmbeddedFontStyle();
 
-rec.start();
-const t0 = performance.now();
-let lastIdx = 0;
-(async function loop() {
-  const now = performance.now();
-  const elapsed = now - t0;
-  const idx = Math.min(total - 1, Math.floor(elapsed / noteMs));
-  if (idx > lastIdx) { lastIdx = idx; await revealStep(idx).catch(() => {}); }
+    function serializeFullSvg(svgEl: SVGSVGElement, w: number, h: number): string {
+      let raw = new XMLSerializer().serializeToString(svgEl);
+      // ensure width/height (do NOT touch id/viewBox)
+      if (!/\swidth=/.test(raw))  raw = raw.replace(/<svg([^>]*?)>/, '<svg$1 width="' + w + '">');
+      else                        raw = raw.replace(/\swidth="[^"]*"/,  ' width="' + w + '"');
+      if (!/\sheight=/.test(raw)) raw = raw.replace(/<svg([^>]*?)>/, '<svg$1 height="' + h + '">');
+      else                        raw = raw.replace(/\sheight="[^"]*"/, ' height="' + h + '"');
+      // append our font CSS into first style, or add a new one
+      if (/<style[^>]*>/.test(raw)) raw = raw.replace(/<style[^>]*>/, (m) => `${m}\n${fontCss}\n`);
+      else                           raw = raw.replace(/<svg[^>]*?>/, (m) => `${m}\n<style>${fontCss}</style>\n`);
+      return raw;
+    }
 
-  // background + gold panel
-  ctx.fillStyle = theme.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = theme.gold; ctx.fillRect(0, 26 * SCALE, panelW * SCALE, panelH * SCALE);
+    async function svgToImage(rawSvg: string): Promise<HTMLImageElement> {
+      const blob = new Blob([rawSvg], { type: "image/svg+xml;charset=utf-8" });
+      const url  = URL.createObjectURL(blob);
+      const img  = new Image();
+      await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+      URL.revokeObjectURL(url);
+      return img;
+    }
 
-  // live snapshot at this step
-  if (currentImg) ctx.drawImage(currentImg, 0, 0, panelW * SCALE, (panelH + 52) * SCALE);
+    // Pre-roll snapshot (no □)
+    await Tone.start();
+    if (!samplerRef.current) await createSamplerForNotes(mappedNotes.map(n => n.note));
+    try { await (document as any).fonts?.ready; } catch {}
 
-  // CTA (white “Turn ” + gold phrase + white “ into sound”)
-  const { t1, t2, t3 } = ctaPieces(phrase);
-  ctx.font = `${18 * SCALE}px Inter, system-ui, sans-serif`;
-  ctx.textAlign = "left"; ctx.textBaseline = "middle";
-  const cx = (panelW * SCALE) / 2, y = 14 * SCALE;
-  const w1 = ctx.measureText(t1).width, w2 = ctx.measureText(t2).width, w3 = ctx.measureText(t3).width;
-  let x = cx - (w1 + w2 + w3) / 2;
-  ctx.fillStyle = theme.text;  ctx.fillText(t1, x, y); x += w1;
-  ctx.fillStyle = theme.gold;  ctx.fillText(t2, x, y); x += w2;
-  ctx.fillStyle = theme.text;  ctx.fillText(t3, x, y);
+    let currentImg = await svgToImage(serializeFullSvg(liveSvgEl, liveW, liveH));
 
-  // watermark (deeper inset)
-  ctx.save();
-  ctx.textAlign = "right"; ctx.textBaseline = "middle";
-  ctx.font = `${13 * SCALE}px Inter, system-ui, sans-serif`;
-  ctx.fillStyle = "rgba(8,16,25,0.96)";
-  ctx.fillText("pianotrainer.app", (panelW * SCALE) - (18 * SCALE), (26 + panelH - 10) * SCALE);
-  ctx.restore();
+    // Drawing helpers
+    function drawCTA() {
+      const { t1, t2, t3 } = ctaPieces(phrase);
+      ctx.font = `${CTA_PX * SCALE}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const y = CTA_BASELINE;
+      const w1 = ctx.measureText(t1).width;
+      const w2 = ctx.measureText(t2).width;
+      const w3 = ctx.measureText(t3).width;
+      const total = w1 + w2 + w3;
+      const x0 = (FRAME_W * SCALE - total) / 2;
+      let x = x0;
+      ctx.fillStyle = theme.text;  ctx.fillText(t1, x + w1 / 2, y); x += w1;
+      ctx.fillStyle = theme.gold;  ctx.fillText(t2, x + w2 / 2, y); x += w2;
+      ctx.fillStyle = theme.text;  ctx.fillText(t3, x + w3 / 2, y);
+    }
+    function drawFrame(img: HTMLImageElement) {
+      // bg
+      ctx.fillStyle = theme.bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // CTA
+      drawCTA();
+      // golden panel
+      ctx.fillStyle = theme.gold;
+      ctx.fillRect(goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
+      // live snapshot scaled into gold (proportional)
+      ctx.drawImage(img, 0, 0, liveW, liveH, goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
+      // watermark inside gold
+      ctx.save();
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.font = `${22 * SCALE}px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = "rgba(8,16,25,0.96)";
+      ctx.fillText("pianotrainer.app", (goldX + drawW - 18) * SCALE, (goldY + drawH - 14) * SCALE);
+      ctx.restore();
+    }
 
-  if (elapsed < DURATION_MS) requestAnimationFrame(loop);
-  else {
-    rec.stop();
-    try { (Tone as any).Destination.disconnect(audioDest); } catch {}
-    timers.forEach(id => clearTimeout(id));
-    if (currentUrl) URL.revokeObjectURL(currentUrl);
-  }
-})();
+    // Draw pre-roll
+    drawFrame(currentImg);
 
-// Gather recorded blob with the chosen MIME
-const recorded: Blob = await new Promise((res) => {
-  rec.onstop = () => res(new Blob(chunks, { type: mimeType || "video/webm" }));
-});
+    // ===== 6) Schedule audio + animate frames =====
+    const noteMs = noteDurSec * 1000;
+    const timers: number[] = [];
+    mappedNotes.forEach((n, idx) => {
+      const id = window.setTimeout(() => { try { triggerNow(n.note); } catch {} }, Math.round(idx * noteMs));
+      timers.push(id);
+    });
 
-console.log("[download] recorded blob:", { type: recorded.type, size: recorded.size });
+    const recStart = performance.now();
+    rec.start();
+    let lastIdx = 0;
+    const DURATION_MS = Math.min(16000, Math.round(mappedNotes.length * noteMs) + 200 + 800);
 
-// 🔒 ALWAYS normalize via server → IG/TikTok-friendly MP4 (1080x1920, 30fps, H.264/AAC, -14 LUFS, 8px safe margin)
-// (Even if Safari recorded MP4 natively, we still normalize for consistency.)
-let mp4Blob: Blob;
-try {
-  track?.("video_convert_start", { from: recorded.type });
-  mp4Blob = await convertToMp4Server(recorded); // <-- your server route returns final MP4
-  track?.("video_convert_done", { size: mp4Blob.size });
-} catch (e) {
-  console.error("MP4 convert failed; falling back to original blob", e);
-  track?.("video_convert_failed", { err: String(e) });
-  mp4Blob = recorded; // fallback (not ideal for IG), but we won't block download
-}
+    (async function loop() {
+      const now = performance.now();
+      const elapsed = now - recStart;
+      const idx = Math.min(mappedNotes.length - 1, Math.floor(elapsed / noteMs));
 
-// Download with phrase-only filename: "{phrase}.mp4"
-const safeBase =
-  (typeof sanitizeForFilename === "function"
-    ? sanitizeForFilename(phrase, { maxLen: 32, replacement: "_" })
-    : (phrase || "clip").trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 32)) || "clip";
+      if (idx > lastIdx) {
+        lastIdx = idx;
+        // advance live stave to show the next note, then snapshot FULL svg
+        setVisibleCount(idx + 1);
+        await raf2();
+        const liveSvg2 = host.querySelector("svg") as SVGSVGElement | null;
+        if (liveSvg2) {
+          currentImg = await svgToImage(serializeFullSvg(liveSvg2, liveW, liveH));
+        }
+        drawFrame(currentImg);
+      } else {
+        drawFrame(currentImg);
+      }
 
-const a = document.createElement("a");
-a.download = `${safeBase}.mp4`; // phrase only, per your requirement
-a.href = URL.createObjectURL(mp4Blob);
-document.body.appendChild(a);
-a.click();
-a.remove();
-track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });  
+      if (elapsed < DURATION_MS) requestAnimationFrame(loop);
+      else {
+        rec.stop();
+        try { (Tone as any).Destination.disconnect(audioDest); } catch {}
+        timers.forEach(id => clearTimeout(id));
+      }
+    })();
 
+    // ===== 7) Gather → normalize on server → download =====
+    const recorded: Blob = await new Promise((res) => {
+      rec.onstop = () => res(new Blob(chunks, { type: mimeType || "video/webm" }));
+    });
+    const mp4Blob = await convertToMp4Server(recorded);
+
+    const a = document.createElement("a");
+    a.download = buildDownloadName(phrase);
+    a.href = URL.createObjectURL(mp4Blob);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   } catch (err) {
-    console.error("Video export failed", err);
-    alert("Sorry, something went wrong while exporting the video.");
+    console.error("[download] export error:", err);
+    try { alert("Could not prepare video. Please try again."); } catch {}
   }
-},[
-  mappedNotes,
-  noteDurSec,
-  staveHostRef,
-  raf2,
-  buildEmbeddedFontStyle,
-  createSamplerForNotes,
-  triggerNow,
-  canPlay,
-  isPlaying,
-  phrase,
-  keyName,
-  samplerRef,
-  Tone,
-  ctaPieces,
-  theme,
-  buildDownloadName,
-  convertToMp4Server,
-  pickRecorderMime,
-  track,
-  setVisibleCount,
-  setIsPlaying,
-  setMappedNotes,
-  setResizeTick,
-  setShareOpen,
-  setLinkCopied,
-  clearAllTimers,
-  isPlayingRef
-]);
+}, [phrase, mappedNotes, noteDurSec, keyName]);
 
   /* Input handlers */
   const onInputChange=useCallback((e:React.ChangeEvent<HTMLInputElement>)=>{ setPhrase(trimToMaxLetters(sanitizePhraseInput(e.target.value),MAX_LETTERS)); },[]);
@@ -460,27 +467,23 @@ track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });
                 style={{background:"transparent",color:theme.gold,border:"none",borderRadius:999,padding:"6px 10px",fontWeight:700,cursor:!canPlay||mappedNotes.length===0?"not-allowed":"pointer",minHeight:32,fontSize:14}}>
                 💾 <span className="action-text">Download</span>
               </button>
-              
-            <button
-  onClick={() => {
-    track("share_opened", { phrase });
-    setShareOpen(true);
-  }}
-  title="Share"
-  style={{
-    background: "transparent",
-    color: theme.gold,
-    border: "none",
-    borderRadius: 999,
-    padding: "6px 10px",
-    fontWeight: 700,
-    cursor: "pointer",
-    minHeight: 32,
-    fontSize: 14,
-  }}
->
-  📤 <span className="action-text">Share</span>
-</button>  
+              <button
+                onClick={() => setShareOpen(true)}
+                title="Share"
+                style={{
+                  background: "transparent",
+                  color: theme.gold,
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  minHeight: 32,
+                  fontSize: 14,
+                }}
+              >
+                📤 <span className="action-text">Share</span>
+              </button>
             </div>
           </div>
 
@@ -546,8 +549,6 @@ track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });
                     const url = buildShareUrl();
                     try {
                       await navigator.clipboard.writeText(url);
-                      
-                      track("share_channel_clicked", { channel: "copy_link", phrase });
                       setShareOpen(false);
                       setLinkCopied(true);
                       setTimeout(() => setLinkCopied(false), 1600);
@@ -571,12 +572,13 @@ track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });
 
                 {/* X / Twitter */}
                 <a
-  href={buildTweetIntent(`My word → melody: ${phrase}`, buildShareUrl())}
-  target="_blank"
-  rel="noopener noreferrer"
-  onClick={() => {
-    track("share_channel_clicked", { channel: "x", phrase });  // ✅ inside
-  }}
+                  href={buildTweetIntent(
+                    `My word → melody: ${sanitizePhraseInput(phrase).trim() || "my word"}`,
+                    buildShareUrl()
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShareOpen(false)}
                   style={{
                     display: "block",
                     textAlign: "center",
@@ -597,7 +599,6 @@ track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });
                 {/* TikTok */}
                 <button
                   onClick={() => {
-                    track("share_channel_clicked", { channel: "tiktok", phrase });
                     alert("Tap Download first, then post the clip in TikTok.");
                     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
                     if (isMobile) {
@@ -626,7 +627,6 @@ track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });
                 {/* Instagram Reels */}
                 <button
                   onClick={() => {
-                    track("share_channel_clicked", { channel: "instagram", phrase });
                     alert("Tap Download first, then open Instagram → Reels → upload.");
                     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
                     if (isMobile) {
@@ -672,7 +672,6 @@ track?.("video_downloaded", { size: mp4Blob.size, mime: mp4Blob.type });
         </section>
 
         {/* Footer CTA */}
-      
         <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
           <Link
             href="/learn/why-these-notes"
