@@ -80,9 +80,16 @@ function pickRecorderMime(): string {
   return "video/webm";
 }
 
-/** -------- Server-side conversion WebM → MP4 (recommended) -------- */
-/** Try to normalize on server; if the API fails or returns empty, pass through the original blob. */
+/** Convert to social-ready MP4 on the server when needed.
+ *  If the blob is already MP4 (Safari), skip the server.
+ *  If the server fails/returns empty, fall back and notify the user.
+ */
 async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
+  // Safari often records MP4 natively; no need to re-encode in that case.
+  if (inputBlob.type && inputBlob.type.includes("mp4")) {
+    return inputBlob;
+  }
+
   try {
     const resp = await fetch("/api/convert-webm-to-mp4", {
       method: "POST",
@@ -92,20 +99,21 @@ async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
 
     if (!resp.ok) {
       console.warn("[download] server convert failed:", resp.status);
-      return inputBlob; // fallback — return original recording
+      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
+      return inputBlob;
     }
 
     const out = await resp.blob();
-    console.log("[download] server mp4 blob:", { ok: resp.ok, status: resp.status, size: out.size });
-
     if (!out || out.size === 0) {
       console.warn("[download] server returned empty mp4 — falling back to original blob");
+      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
       return inputBlob;
     }
 
     return out;
   } catch (e) {
     console.warn("[download] server convert error — falling back:", e);
+    try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
     return inputBlob;
   }
 }
