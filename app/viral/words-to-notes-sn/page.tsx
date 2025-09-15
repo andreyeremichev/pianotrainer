@@ -105,30 +105,31 @@ export default function WordsToNotesViralPage(){
   function buildShareUrl(){ const url=new URL(window.location.href); url.searchParams.set("key",keyName); url.searchParams.set("phrase",phrase); url.searchParams.set("letters",String(lettersCount)); url.searchParams.set("freeze","1"); const q=sanitizePhraseInput(phrase).trim(); if(q) url.searchParams.set("q",q); url.searchParams.set("utm_source","share"); url.searchParams.set("utm_medium","social"); url.searchParams.set("utm_campaign","words_to_notes"); return url.toString(); }
   function buildTweetIntent(text:string, url:string, hashtags=["piano","music","pianotrainer"]){ const u=new URL("https://twitter.com/intent/tweet"); u.searchParams.set("text",text); u.searchParams.set("url",url); u.searchParams.set("hashtags",hashtags.join(",")); return u.toString(); }
   const onShare=useCallback(()=>setShareOpen(true),[]);
-/** Try to normalize on server; if the API fails or returns empty, pass through the original blob. */
+
+  /** -------- Server-side conversion WebM → MP4 (skip if already MP4) -------- */
 async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
+  // If already MP4, skip conversion (iOS Safari / Chrome iOS case)
+  if (inputBlob.type.includes("mp4")) {
+    console.log("[convert] already MP4, skipping server");
+    return inputBlob;
+  }
+
   try {
     const resp = await fetch("/api/convert-webm-to-mp4", {
       method: "POST",
       headers: { "Content-Type": inputBlob.type || "application/octet-stream" },
       body: inputBlob,
     });
-    if (!resp.ok) {
-      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
-      return inputBlob;
-    }
+    if (!resp.ok) throw new Error(`server convert failed: ${resp.status}`);
     const out = await resp.blob();
-    if (!out || out.size === 0) {
-      try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
-      return inputBlob;
-    }
+    if (out.size === 0) throw new Error("server returned empty blob");
+    console.log("[convert] server MP4 size", out.size);
     return out;
-  } catch {
-    try { alert("Preparing MP4 failed; downloading the raw clip instead."); } catch {}
-    return inputBlob;
+  } catch (err) {
+    console.warn("[convert] falling back to raw clip", err);
+    return inputBlob; // silent fallback
   }
 }
-
 /** Prefer MP4 when supported; Chrome will fall back to WebM. */
 function pickRecorderMime(): string {
   const candidates = [
@@ -286,6 +287,12 @@ const c = ctx as CanvasRenderingContext2D;
     try { await (document as any).fonts?.ready; } catch {}
 
     let currentImg = await svgToImage(serializeFullSvg(liveSvgEl, liveW, liveH));
+// Pre-roll stabilization: draw the snapshot a few times before recording
+drawFrame(currentImg);
+await new Promise(r => setTimeout(r, 120));
+drawFrame(currentImg);
+await new Promise(r => setTimeout(r, 120));
+drawFrame(currentImg);
 
     // Drawing helpers
     function drawCTA() {
