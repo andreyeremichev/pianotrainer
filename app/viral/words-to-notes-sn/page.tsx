@@ -179,8 +179,7 @@ function buildDownloadName(phrase: string): string {
     if(trebleNotes.length){ const v=new Voice({numBeats:Math.max(1,trebleNotes.length),beatValue:4}).setStrict(false); v.addTickables(trebleNotes); new Formatter().joinVoices([v]).formatToStave([v],treble); v.draw(ctx,treble); }
     if(bassNotes.length){ const v=new Voice({numBeats:Math.max(1,bassNotes.length),beatValue:4}).setStrict(false); v.addTickables(bassNotes); new Formatter().joinVoices([v]).formatToStave([v],bass); v.draw(ctx,bass); }
   },[mappedNotes,visibleCount,resizeTick,keyName]);
-
-/* Export video (Reels-ready: live SVG snapshot + proportional letterbox + animation) */
+/* Export video (Reels-ready: Phrase on top; no CTA; adjustable safe paddings) */
 const onDownloadVideo = useCallback(async () => {
   const host = staveHostRef.current;
   if (!host || !mappedNotes.length) return;
@@ -200,46 +199,61 @@ const onDownloadVideo = useCallback(async () => {
     canvas.width  = FRAME_W * SCALE;
     canvas.height = FRAME_H * SCALE;
     const ctx = canvas.getContext("2d");
-if (!ctx) return;
-// non-nullable alias for helper functions below
-const c = ctx as CanvasRenderingContext2D;
+    if (!ctx) return;
+    const c = ctx as CanvasRenderingContext2D;
 
-    // ===== 3) Layout constants (tweak if desired) =====
-    const CTA_TOP       = 60;
-    const CTA_MIN_PX    = 28;
-    const CTA_MAX_PX    = 72;
-    const CTA_TARGET    = 0.82; // CTA total width should fit ~82% of frame width
-    const GOLD_SIDE_PAD = 36;   // left/right inset
-    const BOTTOM_PAD    = 140;  // breathing room at bottom
+    // ===== 3) Layout knobs (top phrase; NO bottom CTA) =====
+    // Tweak these three to handle any platform overlays:
+    const SAFE_TOP         = 180; // px from top edge where content may begin
+    const SAFE_BOTTOM      = 120; // px reserved at bottom (platform UI area)
+    const PHRASE_TOP_OFFSET = 5; // additional offset below SAFE_TOP for the phrase baseline
 
-    // Dynamic CTA sizing
-    function measureCtaTotalWidth(px: number): number {
-  const { t1, t2, t3 } = ctaPieces(phrase);
-  c.font = `${px * SCALE}px Inter, system-ui, sans-serif`;
-  return c.measureText(t1).width + c.measureText(t2).width + c.measureText(t3).width;
-}
-    function pickCtaPx(): number {
-      let lo = CTA_MIN_PX, hi = CTA_MAX_PX, best = CTA_MIN_PX;
-      const maxWidth = FRAME_W * SCALE * CTA_TARGET;
+    // Phrase sizing: binary search to fit nicely across width
+    const PHRASE_MIN_PX = 28;
+    const PHRASE_MAX_PX = 80;
+    const PHRASE_TARGET = 0.86; // target fraction of frame width
+
+    // Golden panel side padding (left/right)
+    const GOLD_SIDE_PAD = 36;
+
+    // Measure phrase width at a given px
+    function measurePhraseWidth(px: number): number {
+      c.font = `${px * SCALE}px Inter, system-ui, sans-serif`;
+      return c.measureText(phrase).width;
+    }
+
+    function pickPhrasePx(): number {
+      let lo = PHRASE_MIN_PX, hi = PHRASE_MAX_PX, best = PHRASE_MIN_PX;
+      const maxWidth = FRAME_W * SCALE * PHRASE_TARGET;
       while (lo <= hi) {
         const mid = Math.floor((lo + hi) / 2);
-        const w = measureCtaTotalWidth(mid);
+        const w = measurePhraseWidth(mid);
         if (w <= maxWidth) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
       }
       return best;
     }
-    const CTA_PX       = pickCtaPx();
-    const CTA_BASELINE = CTA_TOP * SCALE;
 
-    // Golden box destination (proportional to live)
+    const phrasePx = pickPhrasePx();
+    function measurePhraseBlockHeight(px: number): number {
+  c.font = `${px * SCALE}px Inter, system-ui, sans-serif`;
+  const m = c.measureText(phrase);
+  const ascent  = (m as any).actualBoundingBoxAscent ?? px * 0.8;
+  const descent = (m as any).actualBoundingBoxDescent ?? px * 0.25;
+  return Math.ceil((ascent + descent) * 1.05); // small breathing room
+}
+const PHRASE_BLOCK_H = measurePhraseBlockHeight(phrasePx);
+    const phraseBaselineY = (SAFE_TOP + PHRASE_TOP_OFFSET + Math.round(PHRASE_BLOCK_H * 0.6)) * SCALE;
+
+    // Golden box destination: fills space between phrase block and bottom safe area
     const availW = FRAME_W - GOLD_SIDE_PAD * 2;
-    const goldTopPx = Math.round(CTA_TOP + CTA_PX * 1.45);               // push below CTA
-    const availH = FRAME_H - goldTopPx - BOTTOM_PAD;
-    const scale  = Math.min(availW / liveW, availH / liveH);
-    const drawW  = Math.round(liveW * scale);
-    const drawH  = Math.round(liveH * scale);
-    const goldX  = Math.round((FRAME_W - drawW) / 2);
-    const goldY  = goldTopPx;
+    const GAP_PHRASE_TO_GOLD = 8; // tweak this (px)
+const goldTopPx = SAFE_TOP + PHRASE_TOP_OFFSET + PHRASE_BLOCK_H + GAP_PHRASE_TO_GOLD;
+const availH = Math.max(2, FRAME_H - goldTopPx - SAFE_BOTTOM);
+const scale  = Math.min(availW / liveW, availH / liveH);
+const drawW  = Math.round(liveW * scale);
+const drawH  = Math.round(liveH * scale);
+const goldX  = Math.round((FRAME_W - drawW) / 2);
+const goldY  = goldTopPx; // anchor directly under phrase
 
     // ===== 4) Audio mix & recorder (30 fps) =====
     const rawCtx   = (Tone.getContext() as any).rawContext as AudioContext;
@@ -261,12 +275,10 @@ const c = ctx as CanvasRenderingContext2D;
 
     function serializeFullSvg(svgEl: SVGSVGElement, w: number, h: number): string {
       let raw = new XMLSerializer().serializeToString(svgEl);
-      // ensure width/height (do NOT touch id/viewBox)
       if (!/\swidth=/.test(raw))  raw = raw.replace(/<svg([^>]*?)>/, '<svg$1 width="' + w + '">');
       else                        raw = raw.replace(/\swidth="[^"]*"/,  ' width="' + w + '"');
       if (!/\sheight=/.test(raw)) raw = raw.replace(/<svg([^>]*?)>/, '<svg$1 height="' + h + '">');
       else                        raw = raw.replace(/\sheight="[^"]*"/, ' height="' + h + '"');
-      // append our font CSS into first style, or add a new one
       if (/<style[^>]*>/.test(raw)) raw = raw.replace(/<style[^>]*>/, (m) => `${m}\n${fontCss}\n`);
       else                           raw = raw.replace(/<svg[^>]*?>/, (m) => `${m}\n<style>${fontCss}</style>\n`);
       return raw;
@@ -287,53 +299,57 @@ const c = ctx as CanvasRenderingContext2D;
     try { await (document as any).fonts?.ready; } catch {}
 
     let currentImg = await svgToImage(serializeFullSvg(liveSvgEl, liveW, liveH));
-// Pre-roll stabilization: draw the snapshot a few times before recording
-drawFrame(currentImg);
-await new Promise(r => setTimeout(r, 120));
-drawFrame(currentImg);
-await new Promise(r => setTimeout(r, 120));
-drawFrame(currentImg);
 
-    // Drawing helpers
-    function drawCTA() {
-  const { t1, t2, t3 } = ctaPieces(phrase);
-  c.font = `${CTA_PX * SCALE}px Inter, system-ui, sans-serif`;
-  c.textAlign = "center";
-  c.textBaseline = "middle";
-  const y = CTA_BASELINE;
+    // Pre-roll stabilization
+    drawFrame(currentImg);
+    await new Promise(r => setTimeout(r, 120));
+    drawFrame(currentImg);
+    await new Promise(r => setTimeout(r, 120));
+    drawFrame(currentImg);
 
-  const w1 = c.measureText(t1).width;
-  const w2 = c.measureText(t2).width;
-  const w3 = c.measureText(t3).width;
-  const total = w1 + w2 + w3;
-  const x0 = (FRAME_W * SCALE - total) / 2;
+    // ===== Drawing helpers =====
+    function drawPhraseTop() {
+      c.font = `${phrasePx * SCALE}px Inter, system-ui, sans-serif`;
+      c.textAlign = "center";
+      c.textBaseline = "middle";
 
-  let x = x0;
-  c.fillStyle = theme.text;  c.fillText(t1, x + w1 / 2, y); x += w1;
-  c.fillStyle = theme.gold;  c.fillText(t2, x + w2 / 2, y); x += w2;
-  c.fillStyle = theme.text;  c.fillText(t3, x + w3 / 2, y);
-}
+      // readability stroke for busy backgrounds
+      c.lineWidth = Math.max(2, Math.floor(phrasePx * 0.12)) * SCALE;
+      c.strokeStyle = "rgba(0,0,0,0.25)";
+
+      // gold-ish stroke + fill
+      c.save();
+c.fillStyle = theme.gold; // golden phrase
+c.strokeText(phrase, (FRAME_W * SCALE) / 2, phraseBaselineY);
+c.fillText(phrase, (FRAME_W * SCALE) / 2, phraseBaselineY);
+c.restore();
+    }
+
     function drawFrame(img: HTMLImageElement) {
-  // bg
-  c.fillStyle = theme.bg;
-  c.fillRect(0, 0, canvas.width, canvas.height);
-  // CTA
-  drawCTA();
-  // golden panel
-  c.fillStyle = theme.gold;
-  c.fillRect(goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
-  // live snapshot proportional
-  c.drawImage(img, 0, 0, liveW, liveH, goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
-  // watermark
-  c.save();
-  c.textAlign = "right"; c.textBaseline = "middle";
-  c.font = `${22 * SCALE}px Inter, system-ui, sans-serif`;
-  c.fillStyle = "rgba(8,16,25,0.96)";
-  c.fillText("pianotrainer.app", (goldX + drawW - 18) * SCALE, (goldY + drawH - 14) * SCALE);
-  c.restore();
-}
+      // bg
+      c.fillStyle = theme.bg;
+      c.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw pre-roll
+      // phrase at top (outside golden box)
+      drawPhraseTop();
+
+      // golden panel area
+      c.fillStyle = theme.gold;
+      c.fillRect(goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
+
+      // live snapshot proportional
+      c.drawImage(img, 0, 0, liveW, liveH, goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
+
+      // watermark (inside golden panel)
+      c.save();
+      c.textAlign = "right"; c.textBaseline = "middle";
+      c.font = `${22 * SCALE}px Inter, system-ui, sans-serif`;
+      c.fillStyle = "rgba(8,16,25,0.96)";
+      c.fillText("pianotrainer.app", (goldX + drawW - 18) * SCALE, (goldY + drawH - 14) * SCALE);
+      c.restore();
+    }
+
+    // First paint
     drawFrame(currentImg);
 
     // ===== 6) Schedule audio + animate frames =====
@@ -393,7 +409,6 @@ drawFrame(currentImg);
     try { alert("Could not prepare video. Please try again."); } catch {}
   }
 }, [phrase, mappedNotes, noteDurSec, keyName]);
-
   /* Input handlers */
   const onInputChange=useCallback((e:React.ChangeEvent<HTMLInputElement>)=>{ setPhrase(trimToMaxLetters(sanitizePhraseInput(e.target.value),MAX_LETTERS)); },[]);
   const onInputKeyDown=useCallback((e:React.KeyboardEvent<HTMLInputElement>)=>{ if(e.key==="Enter"){ setLastEnterAt(Date.now()); start(); } },[start]);
