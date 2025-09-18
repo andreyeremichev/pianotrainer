@@ -325,7 +325,7 @@ const helperText = useMemo(() => {
   const [irrRandom, setIrrRandom] = useState(false);
   const [dateFmt, setDateFmt] = useState<"DD-MM-YYYY"|"YYYY-MM-DD"|"MM-DD-YYYY">("DD-MM-YYYY");
   const [dateVal, setDateVal] = useState<string>("");
-  const [phoneRegion, setPhoneRegion] = useState<"US"|"UK">("US");
+  const [phoneRegion, setPhoneRegion] = useState<Region>("US");
   const [phoneVal, setPhoneVal] = useState<string>("");
   const [customVal, setCustomVal] = useState<string>("");
 
@@ -548,26 +548,74 @@ function formatDateInput(raw: string, fmt: "DD-MM-YYYY"|"YYYY-MM-DD"|"MM-DD-YYYY
 }
 
 
-// --- Phone formatting helpers ---
-function formatUSPhone(raw: string): string {
-  const d = raw.replace(/\D+/g, "").slice(0, 10); // US 10 digits
-  const a = d.slice(0,3), b = d.slice(3,6), c = d.slice(6,10);
-  if (d.length <= 3) return a;
-  if (d.length <= 6) return `${a}-${b}`;
-  return `${a}-${b}-${c}`;
+// ===== Phone formatting (numbers-circle style, region map) =====
+
+// digits-only → dashed groups
+function formatByGroups(raw: string, total: number, groups: number[]): string {
+  const d = raw.replace(/\D+/g, "").slice(0, total);
+  if (d.length === 0) return "";
+  let out = "", i = 0;
+  for (let gi = 0; gi < groups.length; gi++) {
+    if (i >= d.length) break;
+    const n = groups[gi];
+    const part = d.slice(i, i + n);
+    out += (out ? "-" : "") + part;
+    i += n;
+  }
+  // If still typing, show what we have (natural UX)
+  return out || d;
 }
 
-function formatUKPhone(raw: string): string {
-  // MVP: group as 5-3-3 for common 11-digit mobiles (07xxx-xxx-xxx)
-  const d = raw.replace(/\D+/g, "").slice(0, 11);
-  const a = d.slice(0,5), b = d.slice(5,8), c = d.slice(8,11);
-  if (d.length <= 5) return a;
-  if (d.length <= 8) return `${a}-${b}`;
-  return `${a}-${b}-${c}`;
-}
+type Region =
+  | "US" | "CA"               // North America
+  | "UK" | "IE" | "MT"        // Europe (EN)
+  | "AU" | "NZ" | "FJ" | "PG" // Oceania
+  | "ZA" | "NG" | "GH" | "KE" | "UG" // Africa
+  | "IN" | "SG" | "PK" | "PH"        // Asia
+  | "EU";                     // Generic EU
 
-function formatPhoneInput(raw: string, region: "US"|"UK"): string {
-  return region === "US" ? formatUSPhone(raw) : formatUKPhone(raw);
+// Per-region required digits, local formatter, placeholder, and CC digits (for playback if you include it)
+const REGION_INFO: Record<Region, {
+  required: number;
+  fmt: (raw: string) => string;
+  placeholder: string;
+  cc: string; // country code digits (no '+')
+}> = {
+  // North America
+  US: { required: 10, fmt: r => formatByGroups(r, 10, [3,3,4]), placeholder: "555-123-4567", cc: "1" },
+  CA: { required: 10, fmt: r => formatByGroups(r, 10, [3,3,4]), placeholder: "555-123-4567", cc: "1" },
+
+  // Europe (EN)
+  UK: { required: 11, fmt: r => formatByGroups(r, 11, [5,3,3]), placeholder: "07xxx-xxx-xxx", cc: "44" },
+  IE: { required: 9,  fmt: r => formatByGroups(r, 9,  [2,4,3]), placeholder: "08-xxxx-xxx",   cc: "353" },
+  MT: { required: 8,  fmt: r => formatByGroups(r, 8,  [4,4]),   placeholder: "9999-9999",     cc: "356" },
+
+  // Oceania
+  AU: { required: 9,  fmt: r => formatByGroups(r, 9,  [1,4,4]), placeholder: "4-xxxx-xxxx",   cc: "61" },
+  NZ: { required: 9,  fmt: r => formatByGroups(r, 9,  [2,3,4]), placeholder: "02-xxx-xxxx",   cc: "64" },
+  FJ: { required: 8,  fmt: r => formatByGroups(r, 8,  [4,4]),   placeholder: "9999-9999",     cc: "679" },
+  PG: { required: 7,  fmt: r => formatByGroups(r, 7,  [3,4]),   placeholder: "xxx-xxxx",      cc: "675" },
+
+  // Africa
+  ZA: { required: 9,  fmt: r => formatByGroups(r, 9,  [2,3,4]), placeholder: "xx-xxx-xxxx",   cc: "27" },
+  NG: { required: 10, fmt: r => formatByGroups(r, 10, [2,4,4]), placeholder: "xx-xxxx-xxxx",  cc: "234" },
+  GH: { required: 9,  fmt: r => formatByGroups(r, 9,  [2,3,4]), placeholder: "xx-xxx-xxxx",   cc: "233" },
+  KE: { required: 9,  fmt: r => formatByGroups(r, 9,  [2,3,4]), placeholder: "xx-xxx-xxxx",   cc: "254" },
+  UG: { required: 9,  fmt: r => formatByGroups(r, 9,  [2,3,4]), placeholder: "xx-xxx-xxxx",   cc: "256" },
+
+  // Asia
+  IN: { required: 10, fmt: r => formatByGroups(r, 10, [4,3,3]), placeholder: "9999-999-999",  cc: "91" },
+  SG: { required: 8,  fmt: r => formatByGroups(r, 8,  [4,4]),   placeholder: "9999-9999",     cc: "65" },
+  PK: { required: 10, fmt: r => formatByGroups(r, 10, [3,4,3]), placeholder: "xxx-xxxx-xxx",  cc: "92" },
+  PH: { required: 10, fmt: r => formatByGroups(r, 10, [2,4,4]), placeholder: "xx-xxxx-xxxx",  cc: "63" },
+
+  // Generic EU (10 local digits; simple dash groups)
+  EU: { required: 10, fmt: r => formatByGroups(r, 10, [3,3,4]), placeholder: "xxx-xxx-xxxx",  cc: "" },
+};
+
+// unified formatter
+function formatPhoneInput(raw: string, region: Region): string {
+  return REGION_INFO[region].fmt(raw);
 }
 
   /* ---------- Init from URL ---------- */
@@ -601,11 +649,11 @@ function formatPhoneInput(raw: string, region: "US"|"UK"): string {
   }
 
   if (sec === "phone") {
-    const r = searchParams.get("region");
-    const p = searchParams.get("phone");
-    if (r === "US" || r === "UK") setPhoneRegion(r);
-    if (p) setPhoneVal(p);
-  }
+  const r = searchParams.get("region");
+  const p = searchParams.get("phone");
+  if (r && (r in REGION_INFO)) setPhoneRegion(r as Region);
+  if (p) setPhoneVal(p);
+}
 
   if (sec === "custom") {
     const n = searchParams.get("number");
@@ -747,9 +795,12 @@ setTitleIdx((i) => (i + 1) % TITLE_OPTIONS.length);
   if (section === "date") {
     dpcSeq = sanitizeDigitsWithPauses(dateVal); // already dashed in input
   } else if (section === "phone") {
-    // include country code first (digits only), then the user's formatted number (digits and dashes)
-    const code = (phoneRegion === "US") ? "1" : "44";
-    dpcSeq = [...code.split(""), ...sanitizeDigitsWithPauses(phoneVal)];
+  // include country code first (digits only), then the user's formatted number (digits and dashes)
+  const code = REGION_INFO[phoneRegion].cc; // "" for generic EU
+  dpcSeq = [
+    ...code.split(""),                             // CC digits (if any)
+    ...sanitizeDigitsWithPauses(phoneVal)          // local number digits + dashes (pauses)
+  ];
   } else if (section === "custom") {
     dpcSeq = sanitizeDigitsWithPauses(customVal).slice(0, 20);
   }
@@ -1059,21 +1110,70 @@ if (i % dpcLen === 0) {
             </div>
           )}
 
-          {section==="phone" && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-                <select value={phoneRegion} onChange={e=>setPhoneRegion(e.target.value as any)}
-                  style={{ background:"#0F1821", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:8, padding:"6px 8px" }}>
-                  <option value="US">USA (+1)</option>
-                  <option value="UK">UK (+44)</option>
-                </select>
-                <input value={phoneVal} onChange={e => setPhoneVal(formatPhoneInput(e.target.value, phoneRegion))}
-                  placeholder={phoneRegion==="US"?"(555)-123-4567":"+44-7700-900123"}
-                  style={{ flex:1, minWidth:0, background:"#0F1821", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:8, padding:"6px 8px", fontSize: 16 }} />
-              </div>
-              <div style={{ color: theme.muted, fontSize: 12, marginTop: 6 }}>Digits are played as degrees; separators “-” are pauses.</div>
-            </div>
-          )}
+          <select
+  value={phoneRegion}
+  onChange={(e)=> {
+    const region = e.target.value as Region;
+    setPhoneRegion(region);
+    setPhoneVal(formatPhoneInput(phoneVal, region)); // reformat existing input for new region
+  }}
+  style={{ background:"#0F1821", color:theme.text, border:`1px solid ${theme.border}`, borderRadius:8, padding:"6px 8px" }}
+>
+  {/* North America */}
+  <optgroup label="North America">
+    <option value="US">United States (+1)</option>
+    <option value="CA">Canada (+1)</option>
+  </optgroup>
+
+  {/* Europe (EN) */}
+  <optgroup label="Europe (EN)">
+    <option value="UK">United Kingdom (+44)</option>
+    <option value="IE">Ireland (+353)</option>
+    <option value="MT">Malta (+356)</option>
+  </optgroup>
+
+  {/* Oceania */}
+  <optgroup label="Oceania">
+    <option value="AU">Australia (+61)</option>
+    <option value="NZ">New Zealand (+64)</option>
+    <option value="FJ">Fiji (+679)</option>
+    <option value="PG">Papua New Guinea (+675)</option>
+  </optgroup>
+
+  {/* Africa */}
+  <optgroup label="Africa">
+    <option value="ZA">South Africa (+27)</option>
+    <option value="NG">Nigeria (+234)</option>
+    <option value="GH">Ghana (+233)</option>
+    <option value="KE">Kenya (+254)</option>
+    <option value="UG">Uganda (+256)</option>
+  </optgroup>
+
+  {/* Asia */}
+  <optgroup label="Asia">
+    <option value="IN">India (+91)</option>
+    <option value="SG">Singapore (+65)</option>
+    <option value="PK">Pakistan (+92)</option>
+    <option value="PH">Philippines (+63)</option>
+  </optgroup>
+
+  {/* Europe (Other EU) */}
+  <optgroup label="Europe (Other EU)">
+    <option value="EU">Europe (Other EU)</option>
+  </optgroup>
+</select>
+
+<input
+  value={phoneVal}
+  onChange={e => setPhoneVal(formatPhoneInput(e.target.value, phoneRegion))}
+  placeholder={REGION_INFO[phoneRegion].placeholder}
+  style={{
+    flex:1, minWidth:0,
+    background:"#0F1821", color:theme.text,
+    border:`1px solid ${theme.border}`, borderRadius:8,
+    padding:"6px 8px", fontSize:16
+  }}
+/>
 
           {section==="custom" && (
   <div style={{ marginBottom: 12 }}>
