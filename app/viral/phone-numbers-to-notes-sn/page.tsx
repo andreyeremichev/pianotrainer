@@ -460,13 +460,13 @@ const playSequence = (ccDigits ? ccDigits + "-" : "") + phoneVal;
    ========================= */
 const onDownloadVideo = useCallback(async () => {
   setIsExporting(true);
+  let savedOverlays: Overlay[] | null = null;  // <-- declare in the outer scope
 
   try {
+  savedOverlays = overlays; 
   const svgEl = svgRef.current;
   if (!svgEl) { setIsExporting(false); return; }
 
-  // Save current overlays so we can restore them after recording
-    const savedOverlays = overlays;
 
   // Measure live SVG
   const rect = svgEl.getBoundingClientRect();
@@ -693,7 +693,7 @@ const onDownloadVideo = useCallback(async () => {
   console.error("[download] export error:", err);
   try { alert("Could not prepare video. Please try again."); } catch {}
 } finally {
-  try { setOverlays(savedOverlays); } catch {}
+   try { if (savedOverlays) setOverlays(savedOverlays); } catch {}
   setIsExporting(false);
 }
 }, [playSequence, svgRef]);
