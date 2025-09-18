@@ -465,6 +465,9 @@ const onDownloadVideo = useCallback(async () => {
   const svgEl = svgRef.current;
   if (!svgEl) { setIsExporting(false); return; }
 
+  // Save current overlays so we can restore them after recording
+    const savedOverlays = overlays;
+
   // Measure live SVG
   const rect = svgEl.getBoundingClientRect();
   const liveW = Math.max(2, Math.floor(rect.width));
@@ -522,9 +525,7 @@ const onDownloadVideo = useCallback(async () => {
     const raw = serializeFullSvg(live, liveW, liveH, css);
     return await svgToImage(raw);
   }
-
-  // Take a clean snapshot: clear current overlays for one frame, then we will re-dance them
-  const savedOverlays = overlays;
+  
   try {
     setOverlays([]);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); // flush twice
