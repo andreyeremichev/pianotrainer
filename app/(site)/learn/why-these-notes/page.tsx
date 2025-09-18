@@ -149,19 +149,35 @@ export default function WhyTheseNotesPage() {
         </p>
       </section>
 
-      <section className="card">
-        <h2 className="h2">🚀 Ready to Play Again?</h2>
-        <p className="lead">
-          Now that you know the secret handshake:
-        </p>
-        <div className="cta-row">
-          <Link href="/viral/words-to-notes-sn" className="cta" aria-label="Open Words to Notes Viral Toy">
-            Back to the Viral Toy →
-          </Link>
-          <Link href="/learn/words-to-notes" className="ghost" aria-label="Open Full Words to Notes Trainer">
-            Full Trainer →
-          </Link>
-        </div>
+       <section className="card">
+       <h2 className="h2">🚀 Ready to Try Again?</h2>
+  <p className="lead">
+    Now that you know the trick, why stop at one? Let a date, a phone number, 
+    or even a word sing. Try any of these three viral toys:
+  </p>
+  <div className="cta-row">
+    <Link
+      href="/viral/date-to-notes-sn"
+      className="cta"
+      aria-label="Open Date to Notes Viral Toy"
+    >
+      Date → Notes →
+    </Link>
+    <Link
+      href="/viral/phone-numbers-to-notes-sn"
+      className="ghost"
+      aria-label="Open Phone Numbers Viral Toy"
+    >
+      Phone → Notes →
+    </Link>
+    <Link
+      href="/viral/words-to-notes-sn"
+      className="ghost"
+      aria-label="Open Words to Notes Viral Toy"
+    >
+      Words → Notes →
+    </Link>
+  </div> 
       </section>
 
       <section className="card">
@@ -176,6 +192,7 @@ export default function WhyTheseNotesPage() {
           </Link>
         </div>
       </section>
+     
     </main>
   );
 }
