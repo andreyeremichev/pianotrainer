@@ -801,16 +801,28 @@ function buildTweetIntent(text: string, url: string) {
   </optgroup>
 </select>  
 
-            <input
-              value={phoneVal}
-              onChange={(e) => setPhoneVal(formatPhoneInput(e.target.value, phoneRegion))}
-              placeholder={REGION_INFO[phoneRegion].placeholder}
-              inputMode="numeric"
-              enterKeyHint="done"
-              onKeyDown={onPhoneKeyDown}
-              onBlur={onPhoneBlur}
-              style={{ flex:1, minWidth:0, background:"#0F1821", color:theme.gold, border:`1px solid ${theme.border}`, borderRadius:8, padding:"8px 10px", fontSize:16 }}
-            />
+         <input
+  value={phoneVal}
+  onChange={(e) => setPhoneVal(formatPhoneInput(e.target.value, phoneRegion))}
+  placeholder={REGION_INFO[phoneRegion].placeholder}
+  inputMode="numeric"
+  enterKeyHint="done"
+  onKeyDown={onPhoneKeyDown}
+  onBlur={onPhoneBlur}
+  style={{
+    flex: "1 1 auto",   // allow input to grow and shrink
+    minWidth: 0,        // prevents clipping on small screens
+    background: "#0F1821",
+    color: theme.gold,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 8,
+    padding: "8px 10px",
+    fontSize: 16,
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    fontVariantNumeric: "tabular-nums",
+  }}
+/>   
           </div>
 
           {/* Circle */}
