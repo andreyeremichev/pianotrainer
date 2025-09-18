@@ -13,6 +13,7 @@ const theme = {
   muted: "#8B94A7",
   gold: "#EBCF7A",     // Major
   minor: "#69D58C",    // Minor
+  green: "#69D58C", 
 };
 
 /* =========================
