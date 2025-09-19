@@ -361,13 +361,27 @@ export default function GrandStaveVF({
           } else {
             // --- Single note mode (whole note) ---
             const src = primParsed ?? (secParsed as NonNullable<typeof secParsed>);
-            const clef: Clef = forceClef ?? clefByOctave(src.octave);
-            const note = new StaveNote({ clef, keys: [src.key], duration: "w" });
-            const voice = new Voice({ numBeats: 1, beatValue: 1 });
-            voice.addTickable(note);
-            new Formatter().joinVoices([voice] as any).format([voice] as any, Math.max(60, drawW - 40));
-            voice.draw(ctx, clef === "bass" ? bass : treble);
-            stavenoteGroupsToOverlay = [{ groupIndex: 0, acc: src.accidental || "" }];
+const clef: Clef = forceClef ?? clefByOctave(src.octave);
+
+// enforce stem-direction rule: below middle → up (1); on/above → down (-1)
+const midiSingle = midiFromVfKey(src.key);
+const dirSingle  = stemDirFor(midiSingle, clef);
+
+const note = new StaveNote({
+  clef,
+  keys: [src.key],
+  duration: "w",
+  stemDirection: dirSingle,
+});
+// lock stems (no autostem)
+(note as any).setAutoStem?.(false);
+
+const voice = new Voice({ numBeats: 1, beatValue: 1 });
+voice.addTickable(note);
+new Formatter().joinVoices([voice] as any).format([voice] as any, Math.max(60, drawW - 40));
+voice.draw(ctx, clef === "bass" ? bass : treble);
+
+stavenoteGroupsToOverlay = [{ groupIndex: 0, acc: src.accidental || "" }];
           }
         }
       }

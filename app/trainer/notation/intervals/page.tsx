@@ -74,6 +74,45 @@ function getAudio(display: string) {
   return a;
 }
 function playOnce(display: string) { const a = getAudio(display); try { a.currentTime = 0; } catch {} a.play().catch(() => {}); }
+/* ======= WebAudio (sample-accurate, for scheduled notes) ======= */
+let _ac: AudioContext | null = null;
+const _bufs = new Map<string, AudioBuffer>();
+
+function getAC(): AudioContext {
+  if (!_ac) {
+    // @ts-ignore
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    _ac = new AC({ latencyHint: "interactive" });
+  }
+  return _ac!;
+}
+
+async function fetchBuffer(display: string): Promise<AudioBuffer> {
+  const key = normalizeToSharp(display);
+  if (_bufs.has(key)) return _bufs.get(key)!;
+  const res = await fetch(audioUrl(display), { cache: "force-cache" });
+  const arr = await res.arrayBuffer();
+  const buf = await getAC().decodeAudioData(arr);
+  _bufs.set(key, buf);
+  return buf;
+}
+
+/** Schedule a single note at absolute AudioContext time (seconds). */
+async function scheduleNote(display: string, when: number, gainDb = 0) {
+  const ac = getAC();
+  const buf = await fetchBuffer(display);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  if (gainDb !== 0) {
+    const g = ac.createGain();
+    const lin = Math.pow(10, gainDb / 20);
+    g.gain.setValueAtTime(lin, when);
+    src.connect(g).connect(ac.destination);
+  } else {
+    src.connect(ac.destination);
+  }
+  try { src.start(when); } catch {}
+}
 
 /* ======================= styles ======================= */
 const styles = `
@@ -270,37 +309,53 @@ export default function IntervalsSequentialPage() {
     return arr.length ? arr : [];
   }, [selected]);
 
-  function rollNew() {
-    const pick = activeIntervals[Math.floor(Math.random() * activeIntervals.length)];
-    const semis = pick.semitones;
+  async function rollNew() {
+  const pick = activeIntervals[Math.floor(Math.random() * activeIntervals.length)];
+  const semis = pick.semitones;
 
-    const clef: Clef = Math.random() < 0.5 ? "bass" : "treble";
-    const MIN_BASS = 36; // C2
-    const MAX_BASS = 60; // C4
-    const MIN_TREB = 60; // C4
-    const MAX_TREB = 84; // C6
+  const clef: Clef = Math.random() < 0.5 ? "bass" : "treble";
+  const MIN_BASS = 36; // C2
+  const MAX_BASS = 60; // C4
+  const MIN_TREB = 60; // C4
+  const MAX_TREB = 84; // C6
 
-    let baseMin: number, baseMax: number;
-    if (clef === "bass") { baseMin = MIN_BASS; baseMax = MAX_BASS - semis; }
-    else { baseMin = MIN_TREB; baseMax = MAX_TREB - semis; }
+  let baseMin: number, baseMax: number;
+  if (clef === "bass") { baseMin = MIN_BASS; baseMax = MAX_BASS - semis; }
+  else { baseMin = MIN_TREB; baseMax = MAX_TREB - semis; }
 
-    if (baseMax < baseMin) { return rollNew(); }
+  if (baseMax < baseMin) { return rollNew(); }
 
-    const base = baseMin + Math.floor(Math.random() * (baseMax - baseMin + 1));
-    const lower = base;
-    const upper = base + semis;
+  const base = baseMin + Math.floor(Math.random() * (baseMax - baseMin + 1));
+  const lower = base;
+  const upper = base + semis;
 
-    setLowerMidi(lower);
-    setUpperMidi(upper);
-    setIntervalLabel(pick.label);
-    setFirstTry(true);
-    setStep(1);
-    awaitingNextRef.current = false;
+  setLowerMidi(lower);
+  setUpperMidi(upper);
+  setIntervalLabel(pick.label);
+  setFirstTry(true);
+  setStep(1);
+  awaitingNextRef.current = false;
 
-    // auto-play both notes when displayed
-    playOnce(midiToNameSharp(lower));
-    setTimeout(() => playOnce(midiToNameSharp(upper)), 280);
-  }
+  // Auto-play both notes — sample-accurate with predecode
+  try { getAC().resume(); } catch {}
+  const ac = getAC();
+
+  const lowerName = midiToNameSharp(lower);
+  const upperName = midiToNameSharp(upper);
+
+  // Pre-decode both buffers BEFORE scheduling (avoids Safari fetch/decode race)
+  await Promise.all([
+    fetchBuffer(lowerName),
+    fetchBuffer(upperName),
+  ]);
+
+  const LEAD_IN = 0.25;  // more headroom than 0.12 for mobile/Safari
+  const GAP     = 0.38;  // your chosen musical gap
+
+  const t0 = ac.currentTime + LEAD_IN;
+  scheduleNote(lowerName, t0);
+  scheduleNote(upperName, t0 + GAP);
+}
 
   // Start button handler
   const [hasStartedOnce, setHasStartedOnce] = useState(false);
@@ -309,7 +364,8 @@ export default function IntervalsSequentialPage() {
 
     setPlayCount(c => c + 1);   // rotate poster title
     setHasStartedOnce(true);
-
+    // 🔊 warm up WebAudio immediately on user gesture (fixes Safari)
+    try { getAC().resume(); } catch {}
     setStarted(true);
     setProgress(0);
     setCorrect(0);
@@ -319,7 +375,7 @@ export default function IntervalsSequentialPage() {
     setUpperMidi(null);
     setStep(1);
     awaitingNextRef.current = false;
-    rollNew();
+    void rollNew();
   };
 
   // judge for keyboard (don't re-judge the first note during step 2)
@@ -346,7 +402,8 @@ export default function IntervalsSequentialPage() {
     const guardId = `press-${midi}`;
     if (!shouldAcceptOnce(guardId)) return;
 
-    playOnce(midiToNameSharp(midi));
+    try { getAC().resume(); } catch {}
+scheduleNote(midiToNameSharp(midi), getAC().currentTime + 0.02);
 
     const expected = step === 1 ? lowerMidi : upperMidi;
     if (midi === expected) {
@@ -376,7 +433,7 @@ export default function IntervalsSequentialPage() {
           setProgress(p => {
             const next = Math.min(25, p + 1);
             if (next < 25) {
-              rollNew();
+              void rollNew();
             } else {
               // ==== SESSION COMPLETE → return to picker but KEEP selections & STATS ====
               setStarted(false);
@@ -412,7 +469,7 @@ export default function IntervalsSequentialPage() {
     setUpperMidi(null);
     setStep(1);
     awaitingNextRef.current = false;
-    if (activeIntervals.length) rollNew();
+    if (activeIntervals.length) void rollNew();
   };
 
   // display names (ascending → prefer sharps)
