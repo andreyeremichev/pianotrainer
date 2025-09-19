@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import PosterHeader from "@/components/PosterHeader";
 
@@ -441,10 +441,73 @@ function DegreeCircle({
   );
 }
 
+function useHasMounted() {
+  const [m, setM] = React.useState(false);
+  React.useEffect(() => setM(true), []);
+  return m;
+}
+
 /* ===========================
    Page Component
    =========================== */
 export default function DegreesPage() {
+  // --- Nudge Pack state ---
+const [streak, setStreak] = useState(0);
+const [bestStreak, setBestStreak] = useState(0);
+const [toast, setToast] = useState<string | null>(null);
+const [muted, setMuted] = useState<boolean>(() => {
+  try { return localStorage.getItem("trainer-muted") === "1"; } catch { return false; }
+});
+useEffect(() => { try { localStorage.setItem("trainer-muted", muted ? "1" : "0"); } catch {} }, [muted]);
+
+// Micro-phrases
+const PRAISE = ["Nice!", "Clean hit 🎯", "Sweet!", "On point!", "Smooth ✨", "Boom!"];
+const ENCOURAGE = ["Almost…", "Close — try again", "You’ve got this 👊", "One more!", "Keep going 🚀"];
+
+// pulse: null | "good" | "bad"
+const [pulse, setPulse] = useState<null | "good" | "bad">(null);
+
+// tiny SFX (WebAudio): pling / thud
+const acRef = useRef<AudioContext | null>(null);
+function getAC() {
+  if (!acRef.current) {
+    // @ts-ignore
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    acRef.current = new AC({ latencyHint: "interactive" });
+  }
+  return acRef.current!;
+}
+function playPling() {
+  if (muted) return;
+  const ac = getAC();
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = "sine"; o.frequency.value = 880; // A5
+  g.gain.setValueAtTime(0, ac.currentTime);
+  g.gain.linearRampToValueAtTime(0.15, ac.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.2);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.22);
+}
+function playThud() {
+  if (muted) return;
+  const ac = getAC();
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = "triangle"; o.frequency.value = 180;
+  g.gain.setValueAtTime(0, ac.currentTime);
+  g.gain.linearRampToValueAtTime(0.2, ac.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.18);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.2);
+}
+
+
+
+// friendlier summary helpers
+function summaryLine(total: number, correct: number) {
+  const pct = total ? Math.round((correct / total) * 100) : 0;
+  if (pct >= 90) return "That’s a keeper. 💎";
+  if (pct >= 75) return "Solid take — sounding great!";
+  if (pct >= 50) return "You’re over the hump — keep going!";
+  return "Warming up — another round will click!";
+}
   const [selectedKey, setSelectedKey] = useState<MajorKey>("C");
   const [setName, setSetName] = useState<string>("1 Through 3");
   const [collapsed, setCollapsed] = useState(false);
@@ -463,7 +526,41 @@ export default function DegreesPage() {
 
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
   const [ariaReplay, setAriaReplay] = useState<string>("");
-const [posterRotate, setPosterRotate] = useState(0);
+  const [posterRotate, setPosterRotate] = useState(0);
+  const hasMounted = useHasMounted();
+
+  // react to feedback changes
+const [lastPhrase, setLastPhrase] = useState<string>("");
+useEffect(() => {
+  if (feedback == null) return;
+  if (feedback.ok === true) {
+    // micro-phrase
+    setLastPhrase(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+    // streak
+    setStreak(s => {
+      const ns = s + 1;
+      setBestStreak(b => Math.max(b, ns));
+      if (ns === 3 || ns === 5 || ns === 10) {
+        setToast(`Streak x${ns}! 🔥`);
+        setTimeout(() => setToast(null), 1400);
+      }
+      return ns;
+    });
+    // pulse + sfx
+    setPulse("good");
+    playPling();
+    const t = setTimeout(() => setPulse(null), 240);
+    return () => clearTimeout(t);
+  } else if (feedback.ok === false) {
+    setLastPhrase(ENCOURAGE[Math.floor(Math.random() * ENCOURAGE.length)]);
+    setStreak(0);
+    setPulse("bad");
+    playThud();
+    const t = setTimeout(() => setPulse(null), 240);
+    return () => clearTimeout(t);
+  }
+}, [feedback]);
+
   // --- iOS keyboard handling ---
   const [kbdOpen, setKbdOpen] = useState(false);
   useEffect(() => {
@@ -708,44 +805,106 @@ setAnswer("");           // then clear input
           onPressCenter={onPressCenter}
         />
 
-        {/* Answer + CHECK */}
-        <section
-          style={{
-            marginTop: 12,
-            background: theme.card,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 16,
-            padding: 12,
-            // keep the answer area visible while the iOS keyboard is up
-            position: kbdOpen ? ("sticky" as const) : ("static" as const),
-            bottom: kbdOpen ? "calc(env(safe-area-inset-bottom, 0px))" : "auto",
-            zIndex: kbdOpen ? 20 : "auto",
-          }}
-        >
-          {!sessionDone ? (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  marginBottom: 8,
-                }}
-              >
-                <div style={{ fontSize: 13, color: theme.muted }}>
-                  {inSession ? (
-                    <>
-                      Drill {idx + 1} of 8 • Key: <strong>{selectedKey}</strong>
-                    </>
-                  ) : (
-                    "Press ▶ to start"
-                  )}
-                </div>
-                <div style={{ marginLeft: "auto", fontSize: 13, color: theme.muted }}>
-                  Score:&nbsp;<strong style={{ color: theme.text }}>{score.correct}</strong> / {score.total}
-                </div>
-              </div>
+       {/* Answer + CHECK */}
+<section
+  className={pulse === "good" ? "pulse-good" : pulse === "bad" ? "pulse-bad" : undefined}
+  style={{
+    marginTop: 12,
+    background: theme.card,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 16,
+    padding: 12,
+    // keep the answer area visible while the iOS keyboard is up
+    position: (hasMounted && kbdOpen ? "sticky" : "static") as const,
+    bottom: kbdOpen ? "calc(env(safe-area-inset-bottom, 0px))" : "auto",
+    zIndex: kbdOpen ? 20 : "auto",
+  }}
+>
+  <style>{`
+    .pulse-good { box-shadow: 0 0 0 2px rgba(105,213,140,0.0) inset; animation: pg 220ms ease; }
+    .pulse-bad  { box-shadow: 0 0 0 2px rgba(255,107,107,0.0) inset; animation: pb 220ms ease; }
+    @keyframes pg {
+      0% { box-shadow: 0 0 0 0 rgba(105,213,140,0.0) inset; }
+      30% { box-shadow: 0 0 0 6px rgba(105,213,140,0.35) inset; }
+      100% { box-shadow: 0 0 0 0 rgba(105,213,140,0.0) inset; }
+    }
+    @keyframes pb {
+      0% { box-shadow: 0 0 0 0 rgba(255,107,107,0.0) inset; }
+      30% { box-shadow: 0 0 0 6px rgba(255,107,107,0.35) inset; }
+      100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.0) inset; }
+    }
+  `}</style>
+
+  {!sessionDone ? (
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 8,
+        }}
+      >
+        <div style={{ fontSize: 13, color: theme.muted }} suppressHydrationWarning>
+  {hasMounted && inSession ? (
+    <>Drill {idx + 1} of 8 • Key: <strong>{selectedKey}</strong></>
+  ) : ("Press ▶ to start")}
+</div>
+
+  {/* Streak badge (shows when >1) */}
+  {streak > 1 && (
+    <div
+      style={{
+        marginLeft: 6,
+        fontSize: 12,
+        fontWeight: 800,
+        color: "#0B0F14",
+        background: "#69D58C",
+        borderRadius: 999,
+        padding: "2px 8px",
+      }}
+      aria-label={`Current streak ${streak}`}
+    >
+      🔥 Streak x{streak}
+    </div>
+  )}
+
+  <div
+  style={{
+    marginLeft: "auto",
+    fontSize: 13,
+    color: theme.muted,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  }}
+  suppressHydrationWarning
+>
+  <span>
+    Score:&nbsp;
+    <strong style={{ color: theme.text }}>
+      {hasMounted ? score.correct : 0}
+    </strong>
+    &nbsp;/&nbsp;
+    {hasMounted ? score.total : 0}
+  </span>
+</div>
+
+    {/* Mute toggle */}
+    <label 
+    suppressHydrationWarning
+    style={{ display:"inline-flex", alignItems:"center", gap:6, cursor:"pointer" }}>
+      <input
+        type="checkbox"
+        checked={muted}
+        onChange={(e)=> setMuted(e.target.checked)}
+        style={{ accentColor: "#69D58C" }}
+      />
+      <span style={{ fontSize:12, color: theme.muted }}>Mute</span>
+    </label>
+  </div>
+
 
               {/* Row → stacks to column when keyboard is open */}
               <div
@@ -753,7 +912,8 @@ setAnswer("");           // then clear input
                   display: "flex",
                   gap: 8,
                   alignItems: "center",
-                  flexDirection: kbdOpen ? ("column" as const) : ("row" as const),
+                  flexDirection: (hasMounted && kbdOpen ? "column" : "row") as const,
+width: hasMounted && kbdOpen ? "100%" : undefined,
                 }}
               >
                 <input
@@ -766,7 +926,7 @@ setAnswer("");           // then clear input
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    width: kbdOpen ? "100%" : undefined, // full-width under keyboard
+                    width: hasMounted && kbdOpen ? "100%" : undefined,
                     padding: "10px 12px",
                     borderRadius: 8,
                     background: "#0E1620",
@@ -792,7 +952,7 @@ setAnswer("");           // then clear input
                       !inSession || !drillPlayed || checkedThisDrill || answer.length === 0
                         ? "not-allowed"
                         : "pointer",
-                    width: kbdOpen ? "100%" : "auto", // full-width button when stacked
+                    width: hasMounted && kbdOpen ? "100%" : "auto",
                   }}
                 >
                   CHECK
@@ -801,21 +961,28 @@ setAnswer("");           // then clear input
 
               <div style={{ minHeight: 22, marginTop: 8 }}>
   {feedback?.ok === true && (
-    <span style={{ color: theme.green }}>
-      Correct: <code>{feedback.correct}</code>
+    <span style={{ color: "#69D58C", fontWeight: 700 }}>
+      {lastPhrase}&nbsp;(<code>{feedback.correct}</code>)
     </span>
   )}
 
   {feedback?.ok === false && (
-  <>
-    <span style={{ color: theme.muted, marginRight: 8 }}>
-      Missed (<code>{lastAnswer}</code>)
+    <>
+      <span style={{ color: theme.muted, marginRight: 10 }}>
+        {lastPhrase}&nbsp;(<code>{lastAnswer}</code>)
+      </span>
+      <span style={{ color: "#69D58C" }}>
+        Correct: <code>{feedback.correct}</code>
+      </span>
+    </>
+  )}
+
+  {/* Streak toast */}
+  {toast && (
+    <span style={{ marginLeft: 10, color: "#FFD166", fontWeight: 800 }}>
+      {toast}
     </span>
-    <span style={{ color: theme.green }}>
-      Correct: <code>{feedback.correct}</code>
-    </span>
-  </>
-)}
+  )}
 </div>
 
               {/* Screen-reader helper for replay */}
@@ -833,15 +1000,19 @@ setAnswer("");           // then clear input
               </div>
             </>
           ) : (
-            <>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Session complete</div>
-              <div style={{ color: theme.muted, fontSize: 14, marginBottom: 10 }}>
-                Total drills: 8 • Correct: {score.correct} / {score.total}
-              </div>
-              <div style={{ color: theme.muted, fontSize: 14, marginBottom: 10 }}>
-                Choose a new Degrees Set above and press <strong>▶</strong> to start again.
-              </div>
-            </>
+           <>
+  <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Session complete 🎉</div>
+  <div style={{ color: theme.muted, fontSize: 14, marginBottom: 6 }}>
+    Correct:&nbsp;<strong style={{ color: theme.text }}>{score.correct}</strong> / {score.total}
+    &nbsp;•&nbsp;Best streak:&nbsp;<strong style={{ color: theme.text }}>{bestStreak}</strong>
+  </div>
+  <div style={{ color: theme.muted, fontSize: 14, marginBottom: 10 }}>
+    {summaryLine(score.total, score.correct)}
+  </div>
+  <div style={{ color: theme.muted, fontSize: 14 }}>
+    Choose a new Degrees Set above and press <strong>▶</strong> to start again.
+  </div>
+</>
           )}
         </section>
       </main>
