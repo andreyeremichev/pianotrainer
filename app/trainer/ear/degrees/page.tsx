@@ -815,7 +815,7 @@ setAnswer("");           // then clear input
     borderRadius: 16,
     padding: 12,
     // keep the answer area visible while the iOS keyboard is up
-    position: (hasMounted && kbdOpen ? "sticky" : "static") as const,
+    position: hasMounted && kbdOpen ? "sticky" : "static",
     bottom: kbdOpen ? "calc(env(safe-area-inset-bottom, 0px))" : "auto",
     zIndex: kbdOpen ? 20 : "auto",
   }}
