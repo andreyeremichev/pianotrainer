@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import PosterHeader from "@/components/PosterHeader";
 
@@ -73,7 +73,50 @@ const BUCKETS = {
   All:   INTERVALS as readonly IntervalName[],
 } as const;
 type BucketKey = keyof typeof BUCKETS;
-
+/* ===========================
+   Interval Grid (answers)
+   =========================== */
+function IntervalGrid({
+  value,
+  onChange,
+}: {
+  value: IntervalName | null;
+  onChange: (v: IntervalName) => void;
+}) {
+  const buttons: IntervalName[] = ["m2","M2","m3","M3","P4","TT","P5","m6","M6","m7","M7","P8"];
+  return (
+    <div
+      role="group"
+      aria-label="Choose the interval you heard"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gap: 8,
+      }}
+    >
+      {buttons.map((label) => {
+        const active = value === label;
+        return (
+          <button
+            key={label}
+            onClick={() => onChange(label)}
+            style={{
+              padding: "10px 8px",
+              borderRadius: 8,
+              border: `1px solid ${active ? theme.blue : theme.border}`,
+              background: active ? theme.blue : "#0F1821",
+              color: active ? "#081019" : theme.text,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 /* ===========================
    Web Audio (sample-accurate)
    =========================== */
@@ -243,104 +286,37 @@ function SemitoneBar({
           })}
         </div>
 
-        {/* Bottom names */}
-        <div style={{ position: "relative", height: 26, marginTop: 2 }}>
-          {names.map((label, idx) => {
-            const left = `${(idx / 12) * 100}%`;
-            const active = highlightedSemis.has(idx);
-            const color = active ? theme.gold : theme.text;
-            return (
-              <div
-                key={label}
-                style={{
-                  position: "absolute",
-                  left,
-                  transform: "translateX(-50%)",
-                  fontSize: 12,
-                  color,
-                  fontWeight: active ? 800 : 700,
-                  transition: "color 120ms ease",
-                }}
-              >
-                {label}
-              </div>
-            );
-          })}
-        </div>
+          {/* Bottom names */}
+<div style={{ position: "relative", height: 26, marginTop: 2 }}>
+  {names.map((label, idx) => {
+    const left = `${(idx / 12) * 100}%`;
+    const active = highlightedSemis.has(idx);
+    const color = active ? theme.gold : theme.text;
+    return (
+      <div
+        key={label}
+        style={{
+          position: "absolute",
+          left,
+          transform: "translateX(-50%)",
+          fontSize: 12,
+          color,
+          fontWeight: active ? 800 : 700,
+          transition: "color 120ms ease",
+        }}
+      >
+        {label}
       </div>
+    );
+  })}
+</div>
 
-      {/* Controls row under the bar: ▶/↻ + Cadence (always visible) */}
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
-        <button
-          onClick={onPressCenter}
-          disabled={centerMode === "disabled"}
-          style={{
-            width: 56, height: 56, borderRadius: "50%",
-            border: "1px solid " + theme.border,
-            display: "grid", placeItems: "center",
-            background: centerMode === "play" ? theme.blue : "#0F1620",
-            color: centerMode === "play" ? "#081019" : theme.text,
-            cursor: centerMode === "disabled" ? "not-allowed" : "pointer",
-          }}
-          title={centerMode === "play" ? "Play" : "Replay"}
-          aria-label={centerMode === "play" ? "Play" : "Replay"}
-        >
-          {centerMode === "play" ? (
-            <svg width={28} height={28} viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
-          ) : (
-            <svg width={28} height={28} viewBox="0 0 24 24"><path fill="currentColor" d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5a5 5 0 1 1-8.66-3.54l-1.42-1.42A7 7 0 1 0 12 6z"/></svg>
-          )}
-        </button>
+</div>
+{/* closes the outer card container */}
+{secondaryCadence}
 
-        {/* Cadence helper stays visible during session */}
-        {secondaryCadence}
-      </div>
-    </div>
-  );
-}
+</div>
 
-/* ===========================
-   Interval Grid (answers)
-   =========================== */
-function IntervalGrid({
-  value,
-  onChange,
-}: {
-  value: IntervalName | null;
-  onChange: (v: IntervalName) => void;
-}) {
-  const buttons: IntervalName[] = ["m2","M2","m3","M3","P4","TT","P5","m6","M6","m7","M7","P8"];
-  return (
-    <div
-      role="group"
-      aria-label="Choose the interval you heard"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        gap: 8,
-      }}
-    >
-      {buttons.map((label) => {
-        const active = value === label;
-        return (
-          <button
-            key={label}
-            onClick={() => onChange(label)}
-            style={{
-              padding: "10px 8px",
-              borderRadius: 8,
-              border: `1px solid ${active ? theme.blue : theme.border}`,
-              background: active ? theme.blue : "#0F1821",
-              color: active ? "#081019" : theme.text,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -348,6 +324,84 @@ function IntervalGrid({
    Page Component (Intervals)
    =========================== */
 export default function IntervalsPage() {
+  // --- Nudge Pack: intervals ---
+const [streak, setStreak] = useState(0);
+const [bestStreak, setBestStreak] = useState(0);
+const [toast, setToast] = useState(null as string | null);
+const [pulse, setPulse] = useState<null | "good" | "bad">(null);
+
+// mute toggle (persisted)
+const [muted, setMuted] = useState(false);
+useEffect(() => {
+  try {
+    const v = typeof window !== "undefined" ? localStorage.getItem("trainer-muted") : null;
+    if (v != null) setMuted(v === "1");
+  } catch (e) {}
+}, []);
+useEffect(() => {
+  try { localStorage.setItem("trainer-muted", muted ? "1" : "0"); } catch (e) {}
+}, [muted]);
+
+// interval-themed micro-phrases
+const PRAISE = [
+  "Sharp ears! 👂✨",
+  "You nailed that leap 🎯",
+  "Perfect distance!",
+  "Bang on — that’s the one 🎶",
+  "Nice catch! 🪝",
+  "Solid interval recognition 💪",
+];
+const ENCOURAGE = [
+  "Close, but try again 👀",
+  "Almost — listen for the gap 👂",
+  "Not quite, check the distance…",
+  "Missed that leap, but next one’s yours 🚀",
+  "You’ll catch it next time 🎵",
+  "Keep training those ears 💡",
+];
+
+const [lastPhrase, setLastPhrase] = useState("");
+
+// tiny SFX (pling/thud)
+const acRef = useRef<AudioContext | null>(null);
+function getAC() {
+  if (!acRef.current) {
+    // @ts-ignore
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    acRef.current = new AC({ latencyHint: "interactive" });
+  }
+  return acRef.current!;
+}
+function playPling() {
+  if (muted) return;
+  const ac = getAC();
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = "sine"; o.frequency.value = 880;
+  g.gain.setValueAtTime(0, ac.currentTime);
+  g.gain.linearRampToValueAtTime(0.15, ac.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.2);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.22);
+}
+function playThud() {
+  if (muted) return;
+  const ac = getAC();
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = "triangle"; o.frequency.value = 180;
+  g.gain.setValueAtTime(0, ac.currentTime);
+  g.gain.linearRampToValueAtTime(0.2, ac.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.18);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.2);
+}
+
+
+// friendlier session summary
+function summaryLine(total: number, correct: number) {
+  const pct = total ? Math.round((correct / total) * 100) : 0;
+  if (pct >= 90) return "Those were clean leaps. 💎";
+  if (pct >= 75) return "Solid interval sense — keep it up!";
+  if (pct >= 50) return "You’re hearing the gaps — another round!";
+  return "Ears warming up — run it again 👂";
+}
   /* Options */
   const [selectedKey, setSelectedKey] = useState<MajorKey>("C");
   const [bucket, setBucket] = useState<BucketKey>("Steps");
@@ -366,6 +420,35 @@ export default function IntervalsPage() {
   const [drillPlayed, setDrillPlayed] = useState(false);
   const [awaitingCheck, setAwaitingCheck] = useState(false);
   const [checkedThisDrill, setCheckedThisDrill] = useState(false);
+
+  // react to feedback changes
+useEffect(() => {
+  if (feedback == null) return;
+
+  if (feedback.ok === true) {
+    setLastPhrase(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+    setStreak(s => {
+      const ns = s + 1;
+      setBestStreak(b => Math.max(b, ns));
+      if (ns === 3 || ns === 5 || ns === 10) {
+        setToast(`Streak x${ns}! 🔥`);
+        setTimeout(() => setToast(null), 1400);
+      }
+      return ns;
+    });
+    setPulse("good"); playPling();
+    const t = setTimeout(() => setPulse(null), 240);
+    return () => clearTimeout(t);
+  }
+
+  if (feedback.ok === false) {
+    setLastPhrase(ENCOURAGE[Math.floor(Math.random() * ENCOURAGE.length)]);
+    setStreak(0);
+    setPulse("bad"); playThud();
+    const t = setTimeout(() => setPulse(null), 240);
+    return () => clearTimeout(t);
+  }
+}, [feedback]);
 
   // Semitone bar highlights (PU=0 + target)
   const [highlightedSemis, setHighlightedSemis] = useState<Set<number>>(new Set());
@@ -796,85 +879,228 @@ last = choice;
             </button>
           }
         />
-
+        {/* Top Start/Restart Session button (always visible when not in session) */}
+{sessionDone && (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8,
+      marginTop: 8,
+      flexWrap: "wrap",
+    }}
+  >
+    <button
+      // If you have a dedicated session start/reset function, call it here instead of onPressCenter
+      onClick={onPressCenter}
+      style={{
+        background: theme.blue,
+        color: "#081019",
+        border: "none",
+        borderRadius: 8,
+        padding: "10px 16px",
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+        cursor: "pointer",
+      }}
+      title={sessionDone ? "Restart session" : "Start session"}
+      aria-label={sessionDone ? "Restart session" : "Start session"}
+    >
+      {sessionDone ? "↻ Restart Session" : "▶ Start Session"}
+    </button>
+  </div>
+)}
         {/* Answer + CHECK */}
-        <section
+<section
+  className={pulse === "good" ? "pulse-good" : pulse === "bad" ? "pulse-bad" : undefined}
+  style={{
+    marginTop: 12,
+    background: theme.card,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 16,
+    padding: 12,
+    // keep the answer area visible while the iOS keyboard is up
+    position: kbdOpen ? ("sticky" as const) : ("static" as const),
+    bottom: kbdOpen ? "calc(env(safe-area-inset-bottom, 0px))" : "auto",
+    zIndex: kbdOpen ? 20 : "auto",
+  }}
+>
+  {/* Pulse CSS */}
+  <style>{`
+    .pulse-good { box-shadow: 0 0 0 2px rgba(105,213,140,0.0) inset; animation: pg 220ms ease; }
+    .pulse-bad  { box-shadow: 0 0 0 2px rgba(255,107,107,0.0) inset; animation: pb 220ms ease; }
+    @keyframes pg {
+      0% { box-shadow: 0 0 0 0 rgba(105,213,140,0.0) inset; }
+      30% { box-shadow: 0 0 0 6px rgba(105,213,140,0.35) inset; }
+      100% { box-shadow: 0 0 0 0 rgba(105,213,140,0.0) inset; }
+    }
+    @keyframes pb {
+      0% { box-shadow: 0 0 0 0 rgba(255,107,107,0.0) inset; }
+      30% { box-shadow: 0 0 0 6px rgba(255,107,107,0.35) inset; }
+      100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.0) inset; }
+    }
+  `}</style>
+
+  {!sessionDone ? (
+    <>
+      {/* Header row: drill label, streak badge, score, mute */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+        <div style={{ fontSize:13, color:theme.muted }}>
+          {inSession ? (
+            <>Drill {idx+1} of 8 • Key (PU): <strong>{selectedKey}</strong></>
+          ) : (
+            "Press ▶ to start"
+          )}
+        </div>
+
+        {/* Streak badge */}
+        {streak > 1 && (
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              color: "#0B0F14",
+              background: "#69D58C",
+              borderRadius: 999,
+              padding: "2px 8px",
+            }}
+            aria-label={`Current streak ${streak}`}
+          >
+            🔥 Streak x{streak}
+          </div>
+        )}
+
+        <div style={{ marginLeft:"auto", fontSize:13, color:theme.muted, display:"flex", alignItems:"center", gap:10 }}>
+          <span>
+            Score:&nbsp;<strong style={{ color: theme.text }}>{score.correct}</strong> / {score.total}
+          </span>
+
+          {/* Mute toggle */}
+          <label style={{ display:"inline-flex", alignItems:"center", gap:6, cursor:"pointer" }}>
+            <input
+              type="checkbox"
+              checked={muted}
+              onChange={(e)=> setMuted(e.target.checked)}
+              style={{ accentColor: "#69D58C" }}
+            />
+            <span style={{ fontSize:12, color: theme.muted }}>Mute</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Answer grid */}
+      <IntervalGrid value={selectedAnswer} onChange={setSelectedAnswer} />
+
+      {/* Controls row: Start/Replay + CHECK (stack vertically on small screens / keyboard open) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          justifyContent: "flex-end",
+          marginTop: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Start / Replay (moved down here) */}
+        <button
+          onClick={onPressCenter}
+          disabled={centerMode === "disabled"}
           style={{
-            marginTop: 12,
-            background: theme.card,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 16,
-            padding: 12,
-            position: kbdOpen ? ("sticky" as const) : ("static" as const),
-            bottom: kbdOpen ? "calc(env(safe-area-inset-bottom, 0px))" : "auto",
-            zIndex: kbdOpen ? 20 : "auto",
+            // stack full-width when keyboard is open; keep round otherwise
+            flex: kbdOpen ? "1 1 100%" : "0 0 auto",
+            width: kbdOpen ? "100%" : 56,
+            height: 56,
+            borderRadius: kbdOpen ? 8 : "50%",
+            border: "1px solid " + theme.border,
+            display: "grid",
+            placeItems: "center",
+            background: centerMode === "play" ? theme.blue : "#0F1620",
+            color: centerMode === "play" ? "#081019" : theme.text,
+            cursor: centerMode === "disabled" ? "not-allowed" : "pointer",
+          }}
+          title={centerMode === "play" ? "Play" : "Replay"}
+          aria-label={centerMode === "play" ? "Play" : "Replay"}
+        >
+          {centerMode === "play" ? (
+            <svg width={28} height={28} viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" fill="currentColor" />
+            </svg>
+          ) : (
+            <svg width={28} height={28} viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5a5 5 0 1 1-8.66-3.54l-1.42-1.42A7 7 0 1 0 12 6z"
+              />
+            </svg>
+          )}
+        </button>
+
+        {/* CHECK */}
+        <button
+          onClick={onCheck}
+          disabled={!inSession || !drillPlayed || checkedThisDrill || selectedAnswer == null}
+          style={{
+            flex: kbdOpen ? "1 1 100%" : "0 0 auto",
+            width: kbdOpen ? "100%" : "auto",
+            background: theme.gold,
+            color:"#081019",
+            border:"none",
+            borderRadius: 8,
+            padding:"10px 16px",
+            fontWeight: 700,
+            whiteSpace:"nowrap",
+            cursor: (!inSession || !drillPlayed || checkedThisDrill || selectedAnswer == null) ? "not-allowed" : "pointer",
           }}
         >
-          {!sessionDone ? (
-            <>
-              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:8 }}>
-                <div style={{ fontSize:13, color:theme.muted }}>
-                  {inSession ? <>Drill {idx+1} of 8 • Key (PU): <strong>{selectedKey}</strong></> : "Press ▶ to start"}
-                </div>
-                <div style={{ marginLeft:"auto", fontSize:13, color:theme.muted }}>
-                  Score:&nbsp;<strong style={{ color: theme.text }}>{score.correct}</strong> / {score.total}
-                </div>
-              </div>
+          CHECK
+        </button>
+      </div>
 
-              <IntervalGrid value={selectedAnswer} onChange={setSelectedAnswer} />
+      {/* Feedback with direction & micro-phrases */}
+      <div style={{ minHeight: 22, marginTop: 8 }}>
+        {feedback?.ok === true && (
+          <span style={{ color: "#69D58C", fontWeight: 700 }}>
+            {lastPhrase}&nbsp;(<code>{feedback.correct}</code> {feedback.dir === "Asc" ? "↑" : "↓"})
+          </span>
+        )}
 
-              <div style={{ display:"flex", justifyContent:"flex-end", marginTop:10 }}>
-                <button
-                  onClick={onCheck}
-                  disabled={!inSession || !drillPlayed || checkedThisDrill || selectedAnswer == null}
-                  style={{
-                    background: theme.blue,
-                    color:"#081019",
-                    border:"none",
-                    borderRadius: 8,
-                    padding:"10px 16px",
-                    fontWeight: 700,
-                    whiteSpace:"nowrap",
-                    cursor: (!inSession || !drillPlayed || checkedThisDrill || selectedAnswer == null) ? "not-allowed" : "pointer",
-                  }}
-                >
-                  CHECK
-                </button>
-              </div>
+        {feedback?.ok === false && (
+          <>
+            <span style={{ color: theme.muted, marginRight: 10 }}>
+              {lastPhrase}&nbsp;(<code>{feedback.missed}</code> {feedback.dir === "Asc" ? "↑" : "↓"})
+            </span>
+            <span style={{ color: "#69D58C" }}>
+              Correct:&nbsp;<code>{feedback.correct}</code> {feedback.dir === "Asc" ? "↑" : "↓"}
+            </span>
+          </>
+        )}
 
-              {/* Feedback with direction badge */}
-              <div style={{ minHeight: 22, marginTop: 8 }}>
-                {feedback?.ok === true && (
-                  <span style={{ color: theme.green }}>
-                    Correct: <code>{feedback.correct}</code> {feedback.dir === "Asc" ? "↑" : "↓"}
-                  </span>
-                )}
-                {feedback?.ok === false && (
-                  <>
-                    <span style={{ color: theme.muted, marginRight: 8 }}>
-                      Missed (<code>{feedback.missed}</code> {feedback.dir === "Asc" ? "↑" : "↓"})
-                    </span>
-                    <span style={{ color: theme.green }}>
-                      Correct: <code>{feedback.correct}</code> {feedback.dir === "Asc" ? "↑" : "↓"}
-                    </span>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize:16, fontWeight:700, marginBottom:6 }}>Session complete</div>
-              <div style={{ color: theme.muted, fontSize:14, marginBottom:10 }}>
-                Total drills: 8 • Correct: {score.correct} / {score.total}
-              </div>
-              <div style={{ color: theme.muted, fontSize:14, marginBottom:10 }}>
-                Choose a new Intervals set above and press <strong>▶</strong> to start again.
-              </div>
-            </>
-          )}
-        </section>
-      </main>
+        {/* streak toast */}
+        {toast && (
+          <span style={{ marginLeft: 10, color: "#FFD166", fontWeight: 800 }}>
+            {toast}
+          </span>
+        )}
+      </div>
+    </>
+  ) : (
+    <>
+      <div style={{ fontSize:16, fontWeight:700, marginBottom:6 }}>Session complete 🎉</div>
+      <div style={{ color: theme.muted, fontSize:14, marginBottom:6 }}>
+        Correct:&nbsp;<strong style={{ color: theme.text }}>{score.correct}</strong> / {score.total}
+        &nbsp;•&nbsp;Best streak:&nbsp;<strong style={{ color: theme.text }}>{bestStreak}</strong>
+      </div>
+      <div style={{ color: theme.muted, fontSize:14, marginBottom:10 }}>
+        {summaryLine(score.total, score.correct)}
+      </div>
+      <div style={{ color: theme.muted, fontSize:14, marginBottom:10 }}>
+        Choose a new Intervals set above and press <strong>↻ Restart Session</strong> to play again.
+      </div>
+    </>
+  )}
+</section>
+            </main>
     </div>
   );
 }
-
