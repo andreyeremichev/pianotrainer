@@ -164,6 +164,10 @@ const DRILL_HELPERS: Record<string, string> = {
   "1 to 5 going down": "8 drills descending shapes built from 1 down an Octave to 5. Listen, sing back, then type and check.",
   "Full Major Scale": "8 varied drills across the major scale. Ascents, descents, and tonic frames. Listen, sing back, then type and check.",
 };
+// Render-stable percentage string (5-decimal rounding)
+function pct(n: number): string {
+  return `${Math.round(n * 100000) / 100000}%`;
+}
 
 /* ===========================
    Web Audio engine (sample-accurate)
@@ -380,8 +384,8 @@ function DegreeCircle({
                   <span
                     style={{
                       position: "absolute",
-                      left: `${xDot}%`,
-                      top: `${yDot}%`,
+                      left: pct(xDot),
+                      top: pct(yDot),
                       transform: `translate(-50%, -50%) scale(${scale})`,
                       width: "clamp(12px, 3vw, 18px)",
                       height: "clamp(12px, 3vw, 18px)",
@@ -395,8 +399,8 @@ function DegreeCircle({
                   <span
                     style={{
                       position: "absolute",
-                      left: `${xLabel}%`,
-                      top: `${yLabel}%`,
+                      left: pct(xLabel),
+                      top: pct(yLabel),
                       transform: "translate(-50%, -50%)",
                       color: theme.text,
                       fontSize: "clamp(11px, 3vw, 15px)",
@@ -912,7 +916,7 @@ setAnswer("");           // then clear input
                   display: "flex",
                   gap: 8,
                   alignItems: "center",
-                  flexDirection: (hasMounted && kbdOpen ? "column" : "row") as const,
+                flexDirection: hasMounted && kbdOpen ? "column" : "row",  
 width: hasMounted && kbdOpen ? "100%" : undefined,
                 }}
               >
