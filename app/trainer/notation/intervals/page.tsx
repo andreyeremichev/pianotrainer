@@ -103,7 +103,15 @@ const styles = `
 .stats-box { border: 1px solid #000; border-radius: 6px; padding: 8px 10px; display: grid; place-items: center; }
 .stats-value { font-weight: 700; }
 .restart-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #eee; cursor: pointer; }
-.start-btn { margin-top: 6px; padding: 6px 10px; font-size: 12px; border: 1px solid #444; background: #dff; cursor: pointer; }
+.start-btn {
+  margin-top: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid #1c7c31;  /* darker green border */
+  background: #28a745;        /* bright green */
+  color: #fff;                /* white text */
+  cursor: pointer;
+}
 
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: center; }
 .stave-narrow { width: 260px; } /* 🔒 FROZEN size */
@@ -124,6 +132,20 @@ const styles = `
   background: rgba(255,255,255,0.95); z-index: 5; text-align: center; padding: 24px; border-radius: var(--radius); }
 .blocker p { margin: 0; font-size: 16px; line-height: 1.4; }
 @media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
+
+/* === Nudge Pack pulse glow (no layout impact) === */
+.pulse-good { box-shadow: 0 0 0 2px rgba(32,201,151,0.00) inset; animation: pg 220ms ease; }
+.pulse-bad  { box-shadow: 0 0 0 2px rgba(255,107,107,0.00) inset; animation: pb 220ms ease; }
+@keyframes pg {
+  0%   { box-shadow: 0 0 0 0 rgba(32,201,151,0.00) inset; }
+  30%  { box-shadow: 0 0 0 6px rgba(32,201,151,0.35) inset; }
+  100% { box-shadow: 0 0 0 0 rgba(32,201,151,0.00) inset; }
+}
+@keyframes pb {
+  0%   { box-shadow: 0 0 0 0 rgba(255,107,107,0.00) inset; }
+  30%  { box-shadow: 0 0 0 6px rgba(255,107,107,0.35) inset; }
+  100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.00) inset; }
+}
 `;
 
 /* ======================= duplicate-event guard ======================= */
@@ -163,6 +185,86 @@ export default function IntervalsSequentialPage() {
   const [step, setStep] = useState<1|2|3>(1);
   const awaitingNextRef = useRef(false);
 
+  // --- Nudge Pack (Eyes) ---
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [toast, setToast] = useState(null as string | null);
+  const [pulse, setPulse] = useState<null | "good" | "bad">(null);
+
+  const PRAISE = [
+    "Sharp eyes! 👀✨",
+    "You nailed that leap 🎯",
+    "Perfect distance!",
+    "Bang on — that’s the one 🎶",
+    "Nice catch! 🪝",
+    "Solid interval spotting 💪",
+  ];
+  const ENCOURAGE = [
+    "Close — try again 👀",
+    "Almost — watch the gap 👀",
+    "Not quite — check the distance…",
+    "Missed the leap, next one’s yours 🚀",
+    "You’ll spot it next time 👀",
+    "Eyes up — keep going 💡",
+  ];
+  const [lastPhrase, setLastPhrase] = useState("");
+  const isPraise = PRAISE.includes(lastPhrase);
+
+  // mute toggle (persisted)
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    try {
+      const v = typeof window !== "undefined" ? localStorage.getItem("trainer-muted") : null;
+      if (v != null) setMuted(v === "1");
+    } catch (e) {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("trainer-muted", muted ? "1" : "0"); } catch (e) {}
+  }, [muted]);
+
+  // tiny SFX (pling/thud)
+  const acRef = useRef<AudioContext | null>(null);
+  function getAC() {
+    if (!acRef.current) {
+      // @ts-ignore
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      acRef.current = new AC({ latencyHint: "interactive" });
+    }
+    return acRef.current!;
+  }
+  function playPling() {
+    if (muted) return;
+    const ac = getAC();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = "sine"; o.frequency.value = 880;
+    g.gain.setValueAtTime(0, ac.currentTime);
+    g.gain.linearRampToValueAtTime(0.15, ac.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.2);
+    o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.22);
+  }
+  function playThud() {
+    if (muted) return;
+    const ac = getAC();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = "triangle"; o.frequency.value = 180;
+    g.gain.setValueAtTime(0, ac.currentTime);
+    g.gain.linearRampToValueAtTime(0.2, ac.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.18);
+    o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.2);
+  }
+
+  // friendlier summary
+  function summaryLine(total: number, got: number) {
+    if (total === 0) return "";
+    const missed = total - got;
+    const pct = Math.round((got / total) * 100);
+    if (got === total) return "Flawless sight — every interval spotted. 💎";
+    if (pct >= 90)     return "Eyes on target — crisp interval reads. 👀";
+    if (pct >= 75)     return "Strong interval spotting — keep it up!";
+    if (pct >= 50)     return "You’re seeing the shapes — one more round!";
+    return missed > 0 ? "Eyes warming up — run it again 👀" : "Run it again!";
+  }
+
   const activeIntervals = useMemo(() => {
     const arr = INTERVALS.filter(i => selected[i.code]);
     return arr.length ? arr : [];
@@ -201,47 +303,42 @@ export default function IntervalsSequentialPage() {
   }
 
   // Start button handler
-const handleStart = () => {
-  if (!activeIntervals.length) return;
+  const [hasStartedOnce, setHasStartedOnce] = useState(false);
+  const handleStart = () => {
+    if (!activeIntervals.length) return;
 
-  setPlayCount(c => c + 1);   // ← rotate poster header each time Play starts
+    setPlayCount(c => c + 1);   // rotate poster title
+    setHasStartedOnce(true);
 
-  setStarted(true);
-  setProgress(0);
-  setCorrect(0);
-  setFirstTry(true);
-  setIntervalLabel("");
-  setLowerMidi(null);
-  setUpperMidi(null);
-  setStep(1);
-  awaitingNextRef.current = false;
-  rollNew();
-};
+    setStarted(true);
+    setProgress(0);
+    setCorrect(0);
+    setFirstTry(true);
+    setIntervalLabel("");
+    setLowerMidi(null);
+    setUpperMidi(null);
+    setStep(1);
+    awaitingNextRef.current = false;
+    rollNew();
+  };
 
   // judge for keyboard (don't re-judge the first note during step 2)
-const judge = (noteName: string) => {
-  if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) {
+  const judge = (noteName: string) => {
+    if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) {
+      return undefined;
+    }
+    const pressed = noteNameToMidi(noteName);
+    if (pressed == null) return undefined;
+
+    if (step === 1) {
+      return pressed === lowerMidi ? "correct" : "wrong";
+    }
+    if (step === 2) {
+      if (pressed === lowerMidi) return undefined;
+      return pressed === upperMidi ? "correct" : "wrong";
+    }
     return undefined;
-  }
-
-  const pressed = noteNameToMidi(noteName);
-  if (pressed == null) return undefined;
-
-  if (step === 1) {
-    // Only judge the lower note in step 1
-    return pressed === lowerMidi ? "correct" : "wrong";
-  }
-
-  if (step === 2) {
-    // We're waiting for the upper note now.
-    // Do NOT mark the lower note as wrong anymore—treat it as neutral.
-    if (pressed === lowerMidi) return undefined;
-    return pressed === upperMidi ? "correct" : "wrong";
-  }
-
-  // step === 3 (completed) or any other state: show no judgement
-  return undefined;
-};
+  };
 
   const onKeyPressMidi = (midi: number) => {
     if (!started || awaitingNextRef.current || lowerMidi == null || upperMidi == null) return;
@@ -258,6 +355,21 @@ const judge = (noteName: string) => {
       } else {
         setStep(3);
         awaitingNextRef.current = true;
+
+        // success nudge (completed interval)
+        setLastPhrase(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+        setStreak(s => {
+          const ns = s + 1;
+          setBestStreak(b => Math.max(b, ns));
+          if (ns === 3 || ns === 5 || ns === 10) {
+            setToast(`Streak x${ns}! 🔥`);
+            setTimeout(() => setToast(null), 1400);
+          }
+          return ns;
+        });
+        setPulse("good"); playPling();
+        setTimeout(() => setPulse(null), 240);
+
         if (firstTry) setCorrect(c => Math.min(25, c + 1));
 
         setTimeout(() => {
@@ -266,11 +378,9 @@ const judge = (noteName: string) => {
             if (next < 25) {
               rollNew();
             } else {
-              // ==== SESSION COMPLETE → return to picker but KEEP selections ====
-              setStarted(false);              // show picker + Start again
-              // setSelected(initialSelected()); // ← removed (we KEEP the user's choices)
-              setProgress(0);
-              setCorrect(0);
+              // ==== SESSION COMPLETE → return to picker but KEEP selections & STATS ====
+              setStarted(false);
+              // DO NOT reset progress/correct here; keep 25/25 visible until next Start
               setFirstTry(true);
               setIntervalLabel("");
               setLowerMidi(null);
@@ -283,7 +393,12 @@ const judge = (noteName: string) => {
         }, 1000);
       }
     } else {
+      // wrong nudge
       setFirstTry(false);
+      setLastPhrase(ENCOURAGE[Math.floor(Math.random() * ENCOURAGE.length)]);
+      setStreak(0);
+      setPulse("bad"); playThud();
+      setTimeout(() => setPulse(null), 240);
     }
   };
 
@@ -317,23 +432,21 @@ const judge = (noteName: string) => {
     }
     setSelected(next);
   };
-// --- horizontal spacing for the second note (tighter for seconds) ---
-const currentSemitones =
-  lowerMidi != null && upperMidi != null ? (upperMidi - lowerMidi) : null;
+  // --- horizontal spacing for the second note (tighter for seconds) ---
+  const currentSemitones =
+    lowerMidi != null && upperMidi != null ? (upperMidi - lowerMidi) : null;
 
-// Base shift for normal intervals = 30px (your previous value).
-// Add extra for seconds (m2/M2) so accidentals don't collide.
-const secondXShift =
-  started && currentSemitones != null
-    ? (currentSemitones <= 2 ? 50 : 30)  // m2/M2 → 50; others → 30
-    : 30;
+  const secondXShift =
+    started && currentSemitones != null
+      ? (currentSemitones <= 2 ? 50 : 30)
+      : 30;
 
   return (
     <>
       <style>{styles}</style>
 
       <div className="page">
-        <div className="root">
+        <div className={`root ${pulse === "good" ? "pulse-good" : pulse === "bad" ? "pulse-bad" : ""}`}>
           <div className="blocker">
             <p><strong>Please rotate your device to landscape</strong><br/>(or use a device with a larger screen)</p>
           </div>
@@ -342,102 +455,152 @@ const secondXShift =
   options={[
     {
       title: "Intervals on the Stave",
-      subtitle: "See two notes at a time—seconds to octaves, ascending and descending—right on the grand stave.",
+      subtitle:
+        "See two notes at a time—seconds to octaves, ascending and descending—right on the grand stave.",
     },
     {
       title: "Mind the Space & Line",
-      subtitle: "Learn interval spacing at a glance: steps, skips, perfects and octaves in treble and bass.",
+      subtitle:
+        "Learn interval spacing at a glance: steps, skips, perfects and octaves in treble and bass.",
     },
     {
       title: "See the Distance, Hear the Shape",
-      subtitle: "Two-note patterns that train your eyes to recognize intervals instantly.",
+      subtitle:
+        "Two-note patterns that train your eyes to recognize intervals instantly.",
     },
   ]}
-rotateSignal={playCount}
+  rotateSignal={playCount}
 />
 
-          <div className="child">
-            <div className="stats-bar">
-              {/* LEFT: Progress/Correct + Start/Restart */}
-              <div className="stats-left">
-                <div className="stats-box">
-                  <div>Progress</div>
-                  <div className="stats-value">{progress}/25</div>
-                </div>
-                <div className="stats-box">
-                  <div>Correct</div>
-                  <div className="stats-value">{correct}/25</div>
-                </div>
+<div className="child">
+  <div className="stats-bar">
+    {/* LEFT: Progress / Correct / Streak + Best + Controls + Nudges + Mute */}
+    <div className="stats-left">
+      <div className="stats-box">
+        <div>Progress</div>
+        <div className="stats-value">{progress}/25</div>
+      </div>
 
-                {!started && (
-                  <button
-                    className="start-btn"
-                    onClick={handleStart}
-                    disabled={!activeIntervals.length}
-                    title={activeIntervals.length ? "Start session" : "Select at least one interval"}
-                  >
-                    Start
-                  </button>
-                )}
+      <div className="stats-box">
+        <div>Correct</div>
+        <div className="stats-value">{correct}/25</div>
+      </div>
 
-                {sessionDone && started && (
-                  <button className="restart-btn" onClick={handleRestart}>
-                    Restart Session
-                  </button>
-                )}
-              </div>
+      
 
-              {/* CENTER: Grand staff (two notes; upper shifted 20px right) */}
-              <div className="stave-center">
-                <div className="stave-narrow">
-                  <GrandStaveVF
-                    noteName={started ? lowerNameDisplay : null}
-                    secondaryNoteName={started ? upperNameDisplay : null}
-                    secondaryXShift={secondXShift}
-                  />
-                  <div className="interval-label">
-                    {started && step === 3 ? intervalLabel : "\u00A0"}
-                  </div>
-                </div>
-              </div>
+      {/* Start / Restart */}
+      {!started && (
+        <button
+          className="start-btn"
+          onClick={handleStart}
+          disabled={!activeIntervals.length}
+          title={
+            activeIntervals.length
+              ? "Start session"
+              : "Select at least one interval"
+          }
+        >
+          Start
+        </button>
+      )}
 
-              {/* RIGHT: Interval picker — collapses after Start */}
-              {!started && (
-                <div className="picker-box">
-                  <div className="picker-title">Choose Intervals</div>
-                  <div className="picker-actions">
-                    <button onClick={() => toggleAll(true)}>Select all</button>
-                    <button onClick={() => toggleAll(false)}>Clear all</button>
-                  </div>
-                  <div className="picker-list">
-                    {INTERVALS.map(i => (
-                      <label key={i.code} style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        <input
-                          type="checkbox"
-                          checked={!!selected[i.code]}
-                          onChange={e => ensureAtLeastOne(i.code, e.target.checked)}
-                        />
-                        <span>{i.code} — {i.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+      {sessionDone && started && (
+        <button className="restart-btn" onClick={handleRestart}>
+          Restart Session
+        </button>
+      )}
 
-          {/* Keyboard */}
-          <div className="child">
-            <div className="media">
-              <ResponsiveKeyboardC2toC6
-                judge={judge}
-                onKeyPress={onKeyPressMidi}
-                onKeyDown={() => {}}
-              />
-            </div>
-          </div>
+      {/* Nudge status line */}
+      <div className="interval-label" style={{ marginTop: 6 }}>
+        {lastPhrase && (
+          <span
+            style={{
+              color: isPraise ? "#20C997" : "#8B94A7",
+              fontWeight: 700,
+            }}
+          >
+            {lastPhrase}
+          </span>
+        )}
+        {toast && (
+          <span
+            style={{ marginLeft: 8, color: "#FFD166", fontWeight: 800 }}
+          >
+            {toast}
+          </span>
+        )}
+      </div>
+{/* Best streak */}
+  <div style={{ fontSize: 12, color: "#666", textAlign: "center", marginTop: 6 }}>
+    Best Streak: <strong>{bestStreak}</strong>
+  </div>
+
+  
+      {/* End-of-session summary (only after the user has started at least once) */}
+      {!started && hasStartedOnce && (
+        <div className="interval-label" style={{ marginTop: 6 }}>
+          {summaryLine(25, correct)}&nbsp;•&nbsp;Best streak:{" "}
+          <strong>{bestStreak}</strong>
+        </div>
+      )}
+    </div>
+
+    {/* CENTER: Grand staff (two notes; upper shifted for seconds) */}
+    <div className="stave-center">
+      <div className="stave-narrow">
+        <GrandStaveVF
+          noteName={started ? lowerNameDisplay : null}
+          secondaryNoteName={started ? upperNameDisplay : null}
+          secondaryXShift={secondXShift}
+        />
+        <div className="interval-label">
+          {started && step === 3 ? intervalLabel : "\u00A0"}
         </div>
       </div>
-    </>
+    </div>
+
+    {/* RIGHT: Interval picker — collapses after Start */}
+    {!started && (
+      <div className="picker-box">
+        <div className="picker-title">Choose Intervals</div>
+        <div className="picker-actions">
+          <button onClick={() => toggleAll(true)}>Select all</button>
+          <button onClick={() => toggleAll(false)}>Clear all</button>
+        </div>
+        <div className="picker-list">
+          {INTERVALS.map((i) => (
+            <label
+              key={i.code}
+              style={{ display: "flex", gap: 6, alignItems: "center" }}
+            >
+              <input
+                type="checkbox"
+                checked={!!selected[i.code]}
+                onChange={(e) => ensureAtLeastOne(i.code, e.target.checked)}
+              />
+              <span>
+                {i.code} — {i.label}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+</div>
+
+{/* Keyboard */}
+<div className="child">
+  <div className="media">
+    <ResponsiveKeyboardC2toC6
+      judge={judge}
+      onKeyPress={onKeyPressMidi}
+      onKeyDown={() => {}}
+    />
+  </div>
+</div>
+</div> {/* .root */}
+</div> {/* .page */}
+</>
   );
 }
