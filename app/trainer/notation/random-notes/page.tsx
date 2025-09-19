@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-// ⬇️ NEW: dynamic client-only import fixes missing stave in production
+// ⬇️ dynamic client-only import fixes missing stave in production
 import dynamic from "next/dynamic";
 const GrandStaveVF = dynamic(() => import("../../../components/GrandStaveVF"), { ssr: false });
 
@@ -186,7 +186,57 @@ const styles = `
   background: rgba(255,255,255,0.95); z-index: 5; text-align: center; padding: 24px; border-radius: var(--radius); }
 .blocker p { margin: 0; font-size: 16px; line-height: 1.4; }
 @media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
+
+/* === Nudge pulse (no layout impact) === */
+.pulse-good { box-shadow: 0 0 0 2px rgba(32,201,151,0.00) inset; animation: pg 220ms ease; }
+.pulse-bad  { box-shadow: 0 0 0 2px rgba(255,107,107,0.00) inset; animation: pb 220ms ease; }
+@keyframes pg {
+  0%   { box-shadow: 0 0 0 0 rgba(32,201,151,0.00) inset; }
+  30%  { box-shadow: 0 0 0 6px rgba(32,201,151,0.35) inset; }
+  100% { box-shadow: 0 0 0 0 rgba(32,201,151,0.00) inset; }
+}
+@keyframes pb {
+  0%   { box-shadow: 0 0 0 0 rgba(255,107,107,0.00) inset; }
+  30%  { box-shadow: 0 0 0 6px rgba(255,107,107,0.35) inset; }
+  100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.00) inset; }
+}
 `;
+/* === Session wrap-up (mode + score) === */
+function wrapUpMessage(mode: Mode, correct: number, bestStreak: number): string {
+  // tiers
+  const isPerfect = correct === 25;
+  const isStrong  = correct >= 20 && correct <= 24;
+  const isLow     = correct < 20;
+
+  switch (mode) {
+    case "guide": {
+      if (isPerfect) return "You nailed every guide! Time to practice Treble, Bass, or Full mode.";
+      if (isStrong)  return "Very steady reading. Push for 25/25 to master your anchors before moving on.";
+      // low tier → include streak
+      return `Almost there! Guide notes are your anchors — run again and hit 25/25. ${
+        bestStreak > 1 ? `Your best streak was ${bestStreak}, aim to extend it next time.` : ""
+      }`.trim();
+    }
+
+    case "treble":
+    case "bass": {
+      if (isPerfect) return "Flawless clef work! Your eye is perfectly trained for this stave.";
+      if (isStrong)  return "Solid reading in this clef. Replay and aim for 25/25 — you’re very close.";
+      return `Keep training this clef. Focus your eyes and repeat until you hit a perfect run. ${
+        bestStreak > 1 ? `Your best streak was ${bestStreak}, now try to push it higher.` : ""
+      }`.trim();
+    }
+
+    case "full":
+    default: {
+      if (isPerfect) return "Epic! You conquered the full grand staff — you’re sight-reading like a pro.";
+      if (isStrong)  return "Strong session in Full mode. One more push to go flawless!";
+      return `This is the toughest mode — don’t stop! Each run sharpens your eyes. Keep at it. ${
+        bestStreak > 1 ? `Your longest streak was ${bestStreak}. Build on it next round.` : ""
+      }`.trim();
+    }
+  }
+}
 
 export default function NotationRandomStable() {
   /* session state */
@@ -211,19 +261,46 @@ export default function NotationRandomStable() {
     return true;
   }
 
+  // --- Nudge Pack (Eyes): state & phrases ---
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [toast, setToast] = useState(null as string | null);
+  const [pulse, setPulse] = useState<null | "good" | "bad">(null);
+
+  const PRAISE = [
+    "Sharp eyes! 👀✨",
+    "You nailed that note 🎯",
+    "Perfect spot!",
+    "Bang on — that’s the one 🎶",
+    "Nice catch! 🪝",
+    "Solid reading 💪",
+  ];
+  const ENCOURAGE = [
+    "Close — try again 👀",
+    "Almost — watch the space 👀",
+    "Not quite — check the line…",
+    "Missed it, next one’s yours 🚀",
+    "You’ll spot it next time 👀",
+    "Eyes up — keep going 💡",
+  ];
+  const [lastPhrase, setLastPhrase] = useState("");
+  const isPraise = PRAISE.includes(lastPhrase);
+
   useEffect(() => {
     setTarget(pickRandom(null, pool));
     setProgress(0);
     setCorrect(0);
     setFirstTry(true);
     awaitingNextRef.current = false;
-    setHint(mode === "guide"
-      ? "Guide Notes: landmarks across both clefs"
-      : mode === "treble"
-      ? "Treble: C4–C6, with sharps & flats"
-      : mode === "bass"
-      ? "Bass: C2–C4, with sharps & flats"
-      : "All notes C2–C6");
+    setHint(
+      mode === "guide"
+        ? "Guide Notes: landmarks across both clefs"
+        : mode === "treble"
+        ? "Treble: C4–C6, with sharps & flats"
+        : mode === "bass"
+        ? "Bass: C2–C4, with sharps & flats"
+        : "All notes C2–C6"
+    );
   }, [pool, mode]);
 
   const tagMatch = target.match(/^([A-G][#b]?\d)(?:@(treble|bass))?$/i);
@@ -255,6 +332,20 @@ export default function NotationRandomStable() {
 
     if (m === targetMidi) {
       if (firstTry) setCorrect(c => Math.min(25, c + 1));
+
+      // success nudge
+      setLastPhrase(PRAISE[Math.floor(Math.random() * PRAISE.length)]);
+      setStreak(s => {
+        const ns = s + 1;
+        setBestStreak(b => Math.max(b, ns));
+        if (ns === 3 || ns === 5 || ns === 10) {
+          setToast(`Streak x${ns}! 🔥`);
+          setTimeout(() => setToast(null), 1400);
+        }
+        return ns;
+      });
+      setPulse("good"); setTimeout(() => setPulse(null), 240);
+
       setHint("✅ Correct! Next note coming…");
       awaitingNextRef.current = true;
 
@@ -273,7 +364,11 @@ export default function NotationRandomStable() {
         });
       }, 1000);
     } else {
+      // wrong nudge
       setFirstTry(false);
+      setLastPhrase(ENCOURAGE[Math.floor(Math.random() * ENCOURAGE.length)]);
+      setStreak(0);
+      setPulse("bad"); setTimeout(() => setPulse(null), 240);
       setHint("❌ Try again");
     }
   };
@@ -290,6 +385,9 @@ export default function NotationRandomStable() {
     setFirstTry(true);
     awaitingNextRef.current = false;
     setHint("Tap a key to begin");
+    setLastPhrase("");
+    setStreak(0);
+    // bestStreak is preserved across sessions
   };
 
   return (
@@ -297,7 +395,7 @@ export default function NotationRandomStable() {
       <style>{styles}</style>
 
       <div className="page">
-        <div className="root" style={{ position: "relative" }}>
+        <div className={`root ${pulse === "good" ? "pulse-good" : pulse === "bad" ? "pulse-bad" : ""}`} style={{ position: "relative" }}>
           <div className="blocker">
             <p>
               <strong>Please rotate your device to landscape</strong>
@@ -306,26 +404,27 @@ export default function NotationRandomStable() {
             </p>
           </div>
 
-         <PosterHeader
-  options={[
-    {
-      title: "Read & Play Random Notes",
-      subtitle: "Guide notes, sharps, flats, bass and treble — each session trains your ear and eyes together, one note at a time.",
-    },
-    {
-      title: "One Note at a Time",
-      subtitle: "Random notes across the grand stave. Quick drills that build instant recognition.",
-    },
-    {
-      title: "Daily Reading Workout",
-      subtitle: "Treble and bass clefs together. Short reps keep your sight-reading sharp.",
-    },
-  ]}
-/>
+          <PosterHeader
+            options={[
+              {
+                title: "Read & Play Random Notes",
+                subtitle: "Guide notes, sharps, flats, bass and treble — each session trains your ear and eyes together, one note at a time.",
+              },
+              {
+                title: "One Note at a Time",
+                subtitle: "Random notes across the grand stave. Quick drills that build instant recognition.",
+              },
+              {
+                title: "Daily Reading Workout",
+                subtitle: "Treble and bass clefs together. Short reps keep your sight-reading sharp.",
+              },
+            ]}
+          />
 
           <div className="grid">
             <div className="child child--stave">
               <div className="stats-bar">
+                {/* LEFT: Progress / Correct + Nudges + Best + Restart */}
                 <div className="stats-left">
                   <div className="stats-box">
                     <div>Progress</div>
@@ -336,11 +435,57 @@ export default function NotationRandomStable() {
                     <div className="stats-value">{correct}/25</div>
                   </div>
 
+                  {/* Motivational phrase (Eyes) */}
+                  <div className="interval-label" style={{ marginTop: 6, textAlign: "center" }}>
+                    {lastPhrase && (
+                      <span
+                        style={{
+                          color: isPraise ? "#20C997" : "#8B94A7",
+                          fontWeight: 700,
+                          display: "inline-block",
+                          lineHeight: 1.25,
+                        }}
+                      >
+                        {lastPhrase}
+                      </span>
+                    )}
+                    {toast && (
+                      <span style={{ marginLeft: 8, color: "#FFD166", fontWeight: 800 }}>
+                        {toast}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Best streak */}
+                  <div style={{ fontSize: 12, color: "#666", textAlign: "center", marginTop: 6 }}>
+                    Best Streak: <strong>{bestStreak}</strong>
+                  </div>
+                  {/* End-of-session wrap-up (mode-aware) */}
+{sessionDone && (
+  <div className="interval-label" style={{ marginTop: 6, textAlign: "center" }}>
+    {wrapUpMessage(mode, correct, bestStreak)}
+  </div>
+)}
+
+                  {/* Restart (only when done) */}
                   {sessionDone && (
-                    <button className="restart-btn" onClick={handleRestart}>
-                      Restart Session
-                    </button>
-                  )}
+                   <button
+    onClick={handleRestart}
+    style={{
+      marginTop: 6,
+      padding: "6px 10px",
+      fontSize: 13,
+      fontWeight: 700,
+      borderRadius: 6,
+      border: "none",
+      cursor: "pointer",
+      background: "#20C997", // same bright green
+      color: "#081019",
+    }}
+  >
+    ↻ Restart
+  </button>
+)}
                 </div>
 
                 <div className="stave-center">
