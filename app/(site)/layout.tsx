@@ -1,32 +1,43 @@
+// app/(site)/layout.tsx
 import type { Metadata } from "next";
+import React from "react";
+import "../globals.css";
+import "./site.css";
+import SiteHeader from "../components/SiteHeader";
+import SiteFooter from "../components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "PianoTrainer • Free Notation & Ear Training",
   description:
-    "Make notes come alive 🎵. Explore playful trainers for reading, ears, and chords — free in your browser.",
-  alternates: { canonical: "https://pianotrainer.app" },
+    "Make notes come alive 🎵. Playful, beginner-friendly trainers for reading music, chords, and ear skills — free in your browser.",
+  metadataBase: new URL("https://pianotrainer.app"),
+  alternates: { canonical: "/" },
   openGraph: {
-    type: "website",
-    url: "https://pianotrainer.app",
-    siteName: "PianoTrainer",
     title: "PianoTrainer • Free Notation & Ear Training",
     description:
-      "Playful, beginner-friendly tools to read notes, train your ear, and explore chords.",
-    images: [
-      {
-        url: "/logo.svg",      // ✅ uses your public logo
-        width: 1200,
-        height: 630,
-        alt: "PianoTrainer Logo",
-      },
-    ],
+      "Playful, beginner-friendly trainers for reading music, chords, and ear skills — free in your browser.",
+    url: "/",
+    siteName: "PianoTrainer",
+    images: ["/logo.svg"],        // ← static file in /public
+    type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "PianoTrainer • Free Notation & Ear Training",
     description:
-      "Make notes come alive 🎵. Free, browser-based trainers for notation and ear skills.",
-    images: ["/logo.svg"],     // ✅ same static file
+      "Make notes come alive 🎵. Train your eyes and ears with simple web tools.",
+    images: ["/logo.svg"],        // ← reuse the same static file
   },
   robots: { index: true, follow: true },
 };
+
+export default function SiteLayout({ children }: { children: React.ReactNode }) {
+  // Server layout (no "use client") – valid App Router signature
+  return (
+    <div className="site-shell">
+      <SiteHeader />
+      {children}
+      <SiteFooter />
+    </div>
+  );
+}
