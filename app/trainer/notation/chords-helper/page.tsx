@@ -136,6 +136,8 @@ export default function ChordsHelperPage() {
   const [currentChord, setCurrentChord] = useState<BuiltChord | null>(null);
   const [explain, setExplain] = useState("");
 
+  const [displayNotes, setDisplayNotes] = useState<string[] | null>(null); // 4-note stave display
+
   /* Keyboard ref + hold shim */
   const kbRef = useRef<KeyboardRef>(null);
   const holdTimerRef = useRef<number | null>(null);
@@ -206,11 +208,9 @@ const bassRoot = toBassRootName(rootDisplay);
 const [n1, n2, n3] = chord.display; // these are the triad tones of the chosen inversion
 const trebleTriad = triadToTreble([n1, n2, n3]);
 
-    // Show on stave: pass 4-note "triadNotes" (GrandStaveVF will place by octave).
-    setCurrentChord({
-      ...chord,
-      display: [bassRoot, ...trebleTriad], // 4 notes: bass root + treble triad
-    });
+    // Keep chord (triad) unchanged; store 4-note stave display separately
+setCurrentChord(chord);
+setDisplayNotes([bassRoot, ...trebleTriad]);
 
     setExplain(() => {
       const invTxt = chord.inversion === "root" ? "root" : chord.inversion === "1st" ? "1st inversion" : "2nd inversion";
@@ -235,12 +235,14 @@ const trebleTriad = triadToTreble([n1, n2, n3]);
     const idx = (degreeIndex + DEGREES.length - 1) % DEGREES.length;
     setDegreeIndex(idx);
     setCurrentChord(null);
+    setDisplayNotes(null);
     clearHold();
   }
   function onNextDegree() {
     const idx = (degreeIndex + 1) % DEGREES.length;
     setDegreeIndex(idx);
     setCurrentChord(null);
+    setDisplayNotes(null);
     clearHold();
   }
 
@@ -249,6 +251,7 @@ const trebleTriad = triadToTreble([n1, n2, n3]);
     setStarted(true);
     setDegreeIndex(0);
     setCurrentChord(null);
+    setDisplayNotes(null);
     setExplain("");
     clearHold();
   }
@@ -256,6 +259,7 @@ const trebleTriad = triadToTreble([n1, n2, n3]);
   function onStop() {
     setStarted(false);
     setCurrentChord(null);
+    setDisplayNotes(null);
     setExplain("");
     clearHold();
   }
@@ -299,10 +303,10 @@ const trebleTriad = triadToTreble([n1, n2, n3]);
             {/* CENTER: Stave (4 notes: bass root + treble triad) */}
             <div className="stave-center">
               <div className="stave-narrow">
-                <GrandStaveVF
-                  triadNotes={started && currentChord ? currentChord.display : null}
-                  triadArpeggio={playMode === "arp"}
-                />
+               <GrandStaveVF
+  triadNotes={started && displayNotes ? displayNotes : null}
+  triadArpeggio={playMode === "arp"}
+/> 
                 <div className="explain">{explain}</div>
               </div>
             </div>
@@ -348,6 +352,10 @@ const trebleTriad = triadToTreble([n1, n2, n3]);
                         <button className="inv-btn" onClick={() => onPressInversion("1st")}>1st inv</button>
                         <button className="inv-btn" onClick={() => onPressInversion("2nd")}>2nd inv</button>
                       </div>
+                      <div style={{ marginTop: 6, fontSize: 12, color: "#666", textAlign: "center" }}>
+   <strong>Tap Root</strong> or an <strong>Inversion</strong> to show & hear the chord
+  — bass shows the true root.
+</div>
                     </div>
                     <button className="carousel-arrow" onClick={onNextDegree} title="Next chord">→</button>
                   </div>
