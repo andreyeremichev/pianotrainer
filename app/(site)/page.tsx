@@ -27,8 +27,11 @@ function playBlock(urls: string[]) {
   urls.forEach(u => { const a = new Audio(u); a.play().catch(() => {}); });
 }
 function playArpeggio(urls: string[], gapMs = 140) {
-  urls.forEach((u,i) => {
-window.setTimeout(() => { kbRef.current?.clear(); }, 1200);    
+  urls.forEach((u, i) => {
+    setTimeout(() => {
+      const a = new Audio(u);
+      a.play().catch(() => {});
+    }, i * gapMs);
   });
 }
 
@@ -83,8 +86,8 @@ export default function HomePage() {
           <div style={pageStyles.tileIcon}>🎲</div>
           <h3 style={pageStyles.tileTitle}>Play with Toys</h3>
           <p style={pageStyles.tileText}>Make birthdays, names, or numbers sing.</p>
-          <Link href="/viral" style={pageStyles.tileButton} aria-label="Open Viral Toys">
-            Viral Toys →
+          <Link href="/viral" style={pageStyles.tileButton} aria-label="Open Musical Toys">
+            Musical Toys →
           </Link>
         </div>
       </section>
@@ -125,9 +128,10 @@ function MiniChordsPreview() {
     else playArpeggio(urls, 140);
 
     // highlight briefly
-    kbRef.current?.clear();
-    four.forEach(n => kbRef.current?.highlight(n as any, "correct"));
-    setTimeout(() => kbRef.current.current?.clear(), 1200);
+  // highlight briefly
+kbRef.current?.clear();
+four.forEach(n => kbRef.current?.highlight(n as any, "correct"));
+window.setTimeout(() => { kbRef.current?.clear(); }, 1200);  
   };
 
   return (
