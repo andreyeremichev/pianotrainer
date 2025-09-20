@@ -102,13 +102,22 @@ const styles = `
 .title-line { display: inline-flex; gap: 10px; align-items: baseline; }
 .title-home { font-size: 12px; text-decoration: underline; }
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: center; margin-bottom: 12px; }
-.stave-narrow { width: 260px; }
+
+/* Visual cap for the stave; the SVG stays the same inside */
+:root { --stave-max: 260px; }      /* keep your original frozen width */
+.stave-narrow { width: 100%; max-width: var(--stave-max); margin: 0 auto; }
 .media { display: flex; align-items: center; justify-content: center; min-height: 120px; }
 .media > svg { width: 100%; height: 100%; display: block; }
-.blocker { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.95); z-index: 5; text-align: center; padding: 24px; border-radius: 8px; }
-.blocker p { margin: 0; font-size: 16px; line-height: 1.4; }
-@media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
+/* Retire hard blocker; use a soft hint instead */
+.blocker { display: none !important; }
+
+@media (orientation: portrait) {
+  .media { min-height: 140px; }     /* a touch taller so keys aren’t cramped */
+}
+.portrait-hint { display: none; font-size: 12px; color: #666; text-align: center; margin: 6px 0 0; }
+@media (orientation: portrait) {
+  .portrait-hint { display: block; }
+}
 `;
 
 export default function KeysToNotesPage() {
@@ -176,7 +185,9 @@ export default function KeysToNotesPage() {
     },
   ]}
 />
-
+<div className="portrait-hint">
+  Best in landscape for a wider stave — but portrait works too.
+</div>
           <div className="stave-center">
             <div className="stave-narrow">
               <GrandStaveVF
