@@ -39,6 +39,11 @@ const styles = `
   align-items: start;
   column-gap: 10px;
 }
+/* ---------- Variables (landscape defaults) ---------- */
+:root {
+  --stave-max: 380px;  /* visual cap for the stave & side box match */
+  --side-w: 260px;     /* right column width in landscape */
+}
 
 /* LEFT: Start/Stop + hint */
 .left-col { display: flex; flex-direction: column; gap: 8px; width: var(--stats-w); }
@@ -48,14 +53,14 @@ const styles = `
 .start-btn { background: #20C997; color: #081019; }
 .stop-btn  { background: #efefef; color: #222; border: 1px solid #bbb; }
 
-/* CENTER: stave (frozen width) */
+/* CENTER: stave (frozen look, responsive container) */
 .stave-center { min-width: 0; display: flex; justify-content: center; align-items: flex-start; }
-.stave-narrow { width: 380px; } /* ← frozen; do not change */
+.stave-narrow { width: 100%; max-width: var(--stave-max); }  /* the SVG inside remains the same */
 .explain { text-align:center; font-size: 13px; margin-top: 6px; min-height: 1.2em; }
 
 /* RIGHT: before start → picker; after start → carousel+inversions */
 .side-box {
-  width: var(--side-w);
+  width: var(--side-w);                                /* landscape: narrow column */
   border: 1px solid #000; border-radius: 6px; padding: 8px 10px;
   display: flex; flex-direction: column; gap: 8px; align-items: stretch; background: #f3f3f3;
 }
@@ -85,15 +90,38 @@ const styles = `
 }
 .inv-btn:hover { background: #fafafa; }
 
+/* ---------- Portrait stack: Start/Stop → Stave → Right box ---------- */
+@media (max-width: 820px) and (orientation: portrait) {
+  .stats-bar { grid-template-columns: 1fr; row-gap: 10px; }  /* stack */
+  .left-col, .stats-left { width: 100%; }                    /* full-width left column */
+
+  .stave-center { justify-content: center; }
+  .stave-narrow { width: 100%; max-width: var(--stave-max); margin: 0 auto; }
+
+  /* Let side-box expand but clamp to the stave width and center it */
+.root { --side-w: 100%; }
+.side-box {
+  width: var(--side-w);
+  max-width: calc(var(--stave-max) - 2px); /* account for 1px border on each side */
+  box-sizing: border-box;                   /* include padding/border inside width */
+  margin: 0 auto;                           /* center under the stave */
+}  
+
 /* keyboard row */
 .media { display: flex; align-items: center; justify-content: center; min-height: var(--keyboard-min-h); }
 .media > svg { width: 100%; height: auto; display: block; }
+@media (orientation: portrait) {
+  .media { min-height: 140px; } /* a touch shorter in portrait */
+}
 
-/* portrait blocker */
-.blocker { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.95); z-index: 5; text-align: center; padding: 24px; border-radius: var(--radius); }
-.blocker p { margin: 0; font-size: 16px; line-height: 1.4; }
-@media (max-width: 450px) and (orientation: portrait) { .blocker { display: flex; } }
+/* Blocker retired: keep hidden always */
+.blocker { display: none !important; }
+
+/* Soft portrait hint */
+.portrait-hint { display: none; font-size: 12px; color: #666; text-align: center; margin-top: 6px; }
+@media (orientation: portrait) {
+  .portrait-hint { display: block; }
+}
 
 /* pulse (no layout impact) */
 .pulse-good { box-shadow: 0 0 0 2px rgba(32,201,151,0.00) inset; animation: pg 220ms ease; }
@@ -270,9 +298,9 @@ setDisplayNotes([bassRoot, ...trebleTriad]);
 
       <div className={`root ${pulse === "good" ? "pulse-good" : pulse === "bad" ? "pulse-bad" : ""}`}>
         {/* portrait blocker */}
-        <div className="blocker">
-          <p><strong>Please rotate your device to landscape</strong><br/>(or use a device with a larger screen)</p>
-        </div>
+        <div className="portrait-hint">
+  Best in landscape for a wider stave — but portrait works too.
+</div>
 
         <PosterHeader
           options={[
