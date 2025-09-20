@@ -113,7 +113,23 @@ const styles = `
     height: calc(100% - 2px); /* counter rounding at high DPR */
   }
 }
+
+/* === Nudge pulse (no layout impact) === */
+.pulse-good { box-shadow: 0 0 0 2px rgba(32,201,151,0.00) inset; animation: pg 220ms ease; }
+.pulse-bad  { box-shadow: 0 0 0 2px rgba(255,107,107,0.00) inset; animation: pb 220ms ease; }
+@keyframes pg {
+  0%   { box-shadow: 0 0 0 0 rgba(32,201,151,0.00) inset; }
+  30%  { box-shadow: 0 0 0 6px rgba(32,201,151,0.35) inset; }
+  100% { box-shadow: 0 0 0 0 rgba(32,201,151,0.00) inset; }
+}
+@keyframes pb {
+  0%   { box-shadow: 0 0 0 0 rgba(255,107,107,0.00) inset; }
+  30%  { box-shadow: 0 0 0 6px rgba(255,107,107,0.35) inset; }
+  100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.00) inset; }
+}
 `;
+/* How long to show the chord before rolling the next one (ms) */
+const NEXT_DELAY_MS = 3500; // tweak 2000–3000 as you like
 
 /* ======================= Audio helpers (reveal on correct) ======================= */
 function playBlock(urls: string[]) {
@@ -129,6 +145,57 @@ function playArpeggio(urls: string[], gapMs = 140) {
       a.play().catch(() => {});
     }, i * gapMs);
   });
+}
+
+/* ======================= Wrap-up copy (randomized pool) ======================= */
+function wrapUpChordSession(correct: number, bestStreak: number, setup: {
+  keysCount: number;
+  inversionsActive: boolean;
+  mode: "block" | "arp";
+}) {
+  const isPerfect = correct === 25;
+  const isStrong  = correct >= 20 && correct <= 24;
+  const isLow     = correct < 20;
+
+  // pools
+  const PERFECT = [
+    "Flawless — you owned every chord! 👑",
+    "Perfect stack spotting — next stop: more keys, more colors.",
+    "25 out of 25 — harmony mastery unlocked! 🎶✨",
+    "Spotless session! Try tougher pools to stretch yourself.",
+    "Champion’s run — you didn’t miss a beat. 🔥",
+  ];
+  const STRONG = [
+    "Solid harmony reading — just shy of perfect.",
+    "Great session — one more push for a 25/25 streak.",
+    "Close to flawless — refine those last details.",
+    "Very steady! One more round to lock it in.",
+    "Strong recognition — aim for the clean sweep next.",
+  ];
+  const LOW_GENERAL = [
+    "Harmony’s heavy lifting — every attempt builds strength. 💪",
+    "Tough pool, but progress is progress — don’t stop here.",
+    "Keep stacking — it’s clicking chord by chord.",
+    "Even pros drill harmony daily — you’re in good company. 🎹",
+    "Today’s slips are tomorrow’s fluency. Keep at it!",
+  ];
+
+  // small flavor add-ons (optional, used only for low tier)
+  const FLAVORS: string[] = [];
+  if (setup.inversionsActive) FLAVORS.push("Inversions tricky? Focus on the bass clue.");
+  if (setup.keysCount > 3)    FLAVORS.push("Cross-key shifts add challenge — keep going.");
+  if (setup.mode === "arp")   FLAVORS.push("Arpeggio disguises the stack — visualize the whole shape.");
+
+  function pick<T>(arr: T[]) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  if (isPerfect) return pick(PERFECT);
+  if (isStrong)  return pick(STRONG);
+
+  // low tier → generic line + (optional) streak + one flavor
+  const parts = [pick(LOW_GENERAL)];
+  if (bestStreak > 1) parts.push(`Best streak: ${bestStreak}.`);
+  if (FLAVORS.length) parts.push(pick(FLAVORS));
+  return parts.join(" ");
 }
 
 /* ======================= Page ======================= */
@@ -156,6 +223,48 @@ export default function ChordsRecognitionPage() {
   const awaitingNextRef = useRef(false);
 
   const kbRef = useRef<KeyboardRef>(null);
+  const holdTimerRef = useRef<number | null>(null);
+
+  /* --- Nudges: streaks, phrases, toasts, pulse --- */
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [lastPhrase, setLastPhrase] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const [pulse, setPulse] = useState<null | "good" | "bad">(null);
+
+  // General correct/incorrect pools
+  const PRAISE_GENERAL = [
+    "Sharp eyes for harmony! 👀🎶",
+    "Bang on — clean chord ID 🎯",
+    "Solid chord reading 💪",
+    "Stack spotted — root, third, fifth!",
+    "Flawless recognition!",
+  ];
+  const ENCOURAGE_GENERAL = [
+    "Close — check chord quality (maj/min/°)",
+    "Almost — root vs. third slipped",
+    "Not quite — spacing mismatch",
+    "Re-think the chord label",
+    "Try again — the shape is off",
+  ];
+  // Optional correct flavor pools (shown only when relevant)
+  const PRAISE_INV = ["Inversion nailed! 🔁", "Bass clue read perfectly"];
+  const PRAISE_KEYS = ["Multi-key harmony? No problem.", "Key shifts handled like a pro 🔑"];
+  const PRAISE_ARP  = ["Arpeggio shape visualized 🎵", "Broken chord, solid answer"];
+  const PRAISE_BLOCK= ["Chord cluster recognized instantly", "Block stack clear as day"];
+
+  useEffect(() => {
+    setStarted(false);
+    setProgress(0);
+    setCorrect(0);
+    setExplain("");
+    setFirstTry(true);
+    awaitingNextRef.current = false;
+    setCurrentChord(null);
+    setOptions([]);
+    setLastPhrase("");
+    setStreak(0);
+  }, [selectedKeys, selectedDegrees, selectedInversions, playMode]);
 
   /* Build 2 distractors from current settings (same key/inversion, wrong degree) */
   const buildOptions = (answer: BuiltChord): string[] => {
@@ -179,16 +288,26 @@ export default function ChordsRecognitionPage() {
   };
 
   function rollNext() {
-    const next = rollRandomFromSelections(selectedKeys, selectedDegrees, selectedInversions, false);
-    if (!next) return;
-    setCurrentChord(next);
-    setOptions(buildOptions(next));
-    setExplain("");
-    setFirstTry(true);
-    awaitingNextRef.current = false;
+  // stop the re-highlight timer (if running) and clear keyboard highlights
+  if (holdTimerRef.current) {
+    window.clearInterval(holdTimerRef.current);
+    holdTimerRef.current = null;
   }
+  kbRef.current?.clear();
+
+  const next = rollRandomFromSelections(selectedKeys, selectedDegrees, selectedInversions, false);
+  if (!next) return;
+  setCurrentChord(next);
+  setOptions(buildOptions(next));
+  setExplain("");
+  setFirstTry(true);
+  awaitingNextRef.current = false;
+}
 
   const handleStart = () => {
+    if (holdTimerRef.current) { window.clearInterval(holdTimerRef.current); holdTimerRef.current = null; }
+kbRef.current?.clear();
+    kbRef.current?.clear();
     if (!canStart) return;
     setStarted(true);
     setProgress(0);
@@ -196,24 +315,45 @@ export default function ChordsRecognitionPage() {
     setExplain("");
     setFirstTry(true);
     awaitingNextRef.current = false;
+    setLastPhrase("");
+    setStreak(0);
     rollNext();
   };
 
-  // Highlight keys (green) for 1s on correct reveal
-  function flashKeyboard(displayNames: string[]) {
-    // displayNames like ["F#3","A3","C#4"]
-    // Convert to NoteName for our keyboard: it accepts sharps/flats with octaves 2..6
+  function holdKeyboard(displayNames: string[]) {
+  // highlight now
+  displayNames.forEach((n) => kbRef.current?.highlight(n as any, "correct"));
+
+  // re-highlight every 500ms while we're waiting for the next chord
+  if (holdTimerRef.current) window.clearInterval(holdTimerRef.current);
+  holdTimerRef.current = window.setInterval(() => {
+    if (!awaitingNextRef.current) return; // only hold during the waiting window
     displayNames.forEach((n) => kbRef.current?.highlight(n as any, "correct"));
-    setTimeout(() => kbRef.current?.clear(), 1000);
-  }
+  }, 500);
+}
 
   const handleMCQ = (choice: string) => {
+  // ❌ ignore if already finished (prevents streak bumps after 25/25)
+  if (progress >= 25) return;
     if (!currentChord || awaitingNextRef.current) return;
+    kbRef.current?.clear();
     const isCorrect = choice === currentChord.label;
 
     if (!isCorrect) {
-      // do NOT advance progress; just mark not-first-try
+      // wrong nudge (no advance)
       setFirstTry(false);
+      setStreak(0);
+      setPulse("bad"); setTimeout(() => setPulse(null), 240);
+
+      // context-aware encouragement
+      const encourages = [...ENCOURAGE_GENERAL];
+      // add context flavor only when relevant
+      if (selectedInversions.length > 1 && currentChord.inversion !== "root") {
+        encourages.push("Inversion tricky? Check bass clue again");
+      }
+      if (selectedKeys.length > 3) encourages.push("Key change might have caught you");
+      if (playMode === "arp") encourages.push("Broken chord, same stack — re-evaluate the label");
+      setLastPhrase(encourages[Math.floor(Math.random() * encourages.length)]);
       setExplain("Try again…");
       return;
     }
@@ -225,28 +365,55 @@ export default function ChordsRecognitionPage() {
       return `${currentChord.label}: ${a}–${b}–${c}; ${inv}`;
     });
 
-    // Counters
+    // counters
     setProgress(p => Math.min(25, p + 1));
     if (firstTry) setCorrect(c => Math.min(25, c + 1));
+
+    // success nudge with flavors
+    setStreak(s => {
+      const ns = s + 1;
+      setBestStreak(b => Math.max(b, ns));
+      if (ns === 3 || ns === 5 || ns === 10) {
+        setToast(`Streak x${ns}! 🔥`); setTimeout(() => setToast(null), 1400);
+      }
+      return ns;
+    });
+    setPulse("good"); setTimeout(() => setPulse(null), 240);
+
+    const praises = [...PRAISE_GENERAL];
+    if (selectedInversions.length > 1 && currentChord.inversion !== "root") praises.push(...PRAISE_INV);
+    if (selectedKeys.length > 3) praises.push(...PRAISE_KEYS);
+    if (playMode === "arp") praises.push(...PRAISE_ARP); else praises.push(...PRAISE_BLOCK);
+    setLastPhrase(praises[Math.floor(Math.random() * praises.length)]);
 
     // Play & highlight
     const urls = currentChord.display.map(audioUrlFromDisplay);
     if (playMode === "block") playBlock(urls);
     else playArpeggio(urls, 140);
-    flashKeyboard(currentChord.display);
+    holdKeyboard(currentChord.display);
 
-    // Next
-    awaitingNextRef.current = true;
-    setTimeout(() => {
-      setProgress(p => {
-        if (p >= 25) {
-          awaitingNextRef.current = false;
-          return p;
-        }
-        rollNext();
-        return p;
-      });
-    }, 2500);
+  // Next
+awaitingNextRef.current = true;
+window.setTimeout(() => {
+  setProgress((p) => {
+    if (p >= 25) {
+      // ✅ lock the session: no new MCQ, no phantom increments
+      awaitingNextRef.current = false;
+
+      // clear highlights at end of session
+      kbRef.current?.clear();
+
+      setStarted(false);          // return to picker / locked state
+      setCurrentChord(null);      // hide last chord label choice
+      setOptions([]);             // disable MCQ visually
+      return p;                   // keep 25/25 on screen
+    }
+
+    // Normal: roll next chord (rollNext will clear highlights before new)
+    rollNext();
+    return p;
+  });
+}, 3500); // tweak this delay as you like (e.g., 2500 or 3000)  
   };
 
   const sessionDone = progress >= 25;
@@ -260,39 +427,42 @@ export default function ChordsRecognitionPage() {
     setCurrentChord(null);
     setOptions([]);
     awaitingNextRef.current = false;
+    setLastPhrase("");
+    setStreak(0);
+    // bestStreak preserved
   };
 
   return (
     <main className="page">
       <style>{styles}</style>
 
-      <div className="root">
+      <div className={`root ${pulse === "good" ? "pulse-good" : pulse === "bad" ? "pulse-bad" : ""}`}>
         {/* portrait blocker */}
         <div className="blocker">
           <p><strong>Please rotate your device to landscape</strong><br/>(or use a device with a larger screen)</p>
         </div>
 
         <PosterHeader
-  options={[
-    {
-      title: "Chords on the Stave",
-      subtitle: "Triads and sevenths drawn as clean stacks on the grand stave—see the shapes, learn the sound.",
-    },
-    {
-      title: "Stack It. See It.",
-      subtitle: "Simple chord stacks that make root, third, and fifth crystal clear in treble and bass.",
-    },
-    {
-      title: "Harmony, Visible",
-      subtitle: "From triads to sevenths: tidy chord shapes that train your eye to recognize harmony at a glance.",
-    },
-  ]}
-/>
+          options={[
+            {
+              title: "Chords on the Stave",
+              subtitle: "Triads and sevenths drawn as clean stacks on the grand stave—see the shapes, learn the sound.",
+            },
+            {
+              title: "Stack It. See It.",
+              subtitle: "Simple chord stacks that make root, third, and fifth crystal clear in treble and bass.",
+            },
+            {
+              title: "Harmony, Visible",
+              subtitle: "From triads to sevenths: tidy chord shapes that train your eye to recognize harmony at a glance.",
+            },
+          ]}
+        />
 
         {/* Row 1: left stats | center stave | right picker/MCQ */}
         <div className="child">
           <div className="stats-bar">
-            {/* LEFT: stats + start/restart */}
+            {/* LEFT: stats + start/restart + nudges + wrap-up */}
             <div className="stats-left">
               <div className="stats-box">
                 <div>Progress</div>
@@ -319,15 +489,52 @@ export default function ChordsRecognitionPage() {
                   Restart Session
                 </button>
               )}
+
+              {/* Motivational phrase (Eyes) */}
+              <div className="explain" style={{ textAlign: "center" }}>
+                {lastPhrase && (
+                  <span
+                    style={{
+                      color: PRAISE_GENERAL.includes(lastPhrase) || lastPhrase.includes("nailed") || lastPhrase.includes("pro")
+                        ? "#20C997"
+                        : "#666",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {lastPhrase}
+                  </span>
+                )}
+                {toast && (
+                  <span style={{ marginLeft: 8, color: "#FFB703", fontWeight: 800 }}>
+                    {toast}
+                  </span>
+                )}
+              </div>
+
+              {/* Best streak (plain line) */}
+              <div className="explain" style={{ fontSize: 12, color: "#666", textAlign: "center" }}>
+                Best: <strong>{bestStreak}</strong>
+              </div>
+
+              {/* End-of-session wrap-up (randomized, tiered) */}
+              {sessionDone && (
+                <div className="explain" style={{ textAlign: "center" }}>
+                  {wrapUpChordSession(correct, bestStreak, {
+                    keysCount: selectedKeys.length,
+                    inversionsActive: selectedInversions.length > 1,
+                    mode: playMode,
+                  })}
+                </div>
+              )}
             </div>
 
             {/* CENTER: stave + tiny explanation */}
             <div className="stave-center">
               <div className="stave-narrow">
                 <GrandStaveVF
-  triadNotes={started && currentChord ? currentChord.display : null}
-  triadArpeggio={playMode === "arp"}
-/>
+                  triadNotes={started && currentChord ? currentChord.display : null}
+                  triadArpeggio={playMode === "arp"}
+                />
                 <div className="explain">{explain}</div>
               </div>
             </div>
@@ -449,9 +656,13 @@ export default function ChordsRecognitionPage() {
                   <div className="side-title">Pick the Correct Name</div>
                   <div className="mcq">
                     {options.map(opt => (
-                      <button key={opt} onClick={() => handleMCQ(opt)} disabled={awaitingNextRef.current}>
-                        {opt}
-                      </button>
+                      <button
+  key={opt}
+  onClick={() => handleMCQ(opt)}
+  disabled={awaitingNextRef.current || sessionDone}
+>
+  {opt}
+</button>
                     ))}
                   </div>
                 </>
@@ -461,7 +672,7 @@ export default function ChordsRecognitionPage() {
         </div>
 
         {/* Row 2: keyboard */}
-        <div className="child">
+        <div className="child child--keys">
           <div className="media">
             <ResponsiveKeyboardC2toC6
               ref={kbRef}
