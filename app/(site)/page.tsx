@@ -28,7 +28,7 @@ function playBlock(urls: string[]) {
 }
 function playArpeggio(urls: string[], gapMs = 140) {
   urls.forEach((u,i) => {
-    setTimeout(() => { const a = new Audio(u); a.play().catch(() => {}); }, i*gapMs);
+window.setTimeout(() => { kbRef.current?.clear(); }, 1200);    
   });
 }
 
