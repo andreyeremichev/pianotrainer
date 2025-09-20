@@ -1,219 +1,201 @@
-export const metadata = {
-  title: "Notation Trainer • PianoTrainer",
-  description:
-    "Beginner-friendly notation drills: random notes on a grand stave, keys-to-notes mapping, chords, and intervals. Train treble & bass clefs with whole notes.",
-};
-
 import Link from "next/link";
 
-
-type Item = {
-  label: string;
-  href?: string;          // if missing → coming soon
-  desc: string;
-  badge?: "New" | "Soon";
-  icon?: React.ReactNode; // emoji/glyph
+export const metadata = {
+  title: "Notation Playground • PianoTrainer",
+  description:
+    "Play with notation! Random notes, intervals, chords, and more — all free, browser-based, and beginner-friendly.",
 };
 
-const items: Item[] = [
-  {
-    label: "Random Notes",
-    href: "/trainer/notation/random-notes",
-    badge: "New",
-    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
-    desc:
-      "See a single whole note on a fixed grand stave (treble + bass). Read it, play it on the keyboard, and get instant audio feedback. Great daily warm-up.",
-  },
-  {
-    label: "Keys to Notes",
-    href: "/trainer/notation/keys-to-notes",
-    badge: "New",
-    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
-    desc:
-      "Press any piano key to reveal its exact notation on the stave. Build instant links between keyboard positions and note names.",
-  },
-  {
-    label: "Chords",
-    href: "/trainer/notation/chords",
-    badge: "New",
-    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
-    desc:
-      "Simple stacked notes (triads first), shown as half-note chord shapes. Learn how chords look across treble and bass clefs.",
-  },
-  {
-    label: "Intervals (Notation)",
-    href: "/trainer/notation/intervals",
-    badge: "New",
-    icon: <span aria-hidden="true" style={{ fontSize: 18 }}>🎼</span>,
-    desc:
-      "Second to octave, sharps & flats, ascending/descending. Recognize interval spacing on the stave and connect it to finger movement.",
-  },
-];
-
-function Card({ item }: { item: Item }) {
-  const body = (
-    <>
-      <span className="card-icon">{item.icon ?? <span aria-hidden="true">🎼</span>}</span>
-      <span className="card-main">
-        <span className="card-title">
-          {item.label}
-          {item.badge && <span className={`badge ${item.badge.toLowerCase()}`}>{item.badge}</span>}
-        </span>
-        <span className="card-desc">{item.desc}</span>
-      </span>
-    </>
-  );
-
-  return item.href ? (
-    <Link href={item.href} className="card" prefetch>
-      {body}
-    </Link>
-  ) : (
-    <span className="card disabled" aria-disabled="true" title="Coming soon">
-      {body}
-    </span>
-  );
-}
-
 export default function NotationHubPage() {
+  const styles = {
+    page: {
+      maxWidth: "900px",
+      margin: "0 auto",
+      padding: "20px 12px",
+    },
+    header: {
+      textAlign: "center" as const,
+      marginBottom: 24,
+    },
+    h1: {
+      fontSize: 28,
+      fontWeight: 800,
+      marginBottom: 6,
+    },
+    p: {
+      fontSize: 16,
+      color: "#555",
+    },
+    card: {
+      position: "relative" as const,
+      border: "1px solid #ddd",
+      borderRadius: 12,
+      padding: "16px",
+      marginBottom: 16,
+      background: "#fff",
+    },
+    pill: {
+      position: "absolute" as const,
+      top: -10,
+      right: -10,
+      background: "#EBCF7A", // gold
+      color: "#081019",
+      fontSize: 12,
+      fontWeight: 700,
+      padding: "2px 8px",
+      borderRadius: 999,
+      border: "1px solid #c9b15e",
+    },
+    cardTitle: {
+      fontSize: 20,
+      fontWeight: 700,
+      marginBottom: 8,
+    },
+    cardText: {
+      fontSize: 15,
+      marginBottom: 10,
+      color: "#333",
+    },
+    cta: {
+      display: "inline-block",
+      marginTop: 4,
+      background: "#EBCF7A",
+      color: "#081019",
+      fontWeight: 700,
+      padding: "8px 14px",
+      borderRadius: 8,
+      textDecoration: "none",
+    },
+  };
+
   return (
-    <> 
+    <main style={styles.page}>
+      <style>{`
+        /* Portrait: show portrait notice, hide bottom one */
+        @media (max-width: 820px), (orientation: portrait) {
+          .portrait-notice { display: block; }
+          .landscape-notice { display: none; }
+        }
 
-      <main className="notation-hub">
-        <style>{`
-          .notation-hub { max-width: 1100px; margin: 0 auto; padding: 16px; }
+        /* Landscape / desktop: show bottom notice only */
+        @media (min-width: 821px) and (orientation: landscape) {
+          .portrait-notice { display: none; }
+          .landscape-notice { display: block; }
+        }
+      `}</style>
 
-          header.hdr { margin: 6px 0 14px; }
-          .hdr h1 { margin: 0 0 6px 0; font-size: 26px; letter-spacing: 0.2px; }
-          .hdr p { margin: 0; color: var(--site-muted); font-size: 15px; }
+      <header style={styles.header}>
+        <h1 style={styles.h1}>🎹 Notation Playground</h1>
+        <p style={styles.p}>
+          Notes and harmony turned playful. Spot them, stack them, and let your
+          eyes and fingers sync up.
+        </p>
+      </header>
 
-          .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
-          @media (min-width: 820px) {
-            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          }
+      {/* Random Notes */}
+      <article style={styles.card}>
+        <span style={styles.pill}>👀 Live</span>
+        <h2 style={styles.cardTitle}>Random Notes</h2>
+        <p style={styles.cardText}>
+          Your treasure map starts here. Find the magic guide notes (C, F, G)
+          and the rest of the stave suddenly makes sense.
+        </p>
+        <Link href="/trainer/notation/random-notes" style={styles.cta}>
+          Catch Random Notes →
+        </Link>
+      </article>
 
-          .card {
-            display: grid;
-            grid-template-columns: 28px 1fr;
-            gap: 10px;
-            align-items: start;
-            padding: 12px;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            text-decoration: none;
-            background: #fff;
-            color: inherit;
-            transition: background 0.15s ease, border-color 0.15s ease;
-          }
-          .card:hover, .card:focus-visible { background:#fafafa; border-color:#eaeaea; }
-          .card.disabled { opacity: 0.6; cursor: default; pointer-events: none; }
+      {/* Portrait-only notice, shown immediately after Random Notes */}
+      <div
+        className="portrait-notice"
+        style={{
+          marginTop: 12,
+          marginBottom: 12,
+          padding: "10px 14px",
+          background: "#f8f8f8",
+          border: "1px solid #ddd",
+          borderRadius: 10,
+          textAlign: "center",
+          fontSize: 14,
+          color: "#444",
+        }}
+      >
+        📱 <strong>Heads up!</strong> Trainers shine best in{" "}
+        <em>landscape</em>. Rotate your phone sideways to see the full stave +
+        keyboard.
+      </div>
 
-          .card-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+      {/* Intervals */}
+      <article style={styles.card}>
+        <span style={styles.pill}>👂 Live</span>
+        <h2 style={styles.cardTitle}>Intervals</h2>
+        <p style={styles.cardText}>
+          Listen with your eyes. Seconds to octaves drawn on the stave — and lit
+          up on the keys.
+        </p>
+        <Link href="/trainer/notation/intervals" style={styles.cta}>
+          Spot Intervals →
+        </Link>
+      </article>
 
-          .card-title { font-weight: 700; display: inline-flex; gap: 8px; align-items: baseline; }
-          .card-desc { display: block; font-size: 13px; color: var(--site-muted-2); margin-top: 3px; }
+      {/* Chords */}
+      <article style={styles.card}>
+        <span style={styles.pill}>🎶 Live</span>
+        <h2 style={styles.cardTitle}>Chords</h2>
+        <p style={styles.cardText}>
+          Stacks of sound! Major and minor triads you can see, hear, and name on
+          sight.
+        </p>
+        <Link href="/trainer/notation/chords" style={styles.cta}>
+          Play Chords →
+        </Link>
+      </article>
 
-          .badge {
-            border: 1px solid #ddd;
-            padding: 1px 6px;
-            border-radius: 999px;
-            font-size: 11px;
-            line-height: 1.2;
-            color: var(--site-text);
-            background: #f7f7f7;
-          }
-          .badge.new { border-color: #b2f2bb; background: #e9fbe9; }
-          .badge.soon { border-color: #ffe066; background: #fff7d1; }
+      {/* Chords Helper */}
+      <article style={styles.card}>
+        <span style={styles.pill}>🎹 Live</span>
+        <h2 style={styles.cardTitle}>Chords Helper</h2>
+        <p style={styles.cardText}>
+          Your harmony sandbox. Swipe through all seven chords in any key and
+          watch them light up.
+        </p>
+        <Link href="/trainer/notation/chords-helper" style={styles.cta}>
+          Explore Chords →
+        </Link>
+      </article>
 
-          /* Accessibility */
-          .card:focus-visible { outline: 2px solid #2684ff; outline-offset: 2px; }
-        `}</style>
+      {/* Keys to Notes */}
+      <article style={styles.card}>
+        <span style={styles.pill}>✨ Live</span>
+        <h2 style={styles.cardTitle}>Keys to Notes</h2>
+        <p style={styles.cardText}>
+          Every key press paints a note on the stave. Your keyboard and the
+          staff finally in sync.
+        </p>
+        <Link href="/trainer/notation/keys-to-notes" style={styles.cta}>
+          Try Keys to Notes →
+        </Link>
+      </article>
 
-        <header className="hdr" aria-label="Notation Trainer">
-          <h1>Notation Trainer</h1>
-          <p>
-            Learn to read music on a <strong>grand stave</strong> the beginner-friendly way:
-            one whole note at a time, clear visuals, and immediate audio feedback. Start with{" "}
-            <Link href="/trainer/notation/random-notes">Random Notes</Link>, then add keyboard
-            mapping, chords, and interval spacing.
-          </p>
-        </header>
-
-        <section className="grid" aria-label="Modes">
-          {items.map((item) => (
-            <Card key={item.label} item={item} />
-          ))}
-        </section>
-
-        <section style={{ marginTop: 18 }}>
-          <h2 style={{ fontSize: 18, margin: "0 0 6px 0" }}>Tips for beginners</h2>
-          <ul style={{ margin: 0, paddingLeft: 18, color: "#555", fontSize: 13, lineHeight: 1.45 }}>
-            <li>Say the note name out loud while you play it — it speeds up recognition.</li>
-            <li>Use guide notes (C4, G4, F3) as landmarks to “jump” from, instead of counting lines each time.</li>
-            <li>Short sessions (3–5 minutes) beat long ones. Aim for daily streaks.</li>
-          </ul>
-        </section>
-      
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify(
-      {
-        "@context": "https://schema.org",
-        "@type": "CollectionPage",
-        "@id": "https://pianotrainer.app/trainer/notation",
-        url: "https://pianotrainer.app/trainer/notation",
-        name: "Notation Trainer Hub • PianoTrainer",
-        description:
-          "Practice reading notes on a fixed grand staff: Random Notes, Keys to Notes, and Intervals. Beginner-friendly, free, and browser-based.",
-        isPartOf: {
-          "@type": "WebSite",
-          url: "https://pianotrainer.app",
-          name: "PianoTrainer",
-        },
-        publisher: {
-          "@type": "Organization",
-          name: "PianoTrainer",
-          url: "https://pianotrainer.app",
-        },
-        mainEntity: {
-          "@type": "ItemList",
-          itemListOrder: "http://schema.org/ItemListOrderAscending",
-          numberOfItems: 3,
-          itemListElement: [
-            {
-              "@type": "ListItem",
-              position: 1,
-              url: "https://pianotrainer.app/trainer/notation/random-notes",
-              name: "Random Notes",
-              description:
-                "Read & play single notes on a grand staff. Whole notes, brace + connectors always visible.",
-            },
-            {
-              "@type": "ListItem",
-              position: 2,
-              url: "https://pianotrainer.app/trainer/notation/keys-to-notes",
-              name: "Keys to Notes",
-              description:
-                "Press any key (C2–C6) and instantly see the correct note on the staff; plays audio with correct enharmonics.",
-            },
-            {
-              "@type": "ListItem",
-              position: 3,
-              url: "https://pianotrainer.app/trainer/notation/intervals",
-              name: "Intervals (Sequential)",
-              description:
-                "Two-note intervals: play lower then upper note to pass. Shows interval name on success.",
-            }
-          ],
-        },
-      },
-      null,
-      2
-    ),
-  }}
-/>
-      </main>
-    </>
+      {/* Landscape-only notice at the bottom */}
+      <div
+        className="landscape-notice"
+        style={{
+          marginTop: 24,
+          marginBottom: 24,
+          padding: "10px 14px",
+          background: "#f8f8f8",
+          border: "1px solid #ddd",
+          borderRadius: 10,
+          textAlign: "center",
+          fontSize: 14,
+          color: "#444",
+        }}
+      >
+        📱 <strong>Heads up!</strong> Trainers shine best in{" "}
+        <em>landscape</em>. Rotate your phone sideways to see the full stave +
+        keyboard.
+      </div>
+    </main>
   );
 }
