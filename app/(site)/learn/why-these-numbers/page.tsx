@@ -96,13 +96,22 @@ export default function WhyTheseNumbersPage() {
       </p>
 
       <section className="card">
-        <h2 className="h2">🎯 Digits Become Degrees</h2>
-        <p className="lead">
-          Each digit isn’t just a number — it’s a <strong>step on the circle</strong>.
-          1 through 7 land on the main spokes, 0 becomes a pause, 8 and 9 jump an octave higher.
-          Even dashes (“-”) matter: they’re little rests that give your melody room to breathe.
-        </p>
-      </section>
+  <h2 className="h2">🎯 Digits Become Degrees</h2>
+  <p className="lead">
+    Each digit isn’t just a number — it’s a <strong>step on the circle</strong>.
+    1 through 7 land on the main spokes, 0 can be anything –{" "}
+    <a
+      href="https://youtube.com/shorts/_5GosXP6Jp4"
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ color: "#EBCF7A", textDecoration: "underline" }}
+    >
+      a pause, like in previous version
+    </a>
+    , or it can be some degree outside Major and minor – as currently, 8 and 9 jump an octave higher.
+    Even dashes (“–”) matter: they’re little rests that give your melody room to breathe.
+  </p>
+</section>
 
       <section className="card">
         <h2 className="h2">🎭 Two Personalities: Major & Minor</h2>
@@ -114,10 +123,10 @@ export default function WhyTheseNumbersPage() {
       </section>
 
       <section className="card">
-        <h2 className="h2">⏱️ Why 16 Seconds?</h2>
+        <h2 className="h2">⏱️ Why 8 Seconds?</h2>
         <p className="lead">
           Short and sweet! Each viral clip is capped at <strong>16 seconds</strong> —
-          just enough time for the pattern to shine, perfect for Reels and TikToks.
+          just enough time for the pattern to shine and loop, perfect for Reels and TikToks.
         </p>
         <div className="sep" />
         <p className="lead">Want to go longer? Explore the full trainer:</p>
