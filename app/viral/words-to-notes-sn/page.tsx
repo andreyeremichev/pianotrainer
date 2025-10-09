@@ -388,7 +388,7 @@ function buildEvents(input: string): {
   cadenceLabels: string[];
 } {
   // Build draft events directly (letters, spaces, digit-runs)
-const eventsDraft: { type: "melody" | "chord" | "rest"; data?: any; weight: number; label?: string }[] = [];
+const eventsDraft: { type: "melody" | "chord" | "rest" | "zero"; data?: any; weight: number; label?: string }[] = [];
 
 const s = input || "";
 let i = 0;
