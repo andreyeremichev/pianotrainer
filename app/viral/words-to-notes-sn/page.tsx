@@ -847,19 +847,22 @@ const start = useCallback(async () => {
   // 1) Build events from current phrase
   const input = trimToMaxLetters(sanitizePhraseInput(phrase), MAX_LETTERS);
   const { events: built, cadenceLabels } = buildEvents(input);
-  const playable = withDisplayKeys(built);
-setEvents(toVFEvents(playable));
-  setVisibleCount(0);
-  await raf2();
+const playable = withDisplayKeys(built);
 
-  // (Optional) log cadence variants used
-  if (cadenceLabels?.length) console.log("[cadences]", cadenceLabels.join(" · "));
+// convert once → use everywhere
+const vf = toVFEvents(playable);
+setEvents(vf);
+setVisibleCount(0);
+await raf2();
 
-  // 2) Prepare audio (collect all note names)
-  const allNoteNames = Array.from(new Set(playable.flatMap(ev => ev.noteNames || [])));
+// (Optional) log cadence variants used
+if (cadenceLabels?.length) console.log("[cadences]", cadenceLabels.join(" · "));
 
-  await Tone.start();
-  await createSamplerForNotes(allNoteNames);
+// 2) Prepare audio (collect all note names) from vf (strict shape)
+const allNoteNames = Array.from(new Set(vf.flatMap(ev => ev.noteNames || [])));
+
+await Tone.start();
+await createSamplerForNotes(allNoteNames);
 
   // 3) Schedule audio + animation
   setIsPlaying(true);
