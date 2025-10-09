@@ -924,11 +924,13 @@ for (let i = 0; i < vf.length; i++) {
     const trimmed = trimToMaxLetters(sanitizePhraseInput(p), MAX_LETTERS);
     if (!trimmed) return;
     setPhrase(trimmed);
-    const { events: built } = buildEvents(trimmed);
-    setEvents(built);
-    setVisibleCount(built.length);
-    setIsPlaying(false);
-    isPlayingRef.current = false;
+const { events: built } = buildEvents(trimmed);
+const playable = withDisplayKeys(built);
+const vf = toVFEvents(playable);
+setEvents(vf);
+setVisibleCount(vf.length);
+setIsPlaying(false);
+isPlayingRef.current = false;
     clearAllTimers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1336,7 +1338,8 @@ async function svgToImage(rawSvg: string): Promise<HTMLImageElement> {
         const id = window.setTimeout(() => {
           try {
             // Chords: trigger all notes together
-            ev.noteNames!.forEach((nn: string) => triggerNow(nn));
+            // Chords: trigger all notes together
+triggerNow(ev.noteNames!, ev.d ?? 0.55, /* isMelody */ false);
           } catch {}
         }, startMs);
         timers.push(id);
@@ -1401,15 +1404,12 @@ function buildDownloadName(phrase: string): string {
     const v = trimToMaxLetters(sanitizePhraseInput(e.target.value), MAX_LETTERS);
     setPhrase(v);
     const { events: built } = buildEvents(v);
-setEvents(withDisplayKeys(built));
-console.log(
-  "debug events →",
-  built.slice(0, 5).map(e => ({
-    noteNames: e.noteNames,
-    vfKeys: e.vfKeys,
-    isRest: e.isRest
-  }))
-);
+const playable = withDisplayKeys(built);
+const vf = toVFEvents(playable);
+setEvents(vf);
+console.log("debug events →", vf.slice(0, 5).map(e => ({
+  noteNames: e.noteNames, vfKeys: e.vfKeys, isRest: e.isRest
+})));
 console.log(
   "✅ sample events →",
   events.slice(0, 5).map(e => ({
