@@ -104,6 +104,27 @@ function noteNameToVfKey(n: string): string {
   return `${l}${acc}/${oct}`;
 }
 
+// Convert mixed/legacy EventLike[] → strict VFEvent[]
+function toVFEvents(list: EventLike[]): VFEvent[] {
+  return list.map((ev, i) => {
+    const names = ev.noteNames && ev.noteNames.length
+      ? ev.noteNames
+      : (ev.notes && ev.notes.length ? ev.notes : []);
+
+    const t = ev.t ?? 0;                    // if your builder sets t, it will pass through
+    const d = ev.d ?? (ev as any).dur ?? 0.55; // fall back to legacy dur or a safe default
+
+    return {
+      t,
+      d,
+      noteNames: names,
+      vfKeys: names.map(noteNameToVfKey),
+      isRest: names.length === 0 ? (ev.kind === "REST" ? true : !!ev.isRest) : !!ev.isRest,
+      vfDuration: ev.vfDuration || "q",
+    } as VFEvent;
+  });
+}
+
 function withDisplayKeys<T extends EventLike>(list: T[]): T[] {
   return list.map((ev) => {
     // Prefer modern noteNames; else derive from legacy notes[]
@@ -817,7 +838,7 @@ const start = useCallback(async () => {
   const input = trimToMaxLetters(sanitizePhraseInput(phrase), MAX_LETTERS);
   const { events: built, cadenceLabels } = buildEvents(input);
   const playable = withDisplayKeys(built);
-  setEvents(playable);
+setEvents(toVFEvents(playable));
   setVisibleCount(0);
   await raf2();
 
