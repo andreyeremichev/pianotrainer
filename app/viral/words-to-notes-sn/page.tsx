@@ -678,7 +678,9 @@ const final: any[] = timedDraft.map((e, i) => {
 
 const finalEvents = withDisplayKeys(final);
 
-  return { events: finalEvents};
+// Keep API stable: return an empty cadenceLabels array for now
+const cadenceLabels: string[] = [];
+return { events: finalEvents, cadenceLabels };
 }
 /* ===== VexFlow mapping from events (visual quarters; rests visible) ===== */
 function eventsToVexflowNotes(events: Event[]) {
