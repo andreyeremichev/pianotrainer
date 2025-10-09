@@ -104,6 +104,16 @@ function noteNameToVfKey(n: string): string {
   return `${l}${acc}/${oct}`;
 }
 
+// Strict event shape used by the renderer
+type VFEvent = {
+  t: number;                // start time (s)
+  d: number;                // duration (s)
+  noteNames: string[];      // e.g., ["A3","C4","E4"]
+  vfKeys: string[];         // e.g., ["a/3","c/4","e/4"]
+  isRest: boolean;          // true for rests
+  vfDuration?: string;      // e.g., "q"
+};
+
 // Convert mixed/legacy EventLike[] → strict VFEvent[]
 function toVFEvents(list: EventLike[]): VFEvent[] {
   return list.map((ev, i) => {
