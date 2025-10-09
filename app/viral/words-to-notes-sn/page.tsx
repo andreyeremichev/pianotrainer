@@ -870,12 +870,12 @@ await createSamplerForNotes(allNoteNames);
   clearAllTimers();
 
   const timers: number[] = [];
-  const lastEnd = playable.reduce((mx, ev) => Math.max(mx, (ev.t ?? 0) + (ev.d ?? 0)), 0);
+const lastEnd = vf.reduce((mx, ev) => Math.max(mx, (ev.t ?? 0) + (ev.d ?? 0)), 0);
 
-  // Per-event scheduling
-  for (let i = 0; i < playable.length; i++) {
-    const ev = playable[i];
-    const startMs = Math.max(0, Math.round((ev.t ?? 0) * 1000));
+// Per-event scheduling
+for (let i = 0; i < vf.length; i++) {
+  const ev = vf[i];
+  const startMs = Math.max(0, Math.round((ev.t ?? 0) * 1000));
 
     // advance visible notes at event start
     const visId = window.setTimeout(() => {
@@ -888,7 +888,7 @@ await createSamplerForNotes(allNoteNames);
     if (ev.noteNames && ev.noteNames.length) {
       const trigId = window.setTimeout(() => {
         if (!isPlayingRef.current) return;
-        try { ev.noteNames!.forEach(n => triggerNow(n)); } catch {}
+        try { triggerNow(ev.noteNames!, ev.d ?? 0.55, /* isMelody */ false); } catch {}
       }, startMs);
       timers.push(trigId);
     }
