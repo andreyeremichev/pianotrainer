@@ -356,6 +356,30 @@ function updateParticles(pool: Ember[]) {
   const hasPlayedRef = useRef(false);
   useEffect(()=>{ hasPlayedRef.current = hasPlayed; }, [hasPlayed]);
 
+    // 🟡 Pre-fill from shared links: ?fmt=DD-MM-YYYY&date=DDMMYYYY (digits)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+
+      const qFmt = sp.get("fmt");
+      if (qFmt === "DD-MM-YYYY" || qFmt === "YYYY-MM-DD" || qFmt === "MM-DD-YYYY") {
+        setFmt(qFmt as DateFmt);
+      }
+
+      const qDateDigits = sp.get("date"); // digits only
+      if (qDateDigits && /^\d{4,8}$/.test(qDateDigits)) {
+        const fmtToUse =
+          qFmt === "DD-MM-YYYY" || qFmt === "YYYY-MM-DD" || qFmt === "MM-DD-YYYY"
+            ? (qFmt as DateFmt)
+            : fmt;
+        const masked = formatDateInput(qDateDigits, fmtToUse);
+        setDateVal(masked);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const svgRef = useRef<SVGSVGElement | null>(null);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
@@ -379,6 +403,27 @@ const maxEmbers = 80;
   const [shareOpen, setShareOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+
+  // Build a shareable URL that restores this toy state (digits-only date)
+const buildShareUrl = useCallback(() => {
+  const params = new URLSearchParams();
+  params.set("fmt", fmt);
+  // send digits only so the receiver can apply their current fmt safely
+  const digits = (dateVal || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length) params.set("date", digits);
+  params.set("mode", "mixed"); // keep your mixed mode if you use it
+  const url = new URL(window.location.href);
+  url.search = params.toString();
+  return url.toString();
+}, [fmt, dateVal]);
+
+// Optional helper for X / Twitter
+function buildTweetIntent(text: string, url: string) {
+  const u = new URL("https://twitter.com/intent/tweet");
+  u.searchParams.set("text", text);
+  u.searchParams.set("url", url);
+  return u.toString();
+}
 
   function appendTrail(spoke: number, key: KeyName) {
     const dq = key === "BbMajor" ? nodesMajRef.current : nodesMinRef.current;
@@ -1024,6 +1069,163 @@ c.restore();
               Link copied!
             </div>
           )}
+          {/* Share Sheet (modal) */}
+{shareOpen && (
+  <div
+    role="dialog"
+    aria-modal="true"
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.6)",
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center",
+      zIndex: 9999,
+    }}
+    onClick={() => setShareOpen(false)}
+  >
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 520,
+        background: "#0F1821",
+        borderTop: `1px solid ${theme.border}`,
+        borderLeft: `1px solid ${theme.border}`,
+        borderRight: `1px solid ${theme.border}`,
+        borderRadius: "12px 12px 0 0",
+        padding: 12,
+        boxSizing: "border-box",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        style={{
+          textAlign: "center",
+          color: theme.text,
+          fontWeight: 800,
+          marginBottom: 8,
+        }}
+      >
+        Share your melody
+      </div>
+
+      {/* Copy Link (fastest) */}
+      <button
+        onClick={async () => {
+          const url = buildShareUrl();
+          try {
+            await navigator.clipboard.writeText(url);
+            setShareOpen(false);
+            setLinkCopied(true);
+            setTimeout(() => setLinkCopied(false), 1600);
+          } catch {
+            alert(url);
+          }
+        }}
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          marginBottom: 6,
+          background: theme.gold,
+          color: "#081019",
+          borderRadius: 8,
+          border: "none",
+          fontWeight: 800,
+        }}
+      >
+        🔗 Copy Link
+      </button>
+
+      {/* X / Twitter */}
+      <a
+        href={buildTweetIntent(
+          `My date sings: ${dateVal || fmt}`,
+          buildShareUrl()
+        )}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setShareOpen(false)}
+        style={{
+          display: "block",
+          textAlign: "center",
+          width: "100%",
+          padding: "10px 12px",
+          marginBottom: 6,
+          background: "transparent",
+          color: theme.gold,
+          borderRadius: 8,
+          border: `1px solid ${theme.border}`,
+          textDecoration: "none",
+          fontWeight: 800,
+        }}
+      >
+        𝕏 Share on X
+      </a>
+
+      {/* TikTok */}
+      <button
+        onClick={() => {
+          alert("Tap Download first, then post the clip in TikTok.");
+          const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+          if (isMobile) { try { window.location.href = "tiktok://"; } catch {} }
+          else { window.open("https://studio.tiktok.com", "_blank", "noopener,noreferrer"); }
+          setShareOpen(false);
+        }}
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          marginBottom: 6,
+          background: "transparent",
+          color: theme.gold,
+          borderRadius: 8,
+          border: `1px solid ${theme.border}`,
+          fontWeight: 800,
+        }}
+      >
+        🎵 Post to TikTok (download then upload)
+      </button>
+
+      {/* Instagram Reels */}
+      <button
+        onClick={() => {
+          alert("Tap Download first, then open Instagram → Reels → upload.");
+          const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+          if (isMobile) { try { window.location.href = "instagram://camera"; } catch {} }
+          else { window.open("https://www.instagram.com/create/reel/", "_blank", "noopener,noreferrer"); }
+          setShareOpen(false);
+        }}
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          background: "transparent",
+          color: theme.gold,
+          borderRadius: 8,
+          border: `1px solid ${theme.border}`,
+          fontWeight: 800,
+        }}
+      >
+        📸 Post to Instagram Reels (download then upload)
+      </button>
+
+      <button
+        onClick={() => setShareOpen(false)}
+        style={{
+          width: "100%",
+          padding: "8px 12px",
+          marginTop: 8,
+          background: "#0B0F14",
+          color: theme.muted,
+          borderRadius: 8,
+          border: `1px solid ${theme.border}`,
+          fontWeight: 700,
+        }}
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
         </section>
 
         {/* Outside the card: Why these numbers CTA */}
