@@ -75,14 +75,23 @@ async function buildEmbeddedFontStyle() {
 function raf2() {
   return new Promise<void>((res) => requestAnimationFrame(() => requestAnimationFrame(() => res())));
 }
-// --- VexFlow display helpers (attach VF keys to events) ---
+// Accept either the new (noteNames/t,d) or legacy (kind/notes/dur) shapes
 type EventLike = {
-  t: number;             // start time (s)
-  d: number;             // duration (s)
-  noteNames?: string[];  // e.g., ["A3","C4","E4"]
+  // modern timing (optional)
+  t?: number;
+  d?: number;
+
+  // modern audio/display (optional)
+  noteNames?: string[];
+  vfKeys?: string[];
   isRest?: boolean;
-  vfKeys?: string[];     // e.g., ["a/3","c/4","e/4"]
-  vfDuration?: string;   // "q" by default
+  vfDuration?: string;
+
+  // legacy fields (from old Event)
+  kind?: "MELODY" | "CHORD" | "REST";
+  notes?: string[];
+  clef?: "treble" | "bass";
+  label?: string;
 };
 
 function noteNameToVfKey(n: string): string {
@@ -97,14 +106,20 @@ function noteNameToVfKey(n: string): string {
 
 function withDisplayKeys<T extends EventLike>(list: T[]): T[] {
   return list.map((ev) => {
-    const names = ev.noteNames || [];
+    // Prefer modern noteNames; else derive from legacy notes[]
+    const names =
+      (ev.noteNames && ev.noteNames.length ? ev.noteNames :
+       ev.notes && ev.notes.length ? ev.notes : []);
+
     const vf = names.map(noteNameToVfKey);
+
     return {
       ...ev,
+      noteNames: names,
       vfKeys: vf,
       isRest: names.length === 0 ? true : !!ev.isRest,
       vfDuration: ev.vfDuration || "q",
-    };
+    } as T;
   });
 }
 
