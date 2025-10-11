@@ -83,12 +83,18 @@ export default function ChaosTextToTonePage(){
 
   // audio helpers
   async function ensureSampler(evts: TextToneEvent[]){
-    if (samplerRef.current){ try{ samplerRef.current.dispose(); }catch{} samplerRef.current=null; }
-    const urls: Record<string,string> = {};
-    for (const e of evts) for (const n of (e.notes||[])) urls[n] = `${n.replace("#","%23")}.wav`;
-    samplerRef.current = new Tone.Sampler({ urls, baseUrl: "/audio/notes/" }).toDestination();
-    await Tone.loaded();
+  if (samplerRef.current){ try{ samplerRef.current.dispose(); }catch{} samplerRef.current=null; }
+  const urls: Record<string,string> = {};
+  for (const e of evts){
+    if (e.kind !== "REST") {
+      for (const n of e.notes) {
+        urls[n] = `${n.replace("#","%23")}.wav`;
+      }
+    }
   }
+  samplerRef.current = new Tone.Sampler({ urls, baseUrl: "/audio/notes/" }).toDestination();
+  await Tone.loaded();
+}
   function triggerNow(notes:string[], seconds:number){
     const s = samplerRef.current; if(!s || !notes.length) return;
     try { (s as any).triggerAttackRelease(notes, Math.max(0.12, seconds*0.9)); } catch {}
