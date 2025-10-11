@@ -5,23 +5,32 @@ import type { Metadata } from "next";
    Metadata
    ========================= */
 export const metadata: Metadata = {
-  title: "Viral Musical Toys • PianoTrainer",
+  title: "TextToTone Family • Viral Musical Toys • PianoTrainer",
   description:
-    "TextToTone turns text into music (letters, numbers, memes, and symbols), plus Date → Notes and Phone → Notes. Tap, play, and make a Shorts/Reels-ready clip.",
+    "Three bite-size toys: TextToTone (text → music), KeyClock (dates → Circle of Fifths), and ToneDial (phone → Circle of Fifths). Type, spin, dial — and make a loop-ready clip.",
   alternates: { canonical: "/viral" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/viral",
-    title: "Viral Musical Toys • PianoTrainer",
+    title: "TextToTone Family • Viral Musical Toys • PianoTrainer",
     description:
-      "Try TextToTone (text → music) and two quick companions: Date → Notes and Phone → Notes. Letters sing, numbers form chords, symbols add musical punctuation.",
+      "Try TextToTone (text → music), KeyClock (dates spin through the Circle of Fifths), and ToneDial (numbers dial harmony). Letters sing, digits form chords, symbols add musical punctuation.",
     siteName: "PianoTrainer",
+    images: [
+      {
+        url: "https://pianotrainer.app/og/texttotone.jpg",
+        width: 1200,
+        height: 630,
+        alt: "TextToTone • Type Anything, Hear the Music",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Viral Musical Toys • PianoTrainer",
+    title: "TextToTone Family • Viral Musical Toys • PianoTrainer",
     description:
-      "TextToTone (text → music), Date → Notes, and Phone → Notes. Type, play, share.",
+      "TextToTone (text → music), KeyClock (dates → Circle of Fifths), ToneDial (phone → Circle of Fifths). Type, spin, dial — share the loop.",
+    images: ["https://pianotrainer.app/og/texttotone.jpg"],
   },
   robots: { index: true, follow: true },
 };
@@ -59,7 +68,7 @@ export default function ViralHubPage() {
             letterSpacing: 0.2,
           }}
         >
-          Viral Musical Toys
+          TextToTone Family — Viral Musical Toys
         </h1>
         <p
           style={{
@@ -69,8 +78,8 @@ export default function ViralHubPage() {
             lineHeight: 1.6,
           }}
         >
-          Three tiny experiments that turn everyday things into melody. Pick one,
-          tap play, and you’ve got a clip ready for Reels or TikTok.
+          Three tiny experiments that turn everyday things into music. Pick one, tap play, and you’ve
+          got a loop-ready clip for Shorts or Reels.
         </p>
       </header>
 
@@ -147,7 +156,7 @@ export default function ViralHubPage() {
             </div>
           </article>
 
-          {/* Date → Notes */}
+          {/* KeyClock (Dates → Circle of Fifths) */}
           <article
             className="toy-card"
             style={{
@@ -169,16 +178,16 @@ export default function ViralHubPage() {
                 gap: 8,
               }}
             >
-              📅 Date → Notes
+              🕒 KeyClock (Dates → Circle of Fifths)
             </div>
             <p style={{ margin: 0, color: theme.muted, lineHeight: 1.6 }}>
-              Birthdays, anniversaries — digits become notes, dashes breathe as pauses. Record a short
-              Reels/TikTok clip in seconds.
+              Spin any date around the Circle of Fifths. Birthdays, anniversaries, Y2K — every day
+              lands on a key and sets the vibe.
             </p>
             <div>
               <Link
                 href="/viral/key-clock"
-                aria-label="Open Date to Notes Viral Toy"
+                aria-label="Open KeyClock Viral Toy"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -192,12 +201,12 @@ export default function ViralHubPage() {
                   border: "none",
                 }}
               >
-                Try Date →
+                Try KeyClock →
               </Link>
             </div>
           </article>
 
-          {/* Phone → Notes */}
+          {/* ToneDial (Phone → Circle of Fifths) */}
           <article
             className="toy-card"
             style={{
@@ -219,16 +228,16 @@ export default function ViralHubPage() {
                 gap: 8,
               }}
             >
-              📞 Phone → Notes
+              ☎️ ToneDial (Phone → Circle of Fifths)
             </div>
             <p style={{ margin: 0, color: theme.muted, lineHeight: 1.6 }}>
-              Digits groove; country codes lead. Dashes become rhythm — and you get a 10-second melody
-              that’s ready to post.
+              Dial harmony by number. Country codes lead, digits spin the circle — and every call has
+              a tone.
             </p>
             <div>
               <Link
                 href="/viral/tone-dial"
-                aria-label="Open Phone Numbers Viral Toy"
+                aria-label="Open ToneDial Viral Toy"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -242,7 +251,7 @@ export default function ViralHubPage() {
                   border: "none",
                 }}
               >
-                Try Phone →
+                Try ToneDial →
               </Link>
             </div>
           </article>
