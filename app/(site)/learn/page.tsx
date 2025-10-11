@@ -169,7 +169,7 @@ export default function LearnHubPage() {
           </p>
           <div className="meta">
             Bonus: turn phrases into melody with{" "}
-            <Link href="/learn/words-to-notes" className="cta--ghost" aria-label="Open Words to Notes">
+            <Link href="/learn/text-to-tone-chaos" className="cta--ghost" aria-label="Open Words to Notes">
               Words → Notes
             </Link>
             .

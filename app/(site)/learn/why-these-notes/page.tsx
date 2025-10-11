@@ -225,7 +225,7 @@ export default function WhyTheseNotesPage() {
           <li>See your words mapped on full grand stave, not only inside A3 - A4.</li>
         </ul>
         <div className="cta-row">
-          <Link href="/learn/words-to-notes" className="cta" aria-label="Open Full Words to Notes Trainer">
+          <Link href="/learn/text-to-tone-chaos" className="cta" aria-label="Open Full Words to Notes Trainer">
             Try the Full Trainer →
           </Link>
         </div>

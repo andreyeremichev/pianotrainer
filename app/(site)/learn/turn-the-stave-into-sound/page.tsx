@@ -145,7 +145,7 @@ export default function HowToReadMusicPage() {
     Type any phrase and watch it come alive on the stave. Letters become notes, and you can
     hear your own words as melody. A playful, one-of-a-kind way to connect language and sound.
   </p>
-  <Link href="/learn/words-to-notes" className="cta" aria-label="Open Words to Notes">
+  <Link href="/learn/text-to-tone-chaos" className="cta" aria-label="Open Words to Notes">
     🎹 Try Words → Notes →
   </Link>
 </div>
