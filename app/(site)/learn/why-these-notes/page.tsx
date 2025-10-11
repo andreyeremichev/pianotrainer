@@ -5,14 +5,29 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Why These Notes? • PianoTrainer",
   description:
-    "Words play as a melody in A natural minor (A3–A4). Numbers become chords (1–9, 10–19, 20–90) with 100 as a cadence. Everything normalizes to a loop-friendly 8 seconds.",
+    "TextToTone turns text into music: letters play a singable A-minor melody (A3–A4), numbers become chords (1–9, 10–19, 20–90) with 100 as a cadence, 0 is a soft A3 tick, and symbols like %, /, +, =, #, @ add musical punctuation. Every clip normalizes to a loop-friendly 8 seconds.",
   alternates: { canonical: "/learn/why-these-notes" },
   openGraph: {
     type: "article",
     url: "https://pianotrainer.app/learn/why-these-notes",
     title: "Why These Notes? • PianoTrainer",
     description:
-      "Letters → A-minor melody (A3–A4). Numbers → diatonic chords with cadences. Zero is a soft A3 tick. All clips normalize to 8s for seamless loops.",
+      "Letters → A-minor melody (A3–A4). Numbers → diatonic chords with cadences. 0 = soft A3 tick. Meme-friendly symbols (%, /, +, =, #, @) add musical punctuation. All clips normalize to 8s for seamless loops.",
+    images: [
+      {
+        url: "https://pianotrainer.app/og/texttotone-chaos.jpg",
+        width: 1200,
+        height: 630,
+        alt: "TextToTone: Chaos Mode — Explore How Language Becomes Music",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Why These Notes? • PianoTrainer",
+    description:
+      "TextToTone maps text to sound: letters sing, numbers form chords, % and friends add musical punctuation. 8-second loops for clean, viral playback.",
+    images: ["https://pianotrainer.app/og/texttotone-chaos.jpg"],
   },
   robots: { index: true, follow: true },
 };
@@ -87,6 +102,12 @@ export default function WhyTheseNotesPage() {
           background: #eee;
           margin: 14px 0;
         }
+        code {
+          background: #f6f6f6;
+          border: 1px solid #eee;
+          border-radius: 6px;
+          padding: 1px 6px;
+        }
       `}</style>
 
       <h1 className="h1">🌟 You’re One of the Curious Ones</h1>
@@ -145,6 +166,34 @@ export default function WhyTheseNotesPage() {
           <li><code>123</code> → <em>100 + 20 + 3</em></li>
           <li><code>2000</code> → <em>2 + 0 + 0 + 0</em> (zeros are short ticks)</li>
         </ul>
+      </section>
+
+      {/* NEW: Beyond words — symbols & memes */}
+      <section className="card">
+        <h2 className="h2">#TextToTone Beyond Words</h2>
+        <p className="lead">
+          TextToTone is more than letters. We added gentle, musical meanings for common symbols so memes read naturally:
+        </p>
+        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
+          <li><strong>%</strong> = a short breath, then two chords (<em>Em/G → Am/C</em>) — sounds like “per-cent”.</li>
+          <li><strong>/</strong> adds a light link chord (<em>Em/G</em>), <strong>+</strong> is a warm lift (<em>Dm</em>), <strong>=</strong> settles (<em>Am/C</em> + tiny rest).</li>
+          <li><strong>.</strong> and <strong>:</strong> are soft ticks on <em>A3</em>; <strong>,</strong> and <strong>-</strong> are short rests.</li>
+          <li><strong>?</strong> uses <em>G–B–D</em> (curious lift), <strong>!</strong> uses <em>E–G–B</em> (gentle emphasis).</li>
+          <li><strong>#</strong> adds a tag chord (<em>G–B–D</em>), <strong>@</strong> gives a quick high tick (<em>A4</em>), <strong>$</strong> colors with <em>Fmaj7</em>.</li>
+          <li><strong>’</strong> apostrophe becomes a tiny breath (contractions feel natural: <code>let’s</code>).</li>
+        </ul>
+        <div className="sep" />
+        <p className="lead"><strong>How a meme sounds now</strong> (try these):</p>
+        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
+          <li><code>24/7 Practice</code> → numbers (20+4), a link chord for <code>/</code>, then melody for the word.</li>
+          <li><code>9 + 10 = 21</code> → <em>9</em> chord, <em>+</em> lift, <em>10</em> teen chord, <em>=</em> settle, then <em>20 + 1</em>.</li>
+          <li><code>Y2K Midnight (1999-12-31)</code> → letters, digits (with 0 as ticks), hyphens as rests — readable and musical.</li>
+          <li><code>100%</code> → cadence on <em>100</em>, tiny breath, then <em>Em/G → Am/C</em> (“per-cent”).</li>
+          <li><code>#piano @teacher $100</code> → tag chord, high ping, warm value chord, then the <em>100</em> cadence.</li>
+        </ul>
+        <p className="lead" style={{ marginTop: 6 }}>
+          Everything still normalizes to an <strong>8-second loop</strong> so clips restart cleanly in Shorts/Reels.
+        </p>
       </section>
 
       {/* UPDATED: 8s normalization */}
