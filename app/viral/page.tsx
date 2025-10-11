@@ -177,7 +177,7 @@ export default function ViralHubPage() {
             </p>
             <div>
               <Link
-                href="/viral/date-to-notes-sn"
+                href="/viral/key-clock"
                 aria-label="Open Date to Notes Viral Toy"
                 style={{
                   display: "inline-flex",
@@ -227,7 +227,7 @@ export default function ViralHubPage() {
             </p>
             <div>
               <Link
-                href="/viral/phone-numbers-to-notes-sn"
+                href="/viral/tone-dial"
                 aria-label="Open Phone Numbers Viral Toy"
                 style={{
                   display: "inline-flex",

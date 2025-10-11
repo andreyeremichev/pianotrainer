@@ -247,14 +247,14 @@ export default function WhyTheseNotesPage() {
         </p>
         <div className="cta-row">
           <Link
-            href="/viral/date-to-notes-sn"
+            href="/viral/key-clock"
             className="cta"
             aria-label="Open Date to Notes Viral Toy"
           >
             Date → Notes →
           </Link>
           <Link
-            href="/viral/phone-numbers-to-notes-sn"
+            href="/viral/tone-dial"
             className="ghost"
             aria-label="Open Phone Numbers Viral Toy"
           >
