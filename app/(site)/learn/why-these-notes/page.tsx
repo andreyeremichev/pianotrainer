@@ -212,7 +212,7 @@ export default function WhyTheseNotesPage() {
             Phone → Notes →
           </Link>
           <Link
-            href="/viral/words-to-notes-sn"
+            href="/viral/text-to-tone"
             className="ghost"
             aria-label="Open Words to Notes Viral Toy"
           >
@@ -228,7 +228,7 @@ export default function WhyTheseNotesPage() {
           It’s the fastest way to make someone smile today.
         </p>
         <div className="cta-row">
-          <Link href="/viral/words-to-notes-sn" className="cta" aria-label="Open Viral Toy">
+          <Link href="/viral/text-to-tone" className="cta" aria-label="Open Viral Toy">
             Make a New Clip →
           </Link>
         </div>

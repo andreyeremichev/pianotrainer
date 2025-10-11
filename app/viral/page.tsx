@@ -129,7 +129,7 @@ export default function ViralHubPage() {
             </p>
             <div>
               <Link
-                href="/viral/words-to-notes-sn"
+                href="/viral/text-to-tone"
                 aria-label="Open Words to Notes Viral Toy"
                 style={{
                   display: "inline-flex",

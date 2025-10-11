@@ -164,7 +164,7 @@ export default function WhyTheseNumbersPage() {
       Phone → Notes →
     </Link>
     <Link
-      href="/viral/words-to-notes-sn"
+      href="/viral/text-to-tone"
       className="ghost"
       aria-label="Open Words to Notes Viral Toy"
     >
