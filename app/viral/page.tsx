@@ -1,5 +1,3 @@
-
-
 import Link from "next/link";
 import type { Metadata } from "next";
 
@@ -7,23 +5,23 @@ import type { Metadata } from "next";
    Metadata
    ========================= */
 export const metadata: Metadata = {
-  title: "Musical Toys • PianoTrainer",
+  title: "Viral Musical Toys • PianoTrainer",
   description:
-    "Three quick musical toys: Words → Notes, Date → Notes, and Phone → Notes. Tap, play, and make a Reels/TikTok-ready clip.",
+    "TextToTone turns text into music (letters, numbers, memes, and symbols), plus Date → Notes and Phone → Notes. Tap, play, and make a Shorts/Reels-ready clip.",
   alternates: { canonical: "/viral" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/viral",
-    title: "Viral Toys • PianoTrainer",
+    title: "Viral Musical Toys • PianoTrainer",
     description:
-      "Words sing, dates dance, numbers groove. Try one of our three bite-size musical toys.",
+      "Try TextToTone (text → music) and two quick companions: Date → Notes and Phone → Notes. Letters sing, numbers form chords, symbols add musical punctuation.",
     siteName: "PianoTrainer",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Musical Toys • PianoTrainer",
+    title: "Viral Musical Toys • PianoTrainer",
     description:
-      "Three quick musical toys: Words → Notes, Date → Notes, and Phone → Notes.",
+      "TextToTone (text → music), Date → Notes, and Phone → Notes. Type, play, share.",
   },
   robots: { index: true, follow: true },
 };
@@ -61,7 +59,7 @@ export default function ViralHubPage() {
             letterSpacing: 0.2,
           }}
         >
-          Musical Toys
+          Viral Musical Toys
         </h1>
         <p
           style={{
@@ -99,7 +97,7 @@ export default function ViralHubPage() {
         `}</style>
 
         <section data-grid style={{ display: "contents" }}>
-          {/* Words → Notes */}
+          {/* TextToTone (Text → Music) */}
           <article
             className="toy-card"
             style={{
@@ -121,16 +119,16 @@ export default function ViralHubPage() {
                 gap: 8,
               }}
             >
-              🅰️ Words → Notes
+              🎹 TextToTone (Text → Music)
             </div>
             <p style={{ margin: 0, color: theme.muted, lineHeight: 1.6 }}>
-              Type a name or a phrase and watch letters climb onto the stave. Short
-              and sweet — perfect for quick clips.
+              Type anything — letters, numbers, and even symbols like %, /, +, =, #, @ — and hear it
+              play. Letters sing a melody, numbers form chords, and symbols add musical punctuation.
             </p>
             <div>
               <Link
                 href="/viral/text-to-tone"
-                aria-label="Open Words to Notes Viral Toy"
+                aria-label="Open TextToTone Viral Toy"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -144,7 +142,7 @@ export default function ViralHubPage() {
                   border: "none",
                 }}
               >
-                Try Words →
+                Try TextToTone →
               </Link>
             </div>
           </article>
@@ -174,8 +172,8 @@ export default function ViralHubPage() {
               📅 Date → Notes
             </div>
             <p style={{ margin: 0, color: theme.muted, lineHeight: 1.6 }}>
-              Birthdays, anniversaries — digits become notes, dashes breathe as
-              pauses. Record a short Reels/TikTok clip in seconds.
+              Birthdays, anniversaries — digits become notes, dashes breathe as pauses. Record a short
+              Reels/TikTok clip in seconds.
             </p>
             <div>
               <Link
@@ -224,8 +222,8 @@ export default function ViralHubPage() {
               📞 Phone → Notes
             </div>
             <p style={{ margin: 0, color: theme.muted, lineHeight: 1.6 }}>
-              Digits groove; country codes lead. Dashes become rhythm — and you get
-              a 10-second melody that’s ready to post.
+              Digits groove; country codes lead. Dashes become rhythm — and you get a 10-second melody
+              that’s ready to post.
             </p>
             <div>
               <Link
