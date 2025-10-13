@@ -7,7 +7,15 @@ import * as Tone from "tone";
 import Link from "next/link";
 import { buildEvents, type TextToneEvent } from "@/lib/text-to-tone/buildEvents";
 
-const theme = { bg:"#0B0F14", text:"#E6EBF2", gold:"#EBCF7A", border:"#1E2935", card:"#111820", warn:"#F87171" };
+const theme = {
+  bg: "#0B0F14",
+  text: "#E6EBF2",
+  gold: "#EBCF7A",
+  border: "#1E2935",
+  card: "#111820",
+  muted: "#8B94A7",
+  warn: "#F87171",   // add this
+};
 const MAX_ELEMENTS = 40;
 
 // ---------- helpers ----------
