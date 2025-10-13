@@ -1,11 +1,15 @@
+// === /app/viral/text-to-tone/page.tsx ===
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
 import { Renderer, Stave, StaveNote, Formatter, Voice, StaveConnector } from "vexflow";
 import Link from "next/link";
+import { buildEvents, type TextToneEvent } from "@/lib/text-to-tone/buildEvents";
 
-/* Theme */
+/* =========================
+   Theme / constants
+   ========================= */
 const theme = {
   bg: "#0B0F14",
   card: "#111820",
@@ -13,155 +17,19 @@ const theme = {
   text: "#E6EBF2",
   muted: "#8B94A7",
   gold: "#EBCF7A",
-  green: "#69D58C",
+  warn: "#F87171",
 };
+const MAX_ELEMENTS = 20;
 
-const MAX_ELEMENTS = 20; // total visible elements cap
-
-type KeyName = "Aminor" | "Amajor";
-
-/*
-  Allowed meme-friendly symbols.
-  Each listed single character counts as ONE element if present in the input.
-  Some will expand into multiple micro-events later in audio/notation.
-*/
-const SYM = {
-  DOT: ".",
-  COMMA: ",",
-  SEMI: ";",
-  HYPHEN: "-",
-  EM_DASH: "--", // we will normalize an em dash to two hyphens during sanitize
-  QMARK: "?",
-  EMARK: "!",
-  APOST: "'",
-  ELLIPSIS3: "...", // we use "..." as the ellipsis token (ASCII only)
-  PERCENT: "%",
-  SLASH: "/",
-  PLUS: "+",
-  EQUAL: "=",
-  COLON: ":",
-  AT: "@",
-  HASH: "#",
-  DOLLAR: "$",
-  LPAR: "(",
-  RPAR: ")",
-  AMP: "&",
-} as const;
-
-// Single-char punctuation we keep verbatim (ASCII only)
-const ALLOWED_SINGLE_CHARS = ".,;?-!'/%+=:@#$()&-";
-
-/* Helpers */
-function escapeForRegex(str: string) {
-  return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
-}
-
-/*
-  Sanitize input:
-  - Convert any unicode-looking dash to "-" (best-effort).
-  - Collapse 3+ dots to "..." (ASCII ellipsis token).
-  - Keep letters, digits, spaces, and allowed punctuation.
-  - Strip everything else.
-*/
-function sanitizePhraseInput(s: string) {
-  const normalizedDashes = s.replace(/\u2014|\u2013/g, "-"); // em/en dash to "-"
-  const dotsCollapsed = normalizedDashes.replace(/\.{3,}/g, SYM.ELLIPSIS3);
-  const allow = ALLOWED_SINGLE_CHARS + "&"; // ensure "&" included
-  const re = new RegExp(`[^A-Za-z0-9 ${escapeForRegex(allow)}]+`, "g");
-  return dotsCollapsed.replace(re, "");
-}
-
-/*
-  Count visible elements according to the spec:
-  - Each letter = 1
-  - Space = 1
-  - Ellipsis "..." = 1
-  - Digits: count by tokenization rules (100, teens, tens, or digit-by-digit for 4+)
-  - Each allowed single punctuation symbol = 1
-  - Everything else was removed by sanitize
-*/
-function countElements(input: string): number {
-  const s = sanitizePhraseInput(input);
-  let count = 0;
-  let i = 0;
-
-  while (i < s.length && count < MAX_ELEMENTS) {
-    const ch = s[i];
-
-    if (/[A-Za-z]/.test(ch)) { count++; i++; continue; }
-    if (ch === " ") { count++; i++; continue; }
-
-    // Ellipsis token "..." counts as 1
-    if (s.slice(i, i + 3) === SYM.ELLIPSIS3) { count++; i += 3; continue; }
-
-    if (/[0-9]/.test(ch)) {
-      let j = i;
-      while (j < s.length && /[0-9]/.test(s[j])) j++;
-      const run = s.slice(i, j);
-
-      if (run.length > 3) {
-        // 4+ digits: each digit counts as 1 (0 also counts, becomes tick later)
-        count += Math.min(MAX_ELEMENTS - count, run.length);
-        i = j; continue;
-      }
-
-      if (run === "100") { count += 1; i = j; continue; }
-
-      if (run.length === 3 && run[0] === "1") {
-        const bc = parseInt(run.slice(1), 10);
-        count += 1; // 100
-        if (bc === 0) { /* nothing */ }
-        else if (bc >= 10 && bc <= 19) { count += 1; }
-        else if (bc >= 20 && bc % 10 === 0) { count += 1; }
-        else if (bc >= 20) { count += 2; }
-        else { count += 1; }
-        i = j; continue;
-      }
-
-      if (run.length === 3 && run[0] !== "1") {
-        const bc = parseInt(run.slice(1), 10);
-        count += 1; // a
-        count += 1; // 100
-        if (bc === 0) { /* nothing */ }
-        else if (bc >= 10 && bc <= 19) { count += 1; }
-        else if (bc >= 20 && bc % 10 === 0) { count += 1; }
-        else if (bc >= 20) { count += 2; }
-        else { count += 1; }
-        i = j; continue;
-      }
-
-      const n = parseInt(run, 10);
-      if (run.length === 2) {
-        if (n >= 10 && n <= 19) { count += 1; i = j; continue; }
-        if (n >= 20 && n % 10 === 0) { count += 1; i = j; continue; }
-        if (n > 20 && n < 100 && n % 10 !== 0) { count += 2; i = j; continue; }
-      }
-
-      // single digit
-      count += 1; i = j; continue;
-    }
-
-    if (ALLOWED_SINGLE_CHARS.includes(ch)) { count++; i++; continue; }
-
-    // otherwise stripped
-    i++;
-  }
-
-  return Math.min(count, MAX_ELEMENTS);
-}
-
-function ctaPieces(phrase: string) {
-  const inside = sanitizePhraseInput(phrase) || "your words";
-  return { t1: "Turn \"", t2: inside, t3: "\" into sound" };
-}
-
+/* =========================
+   Export font helpers (embed Bravura into SVG)
+   ========================= */
 function arrayBufferToBase64(buf: ArrayBuffer) {
   let b = "";
   const by = new Uint8Array(buf);
   for (let i = 0; i < by.byteLength; i++) b += String.fromCharCode(by[i]);
   return btoa(b);
 }
-
 async function fetchFontDataUrlOTF(path: string) {
   const r = await fetch(path, { cache: "no-cache" });
   if (!r.ok) throw new Error(path);
@@ -182,706 +50,112 @@ async function buildEmbeddedFontStyle() {
   `.trim();
 }
 
-function raf2() {
-  return new Promise<void>((res) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => res()))
-  );
+/* =========================
+   General helpers
+   ========================= */
+function sanitizePhraseInput(s: string) {
+  return s
+    .replace(/\u2014|\u2013/g, "-")
+    .replace(/\.{3,}/g, "...")
+    .replace(/[^A-Za-z0-9 .,;?\-!'/%+=:@#$()&]+/g, "");
 }
-/* Event-like interoperability types */
-type EventLike = {
-  t?: number;
-  d?: number;
-  noteNames?: string[];
-  vfKeys?: string[];
-  isRest?: boolean;
-  vfDuration?: string;
-  kind?: "MELODY" | "CHORD" | "REST";
-  notes?: string[];
-  clef?: "treble" | "bass";
-  label?: string;
-};
-
-function noteNameToVfKey(n: string): string {
-  const m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(n);
-  if (!m) return "b/4";
-  const l = m[1].toLowerCase();
-  const acc = m[2] || "";
-  const oct = m[3];
-  return `${l}${acc}/${oct}`;
-}
-
-/* Strict event shape for renderer */
-type VFEvent = {
-  t: number;
-  d: number;
-  noteNames: string[];
-  vfKeys: string[];
-  isRest: boolean;
-  vfDuration?: string;
-};
-function toVFEvents(list: EventLike[]): VFEvent[] {
-  return list.map((ev) => {
-    const names = ev.noteNames && ev.noteNames.length
-      ? ev.noteNames
-      : (ev.notes && ev.notes.length ? ev.notes : []);
-    const t = ev.t ?? 0;
-    const d = ev.d ?? (ev as any).dur ?? 0.55;
-    return {
-      t,
-      d,
-      noteNames: names,
-      vfKeys: names.map(noteNameToVfKey),
-      isRest: names.length === 0 ? (ev.kind === "REST" ? true : !!ev.isRest) : !!ev.isRest,
-      vfDuration: ev.vfDuration || "q",
-    } as VFEvent;
-  });
-}
-
-function withDisplayKeys<T extends EventLike>(list: T[]): T[] {
-  return list.map((ev) => {
-    const names =
-      (ev.noteNames && ev.noteNames.length ? ev.noteNames :
-       ev.notes && ev.notes.length ? ev.notes : []);
-    const vf = names.map(noteNameToVfKey);
-    return {
-      ...ev,
-      noteNames: names,
-      vfKeys: vf,
-      isRest: names.length === 0 ? true : !!ev.isRest,
-      vfDuration: ev.vfDuration || "q",
-    } as T;
-  });
-}
-/* Pitch helpers (A minor only) */
-const A_MINOR_PC = ["A", "B", "C", "D", "E", "F", "G"] as const;
-type PC = (typeof A_MINOR_PC)[number];
-
 function noteNameToMidi(n: string) {
-  if (!n) throw new Error("bad note: " + n);
-  const raw = String(n).trim();
-
-  // Case 1: C#4 / Bb3
-  let m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(raw);
-  if (m) {
-    const L = m[1].toUpperCase();
-    const acc = m[2] || "";
-    const oct = parseInt(m[3], 10);
-    const BASE: Record<string, number> = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
-    let pc = BASE[L];
-    if (acc === "#") pc = (pc + 1) % 12;
-    else if (acc === "b") pc = (pc + 11) % 12;
-    return (oct + 1) * 12 + pc;
-  }
-
-  // Case 2: vexflow c#/4
-  m = /^([a-g])([#b]?)\/(-?\d+)$/.exec(raw);
-  if (m) {
-    const L = m[1].toUpperCase();
-    const acc = m[2] || "";
-    const oct = parseInt(m[3], 10);
-    const BASE: Record<string, number> = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
-    let pc = BASE[L];
-    if (acc === "#") pc = (pc + 1) % 12;
-    else if (acc === "b") pc = (pc + 11) % 12;
-    return (oct + 1) * 12 + pc;
-  }
-
-  throw new Error("bad note: " + raw);
+  const m =
+    /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(n) ||
+    /^([a-g])([#b]?)\/(-?\d+)$/.exec(n);
+  if (!m) throw new Error("bad note: " + n);
+  const L = m[1].toUpperCase();
+  const acc = m[2] || "";
+  const oct = parseInt(m[3], 10);
+  const BASE: Record<string, number> = { C:0,D:2,E:4,F:5,G:7,A:9,B:11 };
+  let pc = BASE[L];
+  if (acc === "#") pc = (pc + 1) % 12;
+  else if (acc === "b") pc = (pc + 11) % 12;
+  return (oct + 1) * 12 + pc;
+}
+function noteToVFKey(n: string) {
+  const m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(n)!;
+  return `${(m[1] + (m[2] || "")).toLowerCase()}/${m[3]}`;
 }
 
-function noteNameToVF(note: string) {
-  const m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(note)!;
-  const l = m[1].toLowerCase();
-  const a = (m[2] || "") as "" | "#" | "b";
-  const o = parseInt(m[3], 10);
-  return { vfKey: `${a ? l + a : l}/${o}` };
-}
-function alphaIndex(ch: string) { return ch.toUpperCase().charCodeAt(0) - 65; }
-function letterToDegree(ch: string) { return ((alphaIndex(ch) % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7; }
-function degreeToPC(deg: 1 | 2 | 3 | 4 | 5 | 6 | 7): PC { return A_MINOR_PC[deg - 1]; }
-/* Chord palette (A natural minor) */
-type ChordDef = { pcs: PC[]; label?: string };
+/* =========================
+   Caption model (tokens in sync with events)
+   ========================= */
+type CaptionToken = { text: string; t: number; d: number };
 
-const SINGLE_MAP: Record<number, ChordDef> = {
-  1: { pcs: ["A", "C", "E"] },
-  2: { pcs: ["B", "D", "F"] },
-  3: { pcs: ["C", "E", "G"] },
-  4: { pcs: ["D", "F", "A"] },
-  5: { pcs: ["E", "G", "B"] },
-  6: { pcs: ["F", "A", "C"] },
-  7: { pcs: ["G", "B", "D"] },
-  8: { pcs: ["A", "C", "E", "G"] },
-  9: { pcs: ["C", "E", "G", "B"] },
-};
-
-const TEEN_MAP: Record<number, ChordDef> = {
-  10: { pcs: ["A", "C", "E", "B"] }, // Am9-ish
-  11: { pcs: ["B", "D", "F", "A"] }, // Bdim7
-  12: { pcs: ["C", "E", "G", "A"] }, // C6
-  13: { pcs: ["D", "F", "A", "E"] }, // Dm9
-  14: { pcs: ["E", "G", "B", "D"] }, // Em7
-  15: { pcs: ["F", "A", "C", "E"] }, // Fmaj7
-  16: { pcs: ["G", "B", "D", "E"] }, // G6
-  17: { pcs: ["A", "C", "E", "B"] }, // Am(add9)
-  18: { pcs: ["C", "E", "G", "F"] }, // Cadd11
-  19: { pcs: ["E", "G", "B", "F"] }, // Em9
-};
-
-const TENS_MAP: Record<number, ChordDef> = {
-  20: { pcs: ["C", "E", "A", "D"] }, // Am/C plate (distinct from 1)
-  30: { pcs: ["E", "A", "C"] },      // Am/E
-  40: { pcs: ["F", "A", "D"] },      // Dm/F
-  50: { pcs: ["G", "B", "E"] },      // Em/G
-  60: { pcs: ["C", "F", "A"] },      // F/C
-  70: { pcs: ["D", "G", "B"] },      // G/D
-  80: { pcs: ["G", "C", "E"] },      // C/G
-  90: { pcs: ["B", "E", "G"] },      // Em/B
-};
-
-// Cadence variants for 100 (rotate)
-const CADENCE_VARIANTS: ChordDef[] = [
-  { pcs: ["E", "G", "B"], label: "100-A" }, // set up a light V color
-  { pcs: ["C", "E", "A"], label: "100-B" }, // resolve to Am/C
-];
-
-/* Place chord tones into A3–A4 compactly */
-function placeChordInA3A4(pcs: PC[]): string[] {
-  const MIN = noteNameToMidi("A3");
-  const MAX = noteNameToMidi("A4");
-  const guessOct = (pc: PC) => {
-    if (pc === "A" || pc === "B" || pc === "C") return `${pc}3`;
-    return `${pc}4`;
-  };
-  let notes = pcs.map(guessOct);
-
-  notes = notes.map((n) => {
-    let m = noteNameToMidi(n);
-    if (m < MIN) return n.replace(/(\d+)$/, (d) => String(parseInt(d) + 1));
-    if (m > MAX) return n.replace(/(\d+)$/, (d) => String(parseInt(d) - 1));
-    return n;
-  });
-
-  const seen = new Map<number, 1>();
-  notes = notes.map((n) => {
-    let m = noteNameToMidi(n);
-    if (!seen.has(m)) { seen.set(m, 1); return n; }
-    const up = n.replace(/(\d+)$/, (d) => String(parseInt(d) + 1));
-    const mu = noteNameToMidi(up);
-    if (mu <= MAX && !seen.has(mu)) { seen.set(mu, 1); return up; }
-    const dn = n.replace(/(\d+)$/, (d) => String(parseInt(d) - 1));
-    const md = noteNameToMidi(dn);
-    if (md >= MIN && !seen.has(md)) { seen.set(md, 1); return dn; }
-    return n;
-  });
-
-  if (notes.length > 4) {
-    const imp = (pc: PC) => (pc === "A" || pc === "C" || pc === "E" ? 0 : 1);
-    notes = notes
-      .map((n) => ({ n, pc: n[0] as PC }))
-      .sort((a, b) => imp(a.pc) - imp(b.pc))
-      .slice(0, 4)
-      .map((x) => x.n);
-  }
-  return notes;
-}
-
-/* Scheduling & event building (tokenizer -> timing -> events) */
-type Event =
-  | { kind: "MELODY"; notes: string[]; label?: string; dur: number; clef: "treble" | "bass" }
-  | { kind: "CHORD"; notes: string[]; label?: string; dur: number; clef: "treble" | "bass" }
-  | { kind: "REST"; dur: number; label?: string };
-
-const WEIGHTS = {
-  SINGLE: 1.0,
-  TEEN: 1.25,
-  TENS: 1.25,
-  HUNDRED: 1.0,
-  HUNDRED_REST: 0.125,
-  ZERO: 0.5,   // short tick or short rest
-  SPACE: 0.5,  // space between words
-};
-
-const TARGET_SECONDS = 8.0;
-const MIN_EVENT = 0.18;
-const MIN_REST = 0.08;
-
-/* Number tokenizer helpers */
-type NumToken =
-  | { kind: "SINGLE"; value: number }
-  | { kind: "TEEN"; value: number }
-  | { kind: "TENS"; value: number }
-  | { kind: "HUNDRED" }
-  | { kind: "ZERO" };
-
-function tokenizeNumberString(digits: string): NumToken[] {
-  const out: NumToken[] = [];
-  let i = 0;
-  while (i < digits.length) {
-    if (digits.slice(i, i + 3) === "100") { out.push({ kind: "HUNDRED" }); i += 3; continue; }
-    if (i + 2 < digits.length && digits[i + 1] === "0" && digits[i] !== "0" && digits[i + 2] !== "0") {
-      out.push({ kind: "SINGLE", value: parseInt(digits[i], 10) });
-      out.push({ kind: "HUNDRED" });
-      out.push({ kind: "SINGLE", value: parseInt(digits[i + 2], 10) });
-      i += 3; continue;
-    }
-    const two = digits.slice(i, i + 2);
-    if (/^[2-9]0$/.test(two)) { out.push({ kind: "TENS", value: parseInt(two, 10) }); i += 2; continue; }
-    if (/^1[0-9]$/.test(two)) { out.push({ kind: "TEEN", value: parseInt(two, 10) }); i += 2; continue; }
-    if (/[1-9]/.test(digits[i])) { out.push({ kind: "SINGLE", value: parseInt(digits[i], 10) }); i += 1; continue; }
-    if (digits[i] === "0") { out.push({ kind: "ZERO" }); i += 1; continue; }
-    i++;
-  }
-  return out;
-}
-/* Build events with new rules (letters A,B on bass; punctuation and meme symbols) */
-function buildEvents(input: string): { events: Event[]; cadenceLabels: string[] } {
-  const s0 = sanitizePhraseInput(input);
-
-  // hard cap by visible elements (truncate input string conservatively by scanning)
-  let elements = 0;
-  let iCap = 0;
-  while (iCap < s0.length && elements < MAX_ELEMENTS) {
-    if (/[A-Za-z ]/.test(s0[iCap])) { elements++; iCap++; continue; }
-    if (s0.slice(iCap, iCap + 3) === SYM.ELLIPSIS3) { elements++; iCap += 3; continue; }
-    if (/[0-9]/.test(s0[iCap])) {
-      let j = iCap;
-      while (j < s0.length && /[0-9]/.test(s0[j])) j++;
-      // approximate count using same logic as countElements for small runs
-      const run = s0.slice(iCap, j);
-      if (run.length > 3) { elements += Math.min(MAX_ELEMENTS - elements, run.length); }
-      else if (run === "100") { elements += 1; }
-      else if (run.length === 3 && run[0] === "1") {
-        const bc = parseInt(run.slice(1), 10);
-        elements += 1;
-        if (bc === 0) { /* none */ }
-        else if (bc >= 10 && bc <= 19) elements += 1;
-        else if (bc >= 20 && bc % 10 === 0) elements += 1;
-        else if (bc >= 20) elements += 2;
-        else elements += 1;
-      } else if (run.length === 3 && run[0] !== "1") {
-        const bc = parseInt(run.slice(1), 10);
-        elements += 2;
-        if (bc === 0) { /* none */ }
-        else if (bc >= 10 && bc <= 19) elements += 1;
-        else if (bc >= 20 && bc % 10 === 0) elements += 1;
-        else if (bc >= 20) elements += 2;
-        else elements += 1;
-      } else {
-        const n = parseInt(run, 10);
-        if (run.length === 2) {
-          if (n >= 10 && n <= 19) elements += 1;
-          else if (n >= 20 && n % 10 === 0) elements += 1;
-          else if (n > 20 && n < 100 && n % 10 !== 0) elements += 2;
-          else elements += 1;
-        } else {
-          elements += 1;
-        }
-      }
-      iCap = j; continue;
-    }
-    if (ALLOWED_SINGLE_CHARS.includes(s0[iCap])) { elements++; iCap++; continue; }
-    iCap++;
-  }
-  const s = s0.slice(0, iCap);
-
-  // draft events
-  type Draft =
-    | { type: "melody"; data?: any; weight: number; label?: string }
-    | { type: "chord";  data?: any; weight: number; label?: string }
-    | { type: "rest";   data?: any; weight: number; label?: string }
-    | { type: "zero";   data?: any; weight: number; label?: string }; // tick A3
-
-  const eventsDraft: Draft[] = [];
-
-  // helpers to push simple items
-  const pushRest = (w = WEIGHTS.ZERO, label?: string) => eventsDraft.push({ type: "rest", weight: w, label });
-  const pushZero = (w = WEIGHTS.ZERO) => eventsDraft.push({ type: "zero", weight: w });
-  const pushChordPCS = (pcs: PC[], w = WEIGHTS.SINGLE, label?: string) => eventsDraft.push({ type: "chord", weight: w, data: { pcs }, label });
-  const pushDigit = (d: number, w: number) => {
-    let def: ChordDef | undefined = SINGLE_MAP[d];
-    if (!def) def = SINGLE_MAP[1];
-    pushChordPCS(def.pcs, w, String(d));
-  };
-// scan input
-  let i = 0;
-  while (i < s.length) {
-    const ch = s[i];
-
-    // ellipsis "..." => three ticks (but counts as one element; already capped above)
-    if (s.slice(i, i + 3) === SYM.ELLIPSIS3) {
-      pushZero(); pushZero(); pushZero();
-      i += 3; continue;
-    }
-
-    // letters
-    if (/[A-Za-z]/.test(ch)) {
-      eventsDraft.push({ type: "melody", weight: WEIGHTS.SINGLE, data: { char: ch } });
-      i++; continue;
-    }
-
-    // space => short rest
-    if (ch === " ") { pushRest(WEIGHTS.SPACE, "space"); i++; continue; }
-
-    // digits run
-    if (/[0-9]/.test(ch)) {
-      let j = i; while (j < s.length && /[0-9]/.test(s[j])) j++;
-      const run = s.slice(i, j);
-
-      if (run.length > 3) {
-        for (let k = 0; k < run.length; k++) {
-          const d = parseInt(run[k], 10);
-          if (d === 0) pushZero();
-          else pushDigit(d, WEIGHTS.SINGLE);
-        }
-        i = j; continue;
-      }
-
-      if (run === "100") {
-        // cadence: rotate A,B later in final mapping by label; for draft we label "100"
-        // here we just mark as chord with label "100", and add a tiny rest after
-        eventsDraft.push({ type: "chord", weight: WEIGHTS.HUNDRED, label: "100" });
-        pushRest(WEIGHTS.HUNDRED_REST, "cad-rest");
-        i = j; continue;
-      }
-
-      if (run.length === 3 && run[0] === "1") {
-        const bc = parseInt(run.slice(1), 10);
-        eventsDraft.push({ type: "chord", weight: WEIGHTS.HUNDRED, label: "100" });
-        if (bc === 0) { /* nothing */ }
-        else if (bc >= 10 && bc <= 19) eventsDraft.push({ type: "chord", weight: WEIGHTS.TEEN, label: String(bc), data: { teen: bc } });
-        else if (bc >= 20 && bc % 10 === 0) eventsDraft.push({ type: "chord", weight: WEIGHTS.TENS, label: String(bc), data: { tens: bc } });
-        else if (bc >= 20) {
-          const tens = Math.floor(bc / 10) * 10; const unit = bc % 10;
-          eventsDraft.push({ type: "chord", weight: WEIGHTS.TENS, label: String(tens), data: { tens } });
-          eventsDraft.push({ type: "chord", weight: WEIGHTS.SINGLE, label: String(unit), data: { single: unit } });
-        } else {
-          eventsDraft.push({ type: "chord", weight: WEIGHTS.SINGLE, label: String(bc), data: { single: bc } });
-        }
-        i = j; continue;
-      }
-if (run.length === 3 && run[0] !== "1") {
-        const a = parseInt(run[0], 10);
-        const bc = parseInt(run.slice(1), 10);
-        if (a !== 0) eventsDraft.push({ type: "chord", weight: WEIGHTS.SINGLE, label: String(a), data: { single: a } });
-        eventsDraft.push({ type: "chord", weight: WEIGHTS.HUNDRED, label: "100" });
-        if (bc === 0) { /* none */ }
-        else if (bc >= 10 && bc <= 19) eventsDraft.push({ type: "chord", weight: WEIGHTS.TEEN, label: String(bc), data: { teen: bc } });
-        else if (bc >= 20 && bc % 10 === 0) eventsDraft.push({ type: "chord", weight: WEIGHTS.TENS, label: String(bc), data: { tens: bc } });
-        else if (bc >= 20) {
-          const tens = Math.floor(bc / 10) * 10; const unit = bc % 10;
-          eventsDraft.push({ type: "chord", weight: WEIGHTS.TENS, label: String(tens), data: { tens } });
-          eventsDraft.push({ type: "chord", weight: WEIGHTS.SINGLE, label: String(unit), data: { single: unit } });
-        } else {
-          eventsDraft.push({ type: "chord", weight: WEIGHTS.SINGLE, label: String(bc), data: { single: bc } });
-        }
-        i = j; continue;
-      }
-
-      const n = parseInt(run, 10);
-      if (run.length === 2 && n >= 10 && n <= 19) {
-        eventsDraft.push({ type: "chord", weight: WEIGHTS.TEEN, label: String(n), data: { teen: n } });
-        i = j; continue;
-      }
-      if (run.length === 2 && n % 10 === 0 && n >= 20 && n <= 90) {
-        eventsDraft.push({ type: "chord", weight: WEIGHTS.TENS, label: String(n), data: { tens: n } });
-        i = j; continue;
-      }
-      if (run.length === 2 && n > 20 && n < 100 && n % 10 !== 0) {
-        const tens = Math.floor(n / 10) * 10; const unit = n % 10;
-        eventsDraft.push({ type: "chord", weight: WEIGHTS.TENS, label: String(tens), data: { tens } });
-        eventsDraft.push({ type: "chord", weight: WEIGHTS.SINGLE, label: String(unit), data: { single: unit } });
-        i = j; continue;
-      }
-      // single digit
-      const d = parseInt(run, 10);
-      if (isFinite(d)) eventsDraft.push({ type: "chord", weight: WEIGHTS.SINGLE, label: String(d), data: { single: d } });
-      i = j; continue;
-    }
-
-    // punctuation and meme symbols
-    if (ALLOWED_SINGLE_CHARS.includes(ch)) {
-      // Always add a tiny pre-symbol breath for selected markers
-      const needsPreBreath = (c: string) => "%/=@#$".includes(c);
-      if (needsPreBreath(ch)) pushRest(MIN_REST, "pre-sym");
-
-      switch (ch) {
-        case SYM.DOT:        pushZero(); break;                  // tick A3
-        case SYM.COMMA:      pushRest(WEIGHTS.SPACE, ","); break;
-        case SYM.SEMI:       pushRest(WEIGHTS.ZERO, ";"); break; // short/medium
-        case SYM.HYPHEN:     pushRest(WEIGHTS.ZERO, "-"); break;
-        case "?":            pushChordPCS(["G","B","D"], WEIGHTS.SINGLE, "?"); break;
-        case "!":            pushChordPCS(["E","G","B"], WEIGHTS.SINGLE, "!"); break;
-        case SYM.PERCENT:    // rest then two chords: Em/G -> Am/C
-          pushChordPCS(["E","G","B"], WEIGHTS.SINGLE, "%-1");
-          pushChordPCS(["C","E","A"], WEIGHTS.SINGLE, "%-2");
-          break;
-        case SYM.SLASH:      // rest already added; link chord Em/G
-          pushChordPCS(["E","G","B"], WEIGHTS.SINGLE, "/"); break;
-        case SYM.PLUS:       pushChordPCS(["D","F","A"], WEIGHTS.SINGLE, "+"); break;   // Dm
-        case SYM.EQUAL:      pushChordPCS(["C","E","A"], WEIGHTS.SINGLE, "="); pushRest(MIN_REST, "eq-rest"); break;
-        case SYM.COLON:      pushZero(); break;                 // tick
-        case SYM.AT:         // high tick A4 + tiny rest
-          eventsDraft.push({ type: "chord", weight: WEIGHTS.ZERO, data: { pcs: ["A"] }, label: "@A4" });
-          pushRest(MIN_REST, "at-rest");
-          break;
-        case SYM.HASH:       pushChordPCS(["G","B","D"], WEIGHTS.SINGLE, "#"); pushRest(MIN_REST, "hash-rest"); break;
-        case SYM.DOLLAR:     pushChordPCS(["F","A","C","E"], WEIGHTS.TEEN, "$"); pushRest(MIN_REST, "dlr-rest"); break;
-        case SYM.LPAR:       pushRest(WEIGHTS.ZERO, "("); break;
-        case SYM.RPAR:       pushRest(WEIGHTS.ZERO, ")"); break;
-        case SYM.AMP:        pushChordPCS(["G","B","D","E"], WEIGHTS.SINGLE, "&"); break; // G6
-        case SYM.APOST:      pushRest(MIN_REST, "'"); break;     // micro-rest for contractions
-        default: break;
-      }
-      i++; continue;
-    }
-    // anything else was stripped
-    i++;
-  }
-
-  // timing normalization to 8s
-  const totalWeight = eventsDraft.reduce((s, e) => s + e.weight, 0) || 1;
-  const unit = TARGET_SECONDS / totalWeight;
-
-  let cursorTime = 0;
-  const timedDraft = eventsDraft.map((e) => {
-    const d = Math.max(e.type === "rest" ? MIN_REST : MIN_EVENT, e.weight * unit);
-    const out = { ...e, t: cursorTime, d };
-    cursorTime += d;
-    return out;
-  });
-
-  // Final mapping to concrete notes
-  const lettersSeq = (s || "").replace(/[^A-Za-z]/g, "").toUpperCase();
+// Letters use next real letter from phrase (A minor, A3–A4 mapping handled in buildEvents)
+// Chords use ev.label; rest shows "·" (change to " " if you want blank)
+function deriveCaptionTokens(events: TextToneEvent[], src: string): CaptionToken[] {
+  const lettersSeq = (src || "").replace(/[^A-Za-z]/g, "").toUpperCase();
   let letterCursor = 0;
-
-  const A_MINOR_SCALE = ["A","B","C","D","E","F","G"];
-
-  const final = timedDraft.map((e, idx) => {
-    let noteNames: string[] = [];
-    let label: string | undefined;
-
-    if (e.type === "rest") {
-    return { kind: "REST", dur: e.d, label: e.label, t: e.t, d: e.d } as any;
-    }
-
-    if (e.type === "zero") {
-      // tick at A3
-      noteNames = ["A3"];
-      return { kind: "CHORD", notes: noteNames, dur: e.d, clef: "bass", label, t: e.t, d: e.d } as any;
-    }
-
-    if (e.type === "melody") {
+  const tokens: CaptionToken[] = [];
+  for (const ev of events) {
+    if (ev.kind === "MELODY") {
       const letter = lettersSeq[letterCursor++] || "A";
-      const idxDeg = (letter.charCodeAt(0) - 65) % 7;
-      const pc = A_MINOR_SCALE[idxDeg] as PC;
-      const oct = (pc === "A" || pc === "B") ? 3 : 4; // A,B on bass, C-G on treble
-      noteNames = [`${pc}${oct}`];
-      const clef = (oct >= 4) ? "treble" : "bass";
-     return { kind: "MELODY", notes: noteNames, dur: e.d, clef, label, t: e.t, d: e.d } as any; 
+      tokens.push({ text: letter, t: ev.t ?? 0, d: ev.d ?? 0.5 });
+      continue;
     }
-    // chord
-    // derive from label/data when possible; else from pcs
-    let pcs: PC[] | undefined;
-
-    if (e.label === "100") {
-      // rotate cadence A/B
-      const cad = CADENCE_VARIANTS[idx % CADENCE_VARIANTS.length];
-      pcs = cad.pcs;
-      label = cad.label;
-    } else if (e.data?.teen) {
-      pcs = TEEN_MAP[e.data.teen]?.pcs;
-      label = String(e.data.teen);
-    } else if (e.data?.tens) {
-      pcs = TENS_MAP[e.data.tens]?.pcs;
-      label = String(e.data.tens);
-    } else if (e.data?.single) {
-      pcs = SINGLE_MAP[e.data.single]?.pcs;
-      label = String(e.data.single);
-    } else if (e.data?.pcs) {
-      pcs = e.data.pcs as PC[];
-      label = e.label;
+    if (ev.kind === "REST") {
+      tokens.push({ text: "·", t: ev.t ?? 0, d: ev.d ?? 0.25 });
+      continue;
     }
-
-    if (!pcs || pcs.length === 0) pcs = SINGLE_MAP[1].pcs;
-
-    // special case for "@A4" high tick
-    if (e.label === "@A4") {
-      noteNames = ["A4"];
-      return { kind: "CHORD", notes: noteNames, dur: e.d, clef: "treble", label: e.label, t: e.t, d: e.d } as any;
-    }
-
-    noteNames = placeChordInA3A4(pcs);
-    const hasTreble = noteNames.some((n) => noteNameToMidi(n) >= noteNameToMidi("C4"));
-    const clef: "treble" | "bass" = hasTreble ? "treble" : "bass";
-    return { kind: "CHORD", notes: noteNames, dur: e.d, clef, label, t: e.t, d: e.d } as any;
-  });
-
-  // return legacy-shaped events; adapters will format for renderer
-  const cadenceLabels: string[] = []; // optional; keep API stable
-  return { events: final, cadenceLabels };
+    let text = ev.label || "♩";
+    if (text.startsWith("%")) text = "%";
+    tokens.push({ text, t: ev.t ?? 0, d: ev.d ?? 0.6 });
+  }
+  return tokens;
 }
-/* Component */
-export default function WordsToNotesViralPage() {
-  const [keyName] = useState<KeyName>("Aminor");
+
+/* =========================
+   Component
+   ========================= */
+export default function TextToTonePage() {
+  // input & state
   const [phrase, setPhrase] = useState("");
+  const [events, setEvents] = useState<TextToneEvent[]>([]);
+  const [visibleIdx, setVisibleIdx] = useState(0);
 
-  // Element count per new rules (letters, numbers-as-tokens, allowed symbols)
-  const elementCount = useMemo(() => countElements(phrase), [phrase]);
-  const canPlay = elementCount > 0 && elementCount <= MAX_ELEMENTS;
+  // caption (live)
+  const [captionTokens, setCaptionTokens] = useState<CaptionToken[]>([]);
+  const [captionIdx, setCaptionIdx] = useState(0);
 
-  const [lastEnterAt, setLastEnterAt] = useState(0);
+  // play state
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
+  // stave container
   const staveHostRef = useRef<HTMLDivElement | null>(null);
-  const [resizeTick, setResizeTick] = useState(0);
-  useEffect(() => {
-    const onR = () => setResizeTick((t) => t + 1);
-    window.addEventListener("resize", onR);
-    window.addEventListener("orientationchange", onR);
-    return () => {
-      window.removeEventListener("resize", onR);
-      window.removeEventListener("orientationchange", onR);
-    };
-  }, []);
 
-  // VFEvent state used for rendering and export
-  const [events, setEvents] = useState<VFEvent[]>([]);
-  const [visibleCount, setVisibleCount] = useState(0);
-
-  // Audio
+  // audio
   const samplerRef = useRef<Tone.Sampler | null>(null);
   const timeoutsRef = useRef<number[]>([]);
-  function clearAllTimers() {
-    for (const id of timeoutsRef.current) clearTimeout(id);
-    timeoutsRef.current = [];
-  }
+  const clearAllTimers = () => { timeoutsRef.current.forEach(id => clearTimeout(id)); timeoutsRef.current = []; };
 
-  async function createSamplerForNotes(names: string[]) {
-    if (samplerRef.current) {
-      try { samplerRef.current.dispose(); } catch {}
-      samplerRef.current = null;
-    }
-    const urls: Record<string, string> = {};
-    for (const n of Array.from(new Set(names))) {
-      urls[n] = `${n.replace("#", "%23")}.wav`;
-    }
-    samplerRef.current = new Tone.Sampler({ urls, baseUrl: "/audio/notes/" }).toDestination();
-    await Tone.loaded();
-  }
+  /* Element cap (20) */
+  const elementCount = useMemo(
+    () => buildEvents(sanitizePhraseInput(phrase)).events.length,
+    [phrase]
+  );
+  const overLimit = elementCount > MAX_ELEMENTS;
 
-  function triggerNow(notes: string[], seconds: number, isMelody = false) {
-    const s = samplerRef.current;
-    if (!s || notes.length === 0) return;
-    try {
-      if (isMelody) {
-        s.triggerAttackRelease(notes[0], Math.max(0.12, seconds * 0.9));
-      } else {
-        (s as any).triggerAttackRelease(notes, Math.max(0.12, seconds * 0.9));
-      }
-    } catch {}
-  }
+  /* Copy link (for share sheet) */
+  const copyLink = useCallback(async () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("phrase", phrase);
+    try { await navigator.clipboard.writeText(url.toString()); alert("Link copied!"); }
+    catch { alert(url.toString()); }
+  }, [phrase]);
 
-  const start = useCallback(async () => {
-    if (!canPlay || isPlaying) return;
-    try { (document.activeElement as HTMLElement | null)?.blur(); } catch {}
-
-    // Build -> adapt -> set
-    const input = sanitizePhraseInput(phrase);
-    const { events: built, cadenceLabels } = buildEvents(input);
-    const playable = withDisplayKeys(built);
-    const vf = toVFEvents(playable);
-
-    setEvents(vf);
-    setVisibleCount(0);
-    await raf2();
-
-    if (cadenceLabels?.length) console.log("[cadences]", cadenceLabels.join(" | "));
-
-    // Prepare audio
-    const allNoteNames = Array.from(new Set(vf.flatMap(ev => ev.noteNames || [])));
-    await Tone.start();
-    await createSamplerForNotes(allNoteNames);
-
-    // Schedule
-    setIsPlaying(true);
-    isPlayingRef.current = true;
-    clearAllTimers();
-
-    const timers: number[] = [];
-    const lastEnd = vf.reduce((mx, ev) => Math.max(mx, (ev.t ?? 0) + (ev.d ?? 0)), 0);
-
-    for (let i = 0; i < vf.length; i++) {
-      const ev = vf[i];
-      const startMs = Math.max(0, Math.round((ev.t ?? 0) * 1000));
-
-      const visId = window.setTimeout(() => {
-        if (!isPlayingRef.current) return;
-        setVisibleCount(i + 1);
-      }, startMs);
-      timers.push(visId);
-
-      if (ev.noteNames && ev.noteNames.length) {
-        const trigId = window.setTimeout(() => {
-          if (!isPlayingRef.current) return;
-          try { triggerNow(ev.noteNames!, ev.d ?? 0.55, false); } catch {}
-        }, startMs);
-        timers.push(trigId);
-      }
-    }
-
-    const endId = window.setTimeout(() => {
-      if (!isPlayingRef.current) return;
-      clearAllTimers();
-      setVisibleCount(vf.length);
-      setIsPlaying(false);
-      isPlayingRef.current = false;
-    }, Math.round((lastEnd + 0.2) * 1000));
-    timers.push(endId);
-    timeoutsRef.current.push(...timers);
-  }, [canPlay, isPlaying, phrase]);
-
-  const stop = useCallback(() => {
-    clearAllTimers();
-    setIsPlaying(false);
-    isPlayingRef.current = false;
-  }, []);
-  // Restore from URL
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const sp = new URLSearchParams(window.location.search);
-    const p = sp.get("phrase") || sp.get("q") || "";
-    if (!p) return;
-    const trimmed = sanitizePhraseInput(p);
-    if (!trimmed) return;
-
-    setPhrase(trimmed);
-    const { events: built } = buildEvents(trimmed);
-    const playable = withDisplayKeys(built);
-    const vf = toVFEvents(playable);
-    setEvents(vf);
-    setVisibleCount(vf.length);
-    setIsPlaying(false);
-    isPlayingRef.current = false;
-    clearAllTimers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Share helpers
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-
+  /* Share URL helpers */
   function buildShareUrl() {
     const url = new URL(window.location.href);
-    url.searchParams.set("key", "Aminor");
     url.searchParams.set("phrase", phrase);
     url.searchParams.set("utm_source", "share");
-    url.searchParams.set("utm_medium", "social");
-    url.searchParams.set("utm_campaign", "words_to_notes");
+    url.searchParams.set("utm_medium", "viral");
+    url.searchParams.set("utm_campaign", "text_to_tone");
     return url.toString();
   }
-  function buildTweetIntent(text: string, url: string, hashtags = ["piano", "music", "pianotrainer"]) {
+  function buildTweetIntent(text: string, url: string, hashtags = ["TextToTone","TextToMusic","PianoTrainer"]) {
     const u = new URL("https://twitter.com/intent/tweet");
     u.searchParams.set("text", text);
     u.searchParams.set("url", url);
@@ -889,28 +163,156 @@ export default function WordsToNotesViralPage() {
     return u.toString();
   }
 
-  /* VexFlow render */
+  /* Build events & caption for display (not used for scheduling) */
+  const rebuild = useCallback((src: string) => {
+    const { events: base } = buildEvents(src);
+    setEvents(base);
+    setVisibleIdx(0);
+    setCaptionIdx(0);
+    setCaptionTokens(deriveCaptionTokens(base, src));
+  }, []);
+
+  /* Audio helpers */
+  async function ensureSampler(evts: TextToneEvent[]) {
+    if (samplerRef.current) { try { samplerRef.current.dispose(); } catch {} samplerRef.current = null; }
+    const urls: Record<string,string> = {};
+    for (const e of evts) if (e.kind !== "REST") for (const n of e.notes) urls[n] = `${n.replace("#","%23")}.wav`;
+    samplerRef.current = new Tone.Sampler({ urls, baseUrl: "/audio/notes/" }).toDestination();
+    await Tone.loaded();
+  }
+  function triggerNow(notes: string[], seconds: number) {
+    const s = samplerRef.current; if (!s || !notes.length) return;
+    try { (s as any).triggerAttackRelease(notes, Math.max(0.12, seconds*0.9)); } catch {}
+  }
+
+  /* Play (live) — caption + stave + audio in unison */
+  const start = useCallback(async () => {
+    if (isPlaying || overLimit) return;
+
+    const input = sanitizePhraseInput(phrase);
+    const { events: localEvts } = buildEvents(input);  // local snapshot
+
+    setEvents(localEvts);
+    setVisibleIdx(0);
+    setCaptionIdx(0);
+    setCaptionTokens(deriveCaptionTokens(localEvts, input));
+
+    await Tone.start();
+    await ensureSampler(localEvts);
+
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    clearAllTimers();
+
+    const timers: number[] = [];
+    const lastEnd = localEvts.reduce((mx, e) => Math.max(mx, (e.t ?? 0) + (e.d ?? 0)), 0);
+
+    for (let i = 0; i < localEvts.length; i++) {
+      const ev = localEvts[i];
+      const startMs = Math.max(0, Math.round((ev.t ?? 0) * 1000));
+
+      timers.push(window.setTimeout(() => { if (!isPlayingRef.current) return; setCaptionIdx(i+1); }, startMs));
+      timers.push(window.setTimeout(() => { if (!isPlayingRef.current) return; setVisibleIdx(i+1); }, startMs));
+
+      if (ev.kind !== "REST" && ev.notes.length) {
+        timers.push(window.setTimeout(() => {
+          if (!isPlayingRef.current) return;
+          triggerNow(ev.notes, ev.d ?? 0.55);
+        }, startMs));
+      }
+    }
+
+    timers.push(window.setTimeout(() => {
+      if (!isPlayingRef.current) return;
+      clearAllTimers();
+      setVisibleIdx(localEvts.length);
+      setCaptionIdx(localEvts.length); // no lingering gold
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+    }, Math.round((lastEnd + 0.2) * 1000)));
+
+    timeoutsRef.current.push(...timers);
+  }, [phrase, isPlaying, overLimit]);
+
+  const stop = useCallback(() => {
+    clearAllTimers();
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    setCaptionIdx(captionTokens.length); // ensure nothing stays highlighted
+  }, [captionTokens.length]);
+
+  /* Restore from URL once */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const p = sp.get("phrase") || "";
+    if (!p) return;
+    const trimmed = sanitizePhraseInput(p);
+    setPhrase(trimmed);
+    const { events: built } = buildEvents(trimmed);
+    setEvents(built);
+    setCaptionTokens(deriveCaptionTokens(built, trimmed));
+    setVisibleIdx(built.length);
+    setCaptionIdx(built.length);
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    clearAllTimers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* Floating caption (live) */
+  const captionRender = useMemo(() => {
+    if (!captionTokens.length) return null;
+    const currentIndex = isPlaying ? Math.max(0, captionIdx - 1) : -1;
+
+    const parts: { text: string; role: "past" | "current" | "future"; key: string }[] = [];
+    for (let i = 0; i < captionTokens.length; i++) {
+      const t = captionTokens[i];
+      let role: "past" | "current" | "future";
+      if (!isPlaying) role = "past";
+      else role = i < currentIndex ? "past" : i === currentIndex ? "current" : "future";
+      parts.push({ text: t.text, role, key: `cap-${i}-${t.text}` });
+      const needsSpacer = !(t.text.length === 1 && ".,;:-!?".includes(t.text));
+      if (i < captionTokens.length - 1 && needsSpacer) parts.push({ text: " ", role, key: `sp-${i}` });
+    }
+
+    return (
+      <div aria-live="off" style={{ width:"100%", textAlign:"center", margin:"6px 0 8px", fontSize:18, lineHeight:1.5, letterSpacing:0.2 }}>
+        {parts.map((p) => {
+          const base: React.CSSProperties = { transition:"opacity 120ms ease, text-shadow 120ms ease, color 120ms ease", opacity: p.role === "past" ? 0.6 : 1.0 };
+          const style: React.CSSProperties =
+            p.role === "current"
+              ? { ...base, color: theme.gold, fontWeight: 800, textShadow: "0 0 12px rgba(235,207,122,0.55)" }
+              : p.role === "past"
+              ? { ...base, color: theme.text, fontWeight: 600 }
+              : { ...base, color: theme.text };
+          if (p.text === "·" && p.role !== "current") (style as any).opacity = 0.4;
+          return <span key={p.key} style={style}>{p.text}</span>;
+        })}
+      </div>
+    );
+  }, [captionTokens, captionIdx, isPlaying]);
+
+  /* VexFlow stave render */
   useEffect(() => {
     const host = staveHostRef.current;
     if (!host) return;
-
     host.innerHTML = "";
     const rect = host.getBoundingClientRect();
-    const width = Math.floor(rect.width);
-    const height = 260;
+    const width = Math.floor(rect.width), height = 260;
 
     const renderer = new Renderer(host, Renderer.Backends.SVG);
     renderer.resize(width, height);
     const ctx = renderer.getContext();
+
+    const keySpec = "Am";
 
     let LEFT = 20, RIGHT = 28;
     if (width <= 390) { LEFT = 16; RIGHT = 18; }
     if (width <= 360) { LEFT = 14; RIGHT = 16; }
     if (width <= 344) { LEFT = 12; RIGHT = 14; }
 
-    const innerWidth = width - LEFT - RIGHT;
-    const trebleY = 16, bassY = 120;
-    const keySpec = "Am";
+    const innerWidth = width - LEFT - RIGHT, trebleY = 16, bassY = 120;
 
     const treble = new Stave(LEFT, trebleY, innerWidth);
     treble.addClef("treble").addKeySignature(keySpec).setContext(ctx).draw();
@@ -923,87 +325,76 @@ export default function WordsToNotesViralPage() {
     new (StaveConnector as any)(treble, bass).setType(Type.SINGLE_LEFT).setContext(ctx).draw();
     new (StaveConnector as any)(treble, bass).setType(Type.SINGLE_RIGHT).setContext(ctx).draw();
 
-    if (!events.length || visibleCount === 0) return;
+    if (!events.length || visibleIdx === 0) return;
+    const vis = events.slice(0, visibleIdx);
 
-    const vis = events.slice(0, Math.min(visibleCount, events.length));
+    const MIDI_B4 = noteNameToMidi("B4"), MIDI_D3 = noteNameToMidi("D3");
+    const vf = (n: string) => noteToVFKey(n);
+    const stemTreble = (keys: string[]) => Math.max(...keys.map(k => noteNameToMidi(k))) > MIDI_B4 ? -1 : 1;
+    const stemBass   = (keys: string[]) => Math.max(...keys.map(k => noteNameToMidi(k))) > MIDI_D3 ? -1 : 1;
 
-    // Stem helpers: highest note vs middle line
-    const MIDI_B4 = noteNameToMidi("B4"); // treble middle line
-    const MIDI_D3 = noteNameToMidi("D3"); // bass middle line
-    const vfKeyToMidi = (k: string) => noteNameToMidi(k);
-    const stemForTreble = (keys: string[]) => {
-      if (!keys.length) return 1;
-      const max = Math.max(...keys.map(vfKeyToMidi));
-      return max > MIDI_B4 ? -1 : 1;
-    };
-    const stemForBass = (keys: string[]) => {
-      if (!keys.length) return 1;
-      const max = Math.max(...keys.map(vfKeyToMidi));
-      return max > MIDI_D3 ? -1 : 1;
-    };
-
-    const trebleTickables: any[] = [];
-    const bassTickables: any[] = [];
-
-    for (const ev of vis) {
-      const dur = ev.vfDuration || "q";
-
-      // rest -> show only on bass
-      if (ev.isRest === true) {
-        bassTickables.push(new StaveNote({ keys: ["d/3"], duration: `${dur}r`, clef: "bass" }));
+    const trebleNotes:any[] = [], bassNotes:any[] = [];
+    for (const e of vis) {
+      const dur = "q";
+      if (e.kind === "REST") {
+        bassNotes.push(new StaveNote({ keys:["d/3"], duration:`${dur}r`, clef:"bass" }));
         continue;
       }
-
-      // derive keys
-      const vfKeysRaw: string[] = ev.vfKeys?.length ? ev.vfKeys : (ev.noteNames || []).map(noteNameToVfKey);
-      if (!vfKeysRaw.length) {
-        // keep rhythmic grid invisible (skip adding both rests)
-        continue;
-      }
-
-      const oct = (k: string) => parseInt(k.split("/")[1], 10);
-      const trebleKeys = vfKeysRaw.filter(k => oct(k) >= 4);
-      const bassKeys   = vfKeysRaw.filter(k => oct(k) <  4);
-
-      if (trebleKeys.length) {
-        trebleTickables.push(new StaveNote({
-          keys: trebleKeys, duration: dur, clef: "treble", stemDirection: stemForTreble(trebleKeys)
-        }));
-      }
-      if (bassKeys.length) {
-        bassTickables.push(new StaveNote({
-          keys: bassKeys, duration: dur, clef: "bass", stemDirection: stemForBass(bassKeys)
-        }));
-      }
+      const keys = e.notes.map(vf);
+      const tre = keys.filter(k => parseInt(k.split("/")[1],10) >= 4);
+      const bas = keys.filter(k => parseInt(k.split("/")[1],10) <  4);
+      if (tre.length) trebleNotes.push(new StaveNote({ keys: tre, duration: dur, clef:"treble", stemDirection: stemTreble(tre) }));
+      if (bas.length) bassNotes.push(new StaveNote({ keys: bas, duration: dur, clef:"bass", stemDirection: stemBass(bas) }));
     }
-        // Voices
-    if (trebleTickables.length) {
-      const v = new Voice({ numBeats: Math.max(1, trebleTickables.length), beatValue: 4 }).setStrict(false);
-      v.addTickables(trebleTickables);
+
+    if (trebleNotes.length) {
+      const v = new Voice({ numBeats: Math.max(1, trebleNotes.length), beatValue: 4 }).setStrict(false);
+      v.addTickables(trebleNotes);
       new Formatter().joinVoices([v]).formatToStave([v], treble);
       v.draw(ctx, treble);
     }
-    if (bassTickables.length) {
-      const v = new Voice({ numBeats: Math.max(1, bassTickables.length), beatValue: 4 }).setStrict(false);
-      v.addTickables(bassTickables);
+    if (bassNotes.length) {
+      const v = new Voice({ numBeats: Math.max(1, bassNotes.length), beatValue: 4 }).setStrict(false);
+      v.addTickables(bassNotes);
       new Formatter().joinVoices([v]).formatToStave([v], bass);
       v.draw(ctx, bass);
     }
-  }, [events, visibleCount, resizeTick]);
-
-  // Video export (kept close to your working version)
+  }, [events, visibleIdx]);
+   /* =========================
+     Export (Save): caption + stave + audio in sync
+     ========================= */
   const onDownloadVideo = useCallback(async () => {
     const host = staveHostRef.current;
-    if (!host || !events.length) return;
+    if (!host) return;
+
+    // kill any interactive timers
+    clearAllTimers();
+    isPlayingRef.current = false;
+    setVisibleIdx(0);
+
+    // fresh export snapshot from current input
+    const exportInput = sanitizePhraseInput(phrase || "");
+    const evtsExport = buildEvents(exportInput).events;
+    if (!evtsExport.length) return;
+    console.log("[export] snapshot", { input: exportInput, count: evtsExport.length });
+
+    // push snapshot into state so SVG reflects it while recording
+    setEvents(evtsExport);
+    setVisibleIdx(0);
+    // let VexFlow re-render the SVG before we start the loop
+    await new Promise<void>(res => requestAnimationFrame(() => requestAnimationFrame(() => res())));
 
     try {
+      // live SVG
       const liveSvgEl = host.querySelector("svg") as SVGSVGElement | null;
       if (!liveSvgEl) return;
 
+      // sizes
       const rect = liveSvgEl.getBoundingClientRect();
       const liveW = Math.max(2, Math.floor(rect.width));
       const liveH = Math.max(2, Math.floor(rect.height));
 
+      // canvas
       const FRAME_W = 1080, FRAME_H = 1920, SCALE = 2;
       const canvas = document.createElement("canvas");
       canvas.width = FRAME_W * SCALE;
@@ -1012,6 +403,7 @@ export default function WordsToNotesViralPage() {
       if (!ctx) return;
       const c = ctx as CanvasRenderingContext2D;
 
+      // layout
       const SAFE_TOP = 180;
       const SAFE_BOTTOM = 120;
       const PHRASE_TOP_OFFSET = 5;
@@ -1054,20 +446,53 @@ export default function WordsToNotesViralPage() {
       const drawH = Math.round(liveH * scale);
       const goldX = Math.round((FRAME_W - drawW) / 2);
       const goldY = goldTopPx;
+
+      // audio capture
       await Tone.start();
       const rawCtx = (Tone.getContext() as any).rawContext as AudioContext;
       const audioDst = rawCtx.createMediaStreamDestination();
-      try { (Tone as any).Destination.connect(audioDst); } catch {}
+      
+        // --- add a silent bed so the audio track has continuous samples ---
+const silentOsc = rawCtx.createOscillator();
+const silentGain = rawCtx.createGain();
+silentGain.gain.value = 0.00001; // nearly silent but non-zero
+silentOsc.connect(silentGain).connect(audioDst);
+silentOsc.start();
 
-      const allNoteNames = Array.from(new Set(events.flatMap(ev => ev.noteNames || [])));
-      if (!samplerRef.current) await createSamplerForNotes(allNoteNames);
+// We'll stop it in hardStop just after rec.stop()
 
+     // sampler from snapshot (no .toDestination() — we'll wire the record bus manually)
+const allNoteNames = Array.from(new Set(evtsExport.flatMap(ev => (ev as any).notes || [])));
+if (samplerRef.current) { try { samplerRef.current.dispose(); } catch {} samplerRef.current = null; }
+{
+  const urls: Record<string, string> = {};
+  for (const n of allNoteNames) urls[n] = `${n.replace("#", "%23")}.wav`;
+  samplerRef.current = new Tone.Sampler({ urls, baseUrl: "/audio/notes/" });
+  await Tone.loaded();
+}
+ // --- route sampler into the recorder's audio destination ---
+const recordBus = rawCtx.createGain();
+recordBus.gain.value = 1;
+
+// connect sampler to the record bus
+try { (samplerRef.current as any).connect(recordBus); } catch {}
+// Also feed Tone's master output into the record bus (belt & suspenders)
+try { (Tone as any).Destination.connect(recordBus); } catch {}
+
+// connect the record bus into the MediaStream destination (recorder)
+recordBus.connect(audioDst);
+
+// optional: also monitor to speakers during export (comment out if you want silence locally)
+// try { (samplerRef.current as any).toDestination?.(); } catch {}
+
+      // Route sampler directly into the recorder's destination
+try { (samplerRef.current as any).connect(audioDst); } catch {}
+
+      // video stream
       const stream = (canvas as any).captureStream(30) as MediaStream;
-      const mixed = new MediaStream([
-        ...stream.getVideoTracks(),
-        ...audioDst.stream.getAudioTracks(),
-      ]);
+      const mixed = new MediaStream([...stream.getVideoTracks(), ...audioDst.stream.getAudioTracks()]);
 
+      // recorder
       function pickRecorderMime(): string {
         const candidates = [
           'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
@@ -1075,17 +500,14 @@ export default function WordsToNotesViralPage() {
           "video/webm;codecs=vp9,opus",
           "video/webm",
         ];
-        for (const t of candidates) {
-          try { if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t; } catch {}
-        }
+        for (const t of candidates) { try { if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t; } catch {} }
         return "video/webm";
       }
-
       const mimeType = pickRecorderMime();
       const chunks: BlobPart[] = [];
       const rec = new MediaRecorder(mixed, { mimeType });
       rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-
+            // embed music fonts into SVG (so stave text renders correctly)
       const fontCss = await buildEmbeddedFontStyle();
       function serializeFullSvg(svgEl: SVGSVGElement, w: number, h: number): string {
         let raw = new XMLSerializer().serializeToString(svgEl);
@@ -1106,31 +528,114 @@ export default function WordsToNotesViralPage() {
         return img;
       }
       let currentImg = await svgToImage(serializeFullSvg(liveSvgEl, liveW, liveH));
+        // keep the latest stave snapshot here; update it only when visibleIdx changes
+      let lastSnapshot: HTMLImageElement = currentImg;
 
-      function drawPhraseTop() {
-        c.font = `${phrasePx * SCALE}px Inter, system-ui, sans-serif`;
+      // ---- Caption (export) font sizing ----
+      const captionTokensExport = deriveCaptionTokens(evtsExport as any, exportInput);
+      // Build captionFull (with spaces like DOM caption) to measure fitted size
+      const captionFull = (() => {
+        if (!captionTokensExport.length) return phrase;
+        const parts: string[] = [];
+        for (let i = 0; i < captionTokensExport.length; i++) {
+          const t = captionTokensExport[i].text;
+          parts.push(t);
+          const needsSpacer = !(t.length === 1 && ".,;:-!?".includes(t));
+          if (i < captionTokensExport.length - 1 && needsSpacer) parts.push(" ");
+        }
+        return parts.join("");
+      })();
+      function pickCaptionPx(text: string, maxPx: number): number {
+        let lo = 14, hi = Math.max(14, maxPx), best = Math.min(maxPx, 18);
+        const CAPTION_TARGET = 0.86;
+        const maxWidth = FRAME_W * SCALE * CAPTION_TARGET;
+        while (lo <= hi) {
+          const mid = Math.floor((lo + hi) / 2);
+          c.font = `${mid * SCALE}px Inter, system-ui, sans-serif`;
+          const w = c.measureText(text).width;
+          if (w <= maxWidth) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+        }
+        return best;
+      }
+      const captionPx = pickCaptionPx(captionFull || phrase, phrasePx);
+
+      // caption painter (on canvas)
+      function drawCaptionLine(nowSec: number) {
+        if (!captionTokensExport.length) return;
+
+        const lastEnd =
+          captionTokensExport.length
+            ? Math.max(...captionTokensExport.map(t => (t.t ?? 0) + (t.d ?? 0)))
+            : 0;
+
+        // find current token by time
+        let idx = -1;
+        for (let i = 0; i < captionTokensExport.length; i++) {
+          const t0 = captionTokensExport[i].t ?? 0;
+          const t1 = t0 + (captionTokensExport[i].d ?? 0.5);
+          if (nowSec >= t0 && nowSec < t1) { idx = i; break; }
+          if (nowSec >= t1) idx = i;
+        }
+
+        // build text parts
+        const parts: { text: string; role: "past"|"current"|"future" }[] = [];
+        for (let i = 0; i < captionTokensExport.length; i++) {
+          const t = captionTokensExport[i];
+          let role: "past"|"current"|"future";
+          if (nowSec >= lastEnd) role = "past";
+          else role = (i < idx) ? "past" : (i === idx ? "current" : "future");
+          parts.push({ text: t.text, role });
+          const needsSpacer = !(t.text.length === 1 && ".,;:-!?".includes(t.text));
+          if (i < captionTokensExport.length - 1 && needsSpacer) parts.push({ text: " ", role });
+        }
+
+        // draw centered
         c.textAlign = "center";
         c.textBaseline = "middle";
-        c.lineWidth = Math.max(2, Math.floor(phrasePx * 0.12)) * SCALE;
-        c.strokeStyle = "rgba(0,0,0,0.25)";
-        c.save();
-        c.fillStyle = theme.gold;
-        c.strokeText(phrase, (FRAME_W * SCALE) / 2, phraseBaselineY);
-        c.fillText(phrase, (FRAME_W * SCALE) / 2, phraseBaselineY);
-        c.restore();
+        c.font = `${captionPx * SCALE}px Inter, system-ui, sans-serif`;
+        const full = parts.map(p => p.text).join("");
+if (!full) return; // nothing to draw
+const metrics = c.measureText(full);
+const totalWidth = Number.isFinite(metrics.width) ? metrics.width : 0;
+if (totalWidth <= 0) return;
+
+        let acc = -totalWidth / 2;
+        for (const p of parts) {
+          const seg = p.text;
+          const segWidth = c.measureText(seg).width;
+          if (p.role === "current") {
+            c.fillStyle = theme.gold;
+            c.shadowColor = "rgba(235,207,122,0.55)";
+            c.shadowBlur = 12 * SCALE;
+            c.fillText(seg, (FRAME_W * SCALE) / 2 + acc + segWidth / 2, phraseBaselineY);
+            c.shadowBlur = 0;
+          } else {
+            c.fillStyle = theme.text;
+            c.globalAlpha = p.role === "past" ? 0.6 : 1.0;
+            c.fillText(seg, (FRAME_W * SCALE) / 2 + acc + segWidth / 2, phraseBaselineY);
+            c.globalAlpha = 1.0;
+          }
+          acc += segWidth;
+        }
       }
 
-      function drawFrame(img: HTMLImageElement) {
+      // draw frame (caption + stave snapshot)
+      function drawFrame(img: HTMLImageElement, nowSec: number) {
+        // bg
         c.fillStyle = theme.bg;
         c.fillRect(0, 0, canvas.width, canvas.height);
 
-        drawPhraseTop();
+        // caption
+        drawCaptionLine(nowSec);
 
+        // golden panel
         c.fillStyle = theme.gold;
         c.fillRect(goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
 
+        // live stave snapshot
         c.drawImage(img, 0, 0, liveW, liveH, goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
 
+        // watermark
         c.save();
         c.textAlign = "right"; c.textBaseline = "middle";
         c.font = `${22 * SCALE}px Inter, system-ui, sans-serif`;
@@ -1139,51 +644,85 @@ export default function WordsToNotesViralPage() {
         c.restore();
       }
 
-      // pre-roll
-      drawFrame(currentImg);
-      await new Promise(r => setTimeout(r, 120));
-      drawFrame(currentImg);
-      await new Promise(r => setTimeout(r, 120));
-      drawFrame(currentImg);
-
-      const timers: number[] = [];
-      const t0 = performance.now();
+      // start recording
       rec.start();
+      console.log("[export] rec.start at", performance.now());
 
-      (async function loop() {
-        const liveNow = host.querySelector("svg") as SVGSVGElement | null;
-        if (liveNow) currentImg = await svgToImage(serializeFullSvg(liveNow, liveW, liveH));
-        drawFrame(currentImg);
+      // duration & loop
+const toyLastEnd = evtsExport.reduce((mx, ev) => Math.max(mx, (ev.t ?? 0) + (ev.d ?? 0)), 0);
+const sumDur     = evtsExport.reduce((s,  e) => s + (e.d ?? 0), 0);
+console.log("[export] toyLastEnd(s)=", toyLastEnd.toFixed(3), "sumDur(s)=", sumDur.toFixed(3));
 
-        const elapsed = (performance.now() - t0) / 1000;
-        let idx = 0;
-        while (idx < events.length && (events[idx].t ?? (idx * 0.6)) <= elapsed) idx++;
-        const nextVisible = Math.min(idx, events.length);
-        if (nextVisible !== visibleCount) setVisibleCount(nextVisible);
+// create a timers bucket for this export
+const timers: number[] = [];
 
-        if (elapsed < 8.2) requestAnimationFrame(loop);
-      })();
-      for (let i = 0; i < events.length; i++) {
-        const ev = events[i];
-        if (!ev.noteNames || ev.noteNames.length === 0) continue;
-        const startMs = Math.round(1000 * (ev.t ?? (i * 0.6)));
-        const id = window.setTimeout(() => {
-          try { triggerNow(ev.noteNames!, ev.d ?? 0.55, false); } catch {}
-        }, startMs);
-        timers.push(id);
-      }
+// animation clock and per-second debug logs
+const t0 = performance.now();
+let lastLoggedSec = -1;
 
+(function loop() {
+  const elapsed = (performance.now() - t0) / 1000;
+  drawFrame(lastSnapshot, elapsed);
+  // log each second to confirm frames are being drawn
+  const whole = Math.floor(elapsed);
+  if (whole !== (window as any).__lastLoggedSec) {
+    console.log("[export] drawing frame at", elapsed.toFixed(2));
+    (window as any).__lastLoggedSec = whole;
+  }
+  if (elapsed < sumDur + 0.2) requestAnimationFrame(loop);
+})();
+
+      console.log("[export] first 3 events", evtsExport.slice(0,3).map(e => ({
+  t: (e.t ?? 0).toFixed(3),
+  d: (e.d ?? 0).toFixed(3),
+  kind: (e as any).kind,
+  notes: (e as any).notes || []
+})));
+
+      // schedule stave advance + audio
+for (let i = 0; i < evtsExport.length; i++) {
+  const ev = evtsExport[i];
+  const startMs = Math.round(1000 * (ev.t ?? (i * 0.6)));
+
+  // advance stave SVG during export (so the snapshot changes)
+  const visId = window.setTimeout(async () => {
+  setVisibleIdx(i + 1);
+
+  // take a fresh SVG snapshot now that VexFlow re-rendered (next tick)
+  try {
+    await new Promise<void>(res => requestAnimationFrame(() => res()));
+    const liveNow = host.querySelector("svg") as SVGSVGElement | null;
+    if (liveNow) {
+      lastSnapshot = await svgToImage(serializeFullSvg(liveNow, liveW, liveH));
+    }
+  } catch {}
+}, startMs);
+  timers.push(visId);
+
+  // audio from export snapshot (uses ev.notes)
+  if ((ev as any).notes && (ev as any).notes.length) {
+    const trigId = window.setTimeout(() => {
+      try { triggerNow((ev as any).notes, ev.d ?? 0.55); } catch {}
+    }, startMs);
+    timers.push(trigId);
+  }
+}
+
+      // stop & collect
       const hardStop = window.setTimeout(() => {
         rec.stop();
-        try { (Tone as any).Destination.disconnect(audioDst); } catch {}
+        console.log("[export] hardStop at", performance.now());
+        try { silentOsc.stop(); } catch {}
+  try { (Tone as any).Destination.disconnect(audioDst); } catch {}
         timers.forEach(id => clearTimeout(id));
-      }, 8400);
+      }, Math.round(sumDur * 1000 + 200));
 
       const recorded: Blob = await new Promise((res) => {
         rec.onstop = () => res(new Blob(chunks, { type: mimeType || "video/webm" }));
       });
       window.clearTimeout(hardStop);
 
+      // normalize to mp4 if needed
       async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
         if (inputBlob.type && inputBlob.type.includes("mp4")) return inputBlob;
         try {
@@ -1222,144 +761,185 @@ export default function WordsToNotesViralPage() {
       console.error("[download] export error:", err);
       try { alert("Could not prepare video. Please try again."); } catch {}
     }
-  }, [events, phrase]);
+  }, [phrase]);
+    /* =========================
+     Share modal state
+     ========================= */
+  const [shareOpen, setShareOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
-  // Input handlers
-  const onInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = sanitizePhraseInput(e.target.value);
-    setPhrase(v);
-    const { events: built } = buildEvents(v);
-    const playable = withDisplayKeys(built);
-    const vf = toVFEvents(playable);
-    setEvents(vf);
-    setVisibleCount(0);
-  }, []);
-
-  const onInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      setLastEnterAt(Date.now());
-      start();
-    }
-  }, [start]);
-
-  const onInputBlur = useCallback(() => {
-    if (Date.now() - lastEnterAt > 150) start();
-  }, [lastEnterAt, start]);
-  // Render
+  /* =========================
+     Render
+     ========================= */
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, color: theme.text, overflowX: "hidden" }}>
-      <main style={{ width: "100%", margin: "0 auto", padding: 12, boxSizing: "border-box", maxWidth: 520 }}>
-        <style>{`
-          @media (min-width:768px){ main{max-width:680px!important;} }
-          @media (min-width:1024px){ main{max-width:760px!important;} }
-          .phrase-input::placeholder{color:${theme.gold};opacity:1;}
-          .phrase-input:focus{outline:none;box-shadow:none;}
-          .vt-card,.vt-panel,.vt-gold,.vt-actions{box-sizing:border-box;}
-          .vt-panel{width:100%!important;max-width:100%!important;min-width:0!important;}
-          .vt-card{padding-left:12px;padding-right:12px;}
-          .vt-gold{padding-left:10px;padding-right:10px;}
-          .vt-actions{padding-left:10px;padding-right:10px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;column-gap:10px;row-gap:8px;}
-          @media (max-width:390px){
-            .vt-card{padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right));}
-            .vt-panel{padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right));}
-            .vt-gold{padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right));}
-            .vt-actions{padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right));}
-            .action-text{display:none!important;}
-          }
-          @media (max-width:360px){
-            .vt-card{padding-left:calc(20px + env(safe-area-inset-left));padding-right:calc(20px + env(safe-area-inset-right));}
-            .vt-panel{padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));}
-            .vt-gold{padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));}
-            .vt-actions{padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));}
-          }
-        `}</style>
-
+    <main style={{ minHeight:"100vh", background:theme.bg, color:theme.text, overflowX:"hidden" }}>
+      <div style={{ width:"100%", margin:"0 auto", padding:12, boxSizing:"border-box", maxWidth:520 }}>
         {/* Title */}
-        {(() => { const { t1, t2, t3 } = ctaPieces(phrase);
-          return <h1 style={{ margin: "4px 0 8px", fontSize: 24, lineHeight: 1.25, textAlign: "center", letterSpacing: 0.2, fontWeight: 800, color: theme.text }}>
-            <span>{t1}</span><span style={{ color: theme.gold }}>{t2}</span><span>{t3}</span>
-          </h1>;
-        })()}
-        <section className="vt-card" style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 12, display: "grid", gap: 8, marginBottom: 10 }}>
-          {/* Panel: input + stave */}
-          <div className="vt-panel" style={{ width: "100%", maxWidth: "100%", background: "#0F1821", borderRadius: 12, padding: 10 }}>
-            <input
-              className="phrase-input"
-              value={phrase}
-              onChange={onInputChange}
-              onKeyDown={onInputKeyDown}
-              onBlur={onInputBlur}
-              placeholder="Type words, numbers, and symbols…"
-              inputMode="text"
-              enterKeyHint="done"
-              autoCapitalize="characters"
-              autoCorrect="off"
-              style={{ width: "100%", background: "#0F1821", color: theme.gold, border: "none", borderRadius: 8, padding: "14px 16px", fontSize: 24, lineHeight: 1.25 }}
-            />
-            <div style={{ fontSize: 12, color: theme.muted, marginTop: 4 }}>
-              Elements: {elementCount} / {MAX_ELEMENTS}
+        <h1 style={{ margin:"4px 0 8px", fontSize:24, lineHeight:1.25, textAlign:"center", letterSpacing:0.2, fontWeight:800, color:theme.text }}>
+          TextToTone — Type Anything, Hear the Music
+        </h1>
+
+        <section
+          style={{
+            background: theme.card,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 16,
+            padding: 12,
+            display: "grid",
+            gap: 8,
+            marginBottom: 10,
+            overflow: "hidden",
+            boxSizing: "border-box",
+          }}
+        >
+          {/* Panel: input + caption + stave */}
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "100%",
+              background: "#0F1821",
+              borderRadius: 12,
+              padding: 10,
+              boxSizing: "border-box",
+              overflow: "hidden",
+            }}
+          >
+            {/* input (clipped wrapper to avoid focus bleed) */}
+            <div style={{ padding: 2, borderRadius: 10, overflow: "hidden", boxSizing: "border-box" }}>
+              <input
+                value={phrase}
+                onChange={(e)=>setPhrase(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { if (!isPlaying && !overLimit) start(); } }}
+                onBlur={() => { if (!isPlaying && !overLimit) start(); }}
+                placeholder="Type words, numbers, and symbols…"
+                inputMode="text"
+                enterKeyHint="done"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                style={{
+                  width: "100%",
+                  display: "block",
+                  boxSizing: "border-box",
+                  background: "#0F1821",
+                  color: theme.gold,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 8,
+                  padding: "14px 16px",
+                  fontSize: 24,
+                  lineHeight: 1.25,
+                  outline: "none",
+                  WebkitAppearance: "none",
+                  appearance: "none",
+                }}
+              />
             </div>
 
-            <div className="vt-gold" style={{ position: "relative", background: theme.gold, borderRadius: 10, padding: 10, marginTop: 8 }}>
-              <div ref={staveHostRef} style={{ width: "100%", minHeight: 280, display: "block" }} />
-              <div style={{ position: "absolute", right: 22, bottom: 6, color: "#081019", fontSize: 12, fontWeight: 700, opacity: 0.9, userSelect: "none", pointerEvents: "none" }}>
+            <div style={{ fontSize:12, color: overLimit ? theme.warn : theme.muted, marginTop:4 }}>
+              Elements: {elementCount} / 20 {overLimit ? " — Limit exceeded. Trim your text." : ""}
+            </div>
+
+            {/* Floating caption (live) */}
+            {captionTokens.length > 0 && (
+              <div style={{ marginTop:6 }}>
+                {captionRender}
+              </div>
+            )}
+
+            {/* Golden panel with stave */}
+            <div
+              style={{
+                position: "relative",
+                background: theme.gold,
+                borderRadius: 10,
+                padding: 10,
+                marginTop: 8,
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              <div ref={staveHostRef} style={{ width:"100%", minHeight:260, display:"block" }} />
+              <div style={{ position:"absolute", right:22, bottom:6, color:"#081019", fontSize:12, fontWeight:700, opacity:0.9, userSelect:"none", pointerEvents:"none" }}>
                 pianotrainer.app
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="vt-actions">
-            <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", justifyContent: "center" }}>
-              <button
-                onClick={() => isPlaying ? stop() : start()}
-                disabled={!canPlay}
-                style={{ background: !canPlay ? "#1a2430" : theme.gold, color: !canPlay ? theme.muted : "#081019", border: "none", borderRadius: 999, padding: "10px 16px", fontWeight: 700, cursor: !canPlay ? "not-allowed" : "pointer", fontSize: 16, minHeight: 40, display: "inline-flex", alignItems: "center", gap: 8 }}
-              >
-                <span aria-hidden="true">{isPlaying ? "⏹" : "▶"}</span><span className="action-text">{isPlaying ? "Stop" : "Replay"}</span>
-              </button>
-            </div>
-            <div style={{ display: "flex", flex: "0 0 auto", gap: 10 }}>
-              <button
-                onClick={onDownloadVideo}
-                disabled={!canPlay || events.length === 0}
-                title="Download"
-                style={{ background: "transparent", color: theme.gold, border: "none", borderRadius: 999, padding: "6px 10px", fontWeight: 700, cursor: !canPlay || events.length === 0 ? "not-allowed" : "pointer", minHeight: 32, fontSize: 14 }}
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setShareOpen(true)}
-                title="Share"
-                style={{ background: "transparent", color: theme.gold, border: "none", borderRadius: 999, padding: "6px 10px", fontWeight: 700, cursor: "pointer", minHeight: 32, fontSize: 14 }}
-              >
-                Share
-              </button>
-            </div>
-          </div>
-          {/* Copy toast */}
-          {linkCopied && (
-            <div style={{ color: theme.green, fontSize: 12, fontWeight: 600, textAlign: "right", width: "100%" }}>
-              Link copied!
-            </div>
-          )}
+          <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap" }}>
+            <button
+              onClick={() => !isPlaying && !overLimit && start()}
+              disabled={overLimit}
+              title={overLimit ? "Reduce to 20 elements to play" : "Play"}
+              style={{
+                background: overLimit ? "#2A3442" : theme.gold,
+                color: overLimit ? "#6B7280" : "#081019",
+                border:"none",
+                borderRadius:999,
+                padding:"10px 16px",
+                fontWeight:700,
+                cursor: overLimit ? "not-allowed" : "pointer",
+                fontSize:16,
+                minHeight:40
+              }}
+            >
+              ▶ Play
+            </button>
 
-          {/* Share Sheet */}
+            <button
+              onClick={onDownloadVideo}
+              disabled={overLimit || !events.length}
+              title="Save"
+              style={{
+                background: overLimit ? "#2A3442" : theme.gold,
+                color: overLimit ? "#6B7280" : "#081019",
+                border:"none",
+                borderRadius:999,
+                padding:"10px 16px",
+                fontWeight:700,
+                cursor: overLimit ? "not-allowed" : "pointer",
+                fontSize:16,
+                minHeight:40
+              }}
+            >
+              💾 Save
+            </button>
+
+            <button
+              onClick={() => setShareOpen(true)}
+              title="Share"
+              style={{
+                background:"transparent",
+                color:theme.gold,
+                border:"none",
+                borderRadius:999,
+                padding:"10px 16px",
+                fontWeight:700,
+                cursor:"pointer",
+                fontSize:16,
+                minHeight:40
+              }}
+            >
+              📤 Share
+            </button>
+          </div>
+
+          {/* Share modal (same UX as other toys) */}
           {shareOpen && (
             <div
               role="dialog"
               aria-modal="true"
-              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 9999 }}
+              style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:9999 }}
               onClick={() => setShareOpen(false)}
             >
               <div
-                style={{ width: "100%", maxWidth: 520, background: "#0F1821", borderTop: `1px solid ${theme.border}`, borderLeft: `1px solid ${theme.border}`, borderRight: `1px solid ${theme.border}`, borderRadius: "12px 12px 0 0", padding: 12, boxSizing: "border-box" }}
+                style={{ width:"100%", maxWidth:520, background:"#0F1821", borderTop:`1px solid ${theme.border}`, borderLeft:`1px solid ${theme.border}`, borderRight:`1px solid ${theme.border}`, borderRadius:"12px 12px 0 0", padding:12, boxSizing:"border-box" }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div style={{ textAlign: "center", color: theme.text, fontWeight: 800, marginBottom: 8 }}>
+                <div style={{ textAlign:"center", color:theme.text, fontWeight:800, marginBottom:8 }}>
                   Share your melody
                 </div>
 
+                {/* Copy Link */}
                 <button
                   onClick={async () => {
                     const url = buildShareUrl();
@@ -1372,70 +952,93 @@ export default function WordsToNotesViralPage() {
                       alert(url);
                     }
                   }}
-                  style={{ width: "100%", padding: "10px 12px", marginBottom: 6, background: theme.gold, color: "#081019", borderRadius: 8, border: "none", fontWeight: 800 }}
+                  style={{ width:"100%", padding:"10px 12px", marginBottom:6, background:theme.gold, color:"#081019", borderRadius:8, border:"none", fontWeight:800 }}
                 >
-                  Copy Link
+                  🔗 Copy Link
                 </button>
 
+                {/* X / Twitter */}
                 <a
                   href={buildTweetIntent(
-                    `My phrase -> melody: ${sanitizePhraseInput(phrase).trim() || "my word"}`,
+                    `My text → melody: ${phrase.trim() || "my text"}`,
                     buildShareUrl()
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setShareOpen(false)}
-                  style={{ display: "block", textAlign: "center", width: "100%", padding: "10px 12px", marginBottom: 6, background: "transparent", color: theme.gold, borderRadius: 8, border: `1px solid ${theme.border}`, textDecoration: "none", fontWeight: 800 }}
+                  style={{ display:"block", textAlign:"center", width:"100%", padding:"10px 12px", marginBottom:6, background:"transparent", color:theme.gold, borderRadius:8, border:`1px solid ${theme.border}`, textDecoration:"none", fontWeight:800 }}
                 >
-                  Share on X
+                  𝕏 Share on X
                 </a>
+
+                {/* TikTok */}
                 <button
                   onClick={() => {
-                    alert("Tap Download first, then post the clip.");
+                    alert("Tap Save first, then post the clip in TikTok.");
                     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
                     if (isMobile) { try { window.location.href = "tiktok://"; } catch {} }
                     else { window.open("https://studio.tiktok.com", "_blank", "noopener,noreferrer"); }
                     setShareOpen(false);
                   }}
-                  style={{ width: "100%", padding: "10px 12px", marginBottom: 6, background: "transparent", color: theme.gold, borderRadius: 8, border: `1px solid ${theme.border}`, fontWeight: 800 }}
+                  style={{ width:"100%", padding:"10px 12px", marginBottom:6, background:"transparent", color:theme.gold, borderRadius:8, border:`1px solid ${theme.border}`, fontWeight:800 }}
                 >
-                  Post to TikTok
+                  🎵 Post to TikTok (save then upload)
                 </button>
 
+                {/* Instagram Reels */}
                 <button
                   onClick={() => {
-                    alert("Tap Download first, then open Instagram -> Reels -> upload.");
+                    alert("Tap Save first, then open Instagram → Reels → upload.");
                     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
                     if (isMobile) { try { window.location.href = "instagram://camera"; } catch {} }
                     else { window.open("https://www.instagram.com/create/reel/", "_blank", "noopener,noreferrer"); }
                     setShareOpen(false);
                   }}
-                  style={{ width: "100%", padding: "10px 12px", background: "transparent", color: theme.gold, borderRadius: 8, border: `1px solid ${theme.border}`, fontWeight: 800 }}
+                  style={{ width:"100%", padding:"10px 12px", background:"transparent", color:theme.gold, borderRadius:8, border:`1px solid ${theme.border}`, fontWeight:800 }}
                 >
-                  Post to Instagram Reels
+                  📸 Post to Instagram Reels (save then upload)
                 </button>
 
                 <button
                   onClick={() => setShareOpen(false)}
-                  style={{ width: "100%", padding: "8px 12px", marginTop: 8, background: "#0B0F14", color: theme.muted, borderRadius: 8, border: `1px solid ${theme.border}`, fontWeight: 700 }}
+                  style={{ width:"100%", padding:"8px 12px", marginTop:8, background:"#0B0F14", color:theme.muted, borderRadius:8, border:`1px solid ${theme.border}`, fontWeight:700 }}
                 >
                   Close
                 </button>
               </div>
             </div>
           )}
+
+          {/* Copy toast */}
+          {linkCopied && (
+            <div style={{ color: "#69D58C", fontSize: 12, fontWeight: 600, textAlign: "right", width: "100%" }}>
+              Link copied!
+            </div>
+          )}
         </section>
-                {/* Footer CTA */}
+
+        {/* Footer link to Learn page (optional) */}
         <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
           <Link
             href="/learn/why-these-notes"
-            style={{ color: theme.gold, fontWeight: 800, letterSpacing: 0.3, textDecoration: "none", padding: "10px 14px", border: `1px solid ${theme.border}`, borderRadius: 10, background: "#0F1821" }}
+            style={{
+              color: theme.gold,
+              fontWeight: 800,
+              letterSpacing: 0.3,
+              textDecoration: "none",
+              padding: "10px 14px",
+              border: `1px solid ${theme.border}`,
+              borderRadius: 10,
+              background: "#0F1821",
+            }}
             aria-label="Why these notes?"
           >
-            Why these notes?
+            Why these notes? →
           </Link>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
+
+

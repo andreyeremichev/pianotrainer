@@ -213,22 +213,26 @@ export default function WhyTheseNotesPage() {
           short enough to share in a few seconds (perfect for TikTok, Insta, Reels).
         </p>
         <div className="sep" />
-        <p className="lead">
-          But what if you want more? 👀
-        </p>
-        <p className="lead">
-          Try the <strong>Full Words to Notes Trainer</strong> to:
-        </p>
-        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
-          <li>Flip your phrase into <strong>A major</strong> for a brighter, happier vibe.</li>
-          <li><strong>Double your space</strong> to 40 letters (epic sentences welcome). Compare toy style with another mapping of letters (in three Octaves).</li>
-          <li>See your words mapped on full grand stave, not only inside A3 - A4.</li>
-        </ul>
-        <div className="cta-row">
-          <Link href="/learn/text-to-tone-chaos" className="cta" aria-label="Open Full Words to Notes Trainer">
-            Try the Full Trainer →
-          </Link>
-        </div>
+       <p className="lead">
+  But what if you want more? 👀
+</p>
+<p className="lead">
+  Try <strong>TextToTone: Chaos Mode</strong> to:
+</p>
+<ul className="lead" style={{ margin: "0 0 0 18px" }}>
+  <li>Flip your letters into <strong>A major</strong> for a brighter, happier vibe.</li>
+  <li><strong>Expand to 40 text elements</strong> (epic sentences welcome).</li>
+  <li>Hear a <strong>two-octave spread</strong> across <strong>A2–A4</strong> for a vivid texture.</li>
+</ul>
+<div className="cta-row">
+  <Link
+    href="/learn/text-to-tone-chaos"
+    className="cta"
+    aria-label="Open TextToTone: Chaos Mode"
+  >
+    Try TextToTone: Chaos Mode →
+  </Link>
+</div> 
       </section>
 
       <section className="card">
@@ -240,35 +244,35 @@ export default function WhyTheseNotesPage() {
       </section>
 
       <section className="card">
-        <h2 className="h2">🚀 Ready to Try Again?</h2>
-        <p className="lead">
-          Now that you know the trick, why stop at one? Let a date, a phone number, 
-          or even a word sing. Try any of these three viral toys:
-        </p>
-        <div className="cta-row">
-          <Link
-            href="/viral/key-clock"
-            className="cta"
-            aria-label="Open Date to Notes Viral Toy"
-          >
-            Date → Notes →
-          </Link>
-          <Link
-            href="/viral/tone-dial"
-            className="ghost"
-            aria-label="Open Phone Numbers Viral Toy"
-          >
-            Phone → Notes →
-          </Link>
-          <Link
-            href="/viral/text-to-tone"
-            className="ghost"
-            aria-label="Open Words to Notes Viral Toy"
-          >
-            Words → Notes →
-          </Link>
-        </div> 
-      </section>
+  <h2 className="h2">🚀 Ready to Try Again?</h2>
+  <p className="lead">
+    Now that you know the trick, why stop at one? Let a date, a phone number, 
+    or even a phrase sing. Try any of these three viral toys:
+  </p>
+  <div className="cta-row">
+    <Link
+      href="/viral/key-clock"
+      className="cta"
+      aria-label="Open KeyClock Viral Toy (Date → Music)"
+    >
+      KeyClock (Date → Music) →
+    </Link>
+    <Link
+      href="/viral/tone-dial"
+      className="ghost"
+      aria-label="Open ToneDial Viral Toy (Phone → Music)"
+    >
+      ToneDial (Phone → Music) →
+    </Link>
+    <Link
+      href="/viral/text-to-tone"
+      className="ghost"
+      aria-label="Open TextToTone Viral Toy (Text → Music)"
+    >
+      TextToTone (Text → Music) →
+    </Link>
+  </div>
+</section>
 
       <section className="card">
         <h2 className="h2">🎶 Share the Fun</h2>
