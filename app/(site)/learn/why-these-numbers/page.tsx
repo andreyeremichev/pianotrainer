@@ -5,14 +5,14 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Why These Numbers? • PianoTrainer",
   description:
-    "Dates and phone numbers can sing too! A playful explanation of how your digits become music. Try the viral toy or level up with the full trainer.",
+    "Dates, phone numbers, and even words can sing. Here’s how digits and letters map to musical degrees — then try the viral toys.",
   alternates: { canonical: "/learn/why-these-numbers" },
   openGraph: {
     type: "article",
     url: "https://pianotrainer.app/learn/why-these-numbers",
     title: "Why These Numbers? • PianoTrainer",
     description:
-      "Your numbers are already music. See how birthdays and phone numbers become melody — then try it yourself.",
+      "Your numbers are already music. See how birthdays, phone numbers, and words become melody — then try it yourself.",
   },
   robots: { index: true, follow: true },
 };
@@ -87,53 +87,56 @@ export default function WhyTheseNumbersPage() {
           background: #eee;
           margin: 14px 0;
         }
+        ul.tight { margin: 0 0 0 18px; padding: 0; }
+        ul.tight li { margin: 4px 0; }
+        code.k { background: #f6f7f9; border: 1px solid #e5e8ee; padding: 1px 6px; border-radius: 6px; }
       `}</style>
 
       <h1 className="h1">🔢 Why These Numbers?</h1>
       <p className="lead">
-        Birthdays, anniversaries, phone numbers — they all hide little tunes.  
-        Tap “Why these notes?” and suddenly you’re in on the secret. 🕵️‍♂️🎶
+        Birthdays, anniversaries, phone numbers — even words — all hide little tunes.  
+        Here’s how your input becomes melody on the circle of fifths.
       </p>
 
       <section className="card">
-  <h2 className="h2">🎯 Digits Become Degrees</h2>
-  <p className="lead">
-    Each digit isn’t just a number — it’s a <strong>step on the circle</strong>.
-    1 through 7 land on the main spokes, 0 can be anything –{" "}
-    <a
-      href="https://youtube.com/shorts/_5GosXP6Jp4"
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{ color: "#EBCF7A", textDecoration: "underline" }}
-    >
-      a pause, like in previous version
-    </a>
-    , or it can be some degree outside Major and minor – as currently, 8 and 9 jump an octave higher.
-    Even dashes (“–”) matter: they’re little rests that give your melody room to breathe.
-  </p>
-</section>
-
-      <section className="card">
-        <h2 className="h2">🎭 Two Personalities: Major & Minor</h2>
+        <h2 className="h2">🎯 Digits & Letters → Degrees</h2>
         <p className="lead">
-          Your clip swaps between <strong>B♭ Major</strong> (bright gold) and <strong>C minor</strong> (moody green).
-          Each time the digits loop, the mood flips: happy ↔ sad, light ↔ dark.
-          It’s like hearing the same birthday sung by two different choirs. ✨🌑
+          1–7 map to the seven scale degrees on the circle. <strong>8</strong> and <strong>9</strong> are the same
+          degrees an octave up (1↑ and 2↑). For date days <strong>17–31</strong>, we play two degrees together
+          (e.g. <strong>17 → 1+7</strong>, <strong>31 → 3+1</strong>) for a fuller color. Separators like <code className="k">/ - , .</code> create short rests.
+        </p>
+        <p className="lead">
+          Letters are mapped by the classic phone keypad (T9): <strong>A–C→2</strong>, <strong>D–F→3</strong>, …, <strong>W–Z→9</strong>.  
+          That’s why both words and mixed inputs (like <em>Oct 14</em> or <em>1-800-HELLO</em>) sing naturally.
+        </p>
+        <p className="lead">
+          The digit <strong>0</strong> is a special spice: by default it alternates between chromatic neighbors
+          outside the diatonic (♭II / ♯IV), or you can set it to be a rest. Small choice, big mood.
         </p>
       </section>
 
       <section className="card">
-        <h2 className="h2">⏱️ Why 8 Seconds?</h2>
+        <h2 className="h2">🎭 Two Personalities: B♭ Major & C minor</h2>
         <p className="lead">
-          Short and sweet! Each viral clip is capped at <strong>16 seconds</strong> —
-          just enough time for the pattern to shine and loop, perfect for Reels and TikToks.
+          Every clip plays in two colors: <strong>B♭ Major</strong> (bright gold) and <strong>C minor</strong> (moody green).
+          The playback runs in <strong>clean passes</strong>: <em>Major → Minor → Major → Minor</em>.
+          Each pass draws one continuous “string” on the circle for that mode, then resets for the next pass.
+          Same input, two feelings — shown twice for groove and clarity.
+        </p>
+      </section>
+
+      <section className="card">
+        <h2 className="h2">⏱️ How long does it run?</h2>
+        <p className="lead">
+          Short and shareable. We play <strong>two full passes per mode</strong> (Major then Minor, repeated once).
+          Typical clips land around <strong>12–15s</strong> depending on input length — perfect for Reels/TikToks.
         </p>
         <div className="sep" />
-        <p className="lead">Want to go longer? Explore the full trainer:</p>
-        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
-          <li>Play with longer sequences (30–60s).</li>
-          <li>See numbers mapped onto the full piano + grand stave.</li>
-          <li>Experiment with different modes and keys.</li>
+        <p className="lead">Want to go deeper? Try the full trainer:</p>
+        <ul className="lead tight">
+          <li>Longer sequences and more timing options.</li>
+          <li>Numbers/words mapped on grand stave.</li>
+          <li>Keys, modes, and visualization tweaks.</li>
         </ul>
         <div className="cta-row">
           <Link href="/learn/numbers-circle" className="cta" aria-label="Open Full Numbers to Notes Trainer">
@@ -143,34 +146,40 @@ export default function WhyTheseNumbersPage() {
       </section>
 
       <section className="card">
-       <h2 className="h2">🚀 Ready to Try Again?</h2>
-  <p className="lead">
-    Now that you know the trick, why stop at one? Let a date, a phone number, 
-    or even a word sing. Try any of these three viral toys:
-  </p>
-  <div className="cta-row">
-    <Link
-      href="/viral/key-clock"
-      className="cta"
-      aria-label="Open Date to Notes Viral Toy"
-    >
-      Date → Notes →
-    </Link>
-    <Link
-      href="/viral/tone-dial"
-      className="ghost"
-      aria-label="Open Phone Numbers Viral Toy"
-    >
-      Phone → Notes →
-    </Link>
-    <Link
-      href="/viral/text-to-tone"
-      className="ghost"
-      aria-label="Open Words to Notes Viral Toy"
-    >
-      Words → Notes →
-    </Link>
-  </div> 
+        <h2 className="h2">🚀 Try the Musical Toys</h2>
+        <p className="lead">
+          Now that you know the mapping, let your dates, phone numbers, and words sing:
+        </p>
+        <div className="cta-row">
+          <Link
+            href="/viral/key-clock"
+            className="cta"
+            aria-label="Open KeyClock (Date → Notes)"
+          >
+            KeyClock (Date → Degrees) →
+          </Link>
+          <Link
+            href="/viral/tone-dial"
+            className="ghost"
+            aria-label="Open ToneDial (Phone → Notes)"
+          >
+            ToneDial (Phone → Degrees) →
+          </Link>
+          <Link
+            href="/viral/text-to-tone"
+            className="ghost"
+            aria-label="Open TextToTone (Words → Notes)"
+          >
+            TextToTone (Text → Notes) →
+          </Link>
+          <Link
+            href="/viral/text-to-tone-chaos"
+            className="ghost"
+            aria-label="Open TextToTone-Chaos (2 octaves; A minor / A major)"
+          >
+            TextToTone: Chaos (2 octaves; A min / A Maj) →
+          </Link>
+        </div>
       </section>
     </main>
   );
