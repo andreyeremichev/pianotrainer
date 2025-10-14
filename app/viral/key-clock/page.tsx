@@ -672,7 +672,8 @@ if (step === segStart) {
     else { start(); }
   }, [normalized, start, hardStop]);
 
-  const onDownloadVideo = useCallback(async () => {
+// ===== Export (Download): SVG-exact trails/glow + pulsing-bubble confetti =====
+const onDownloadVideo = useCallback(async () => {
   setIsExporting(true);
   try {
     const svgEl = svgRef.current;
@@ -680,19 +681,19 @@ if (step === segStart) {
 
     await unlockCtx();
 
-    // ===== 1) Snapshot background (same as you already do) =====
+    // 1) Snapshot background (circle + labels only)
     const rect = svgEl.getBoundingClientRect();
     const liveW = Math.max(2, Math.floor(rect.width));
     const liveH = Math.max(2, Math.floor(rect.height));
     const clone = svgEl.cloneNode(true) as SVGSVGElement;
-    // Remove live overlays and particles for the background snapshot only
+    // remove live trails & particles
     clone.querySelectorAll("path").forEach(p => p.remove());
     const embersClone = clone.querySelector("#embers"); if (embersClone) embersClone.remove();
     const css = await buildEmbeddedFontStyle();
     const rawBg = serializeFullSvg(clone, liveW, liveH, css);
     const bgImg = await svgToImage(rawBg);
 
-    // ===== 2) Canvas + recorder =====
+    // 2) Canvas + recorder
     const FRAME_W = 1080, FRAME_H = 1920, FPS = 30, SCALE = 2;
     const canvas = document.createElement("canvas");
     canvas.width = FRAME_W * SCALE; canvas.height = FRAME_H * SCALE;
@@ -707,7 +708,7 @@ if (step === segStart) {
     const rec = new MediaRecorder(mixed, { mimeType });
     rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-    // ===== 3) Layout in the video (same as your current export) =====
+    // 3) Layout
     const SAFE_TOP = 160, SAFE_BOTTOM = 120, TOP_GAP = 10, SIDE_PAD = 48;
     const dateText = inputDisplay || "Type a date";
 
@@ -738,18 +739,16 @@ if (step === segStart) {
     const drawX = Math.round((FRAME_W - drawW) / 2);
     const drawY = goldTop;
 
-    // ===== 4) Build fixed plan: 2× Major + 2× Minor =====
-    const NOTE_MS_E = 250; // same as live
+    // 4) Schedule: 2× Major then 2× Minor (fresh string per pass)
+    const NOTE_MS_E = 250;
     const TOK_COUNT_E = Math.max(1, tokens.length);
-    const SEGMENTS_E: KeyName[] = ["BbMajor", "BbMajor", "Cminor", "Cminor"];
+    const SEGMENTS_E: KeyName[] = ["BbMajor","BbMajor","Cminor","Cminor"];
     const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
 
-    
-    // Schedule audio (and capture spokes for each step)
     const t0 = ac.currentTime + 0.25;
     let latestStopAt = t0;
 
-    type ExpPoint = { k: "maj" | "min"; step: number; spoke: number };
+    type ExpPoint = { k:"maj"|"min"; step:number; spoke:number };
     const exportPoints: ExpPoint[] = [];
 
     function scheduleNote(name: string, at: number, dur = 0.25) {
@@ -770,7 +769,8 @@ if (step === segStart) {
       const key: KeyName = SEGMENTS_E[segIdx] || "BbMajor";
       const kTag: "maj" | "min" = key === "BbMajor" ? "maj" : "min";
       const tok = tokens[i % TOK_COUNT_E];
-      if (tok.kind === "rest") continue;
+      if (!tok || tok.kind === "rest") continue;
+
       const at = t0 + i * (NOTE_MS_E / 1000);
 
       if (tok.kind === "deg") {
@@ -780,6 +780,7 @@ if (step === segStart) {
         exportPoints.push({ k: kTag, step: i, spoke: s });
       } else if (tok.kind === "chroma") {
         const pc = degreeToPcOffset(tok.c as any, key);
+        // snap nearby comfortable register
         let midi = 60; for (let mm = 48; mm <= 72; mm++) { if (mm % 12 === pc) { midi = mm; break; } }
         scheduleNote(midiToNoteName(midi), at);
         const s = DEGREE_ORDER.indexOf(tok.c as any);
@@ -796,189 +797,201 @@ if (step === segStart) {
       }
     }
 
-    // ===== 5) Pre-render per-step SVG overlays (glow = identical to live) =====
-    // Normalize geometry: build the same 0..100 viewBox (like live)
-    const TRAIL_WINDOW = 64; // shows last segments of trail; increase if you want longer tails
-    const useGlow = trailMode.startsWith("glow");
-    const hasConfetti = trailMode.includes("+confetti");
-
-    // Per-frame confetti simulation (export only, normalized 0..100 space)
-type CParticle = { x:number; y:number; vx:number; vy:number; life:number; size:number; color:string };
-const confettiFrame: CParticle[] = [];
-let lastSpawnStep = -1;
-
-// Spawn near nodes for each new step index
-function spawnConfettiForStep(stepIdx: number) {
-  if (!hasConfetti) return;
-  const pts = exportPoints.filter(p => p.step === stepIdx);
-  if (!pts.length) return;
-
-  for (const p of pts) {
-    const node = nodePosition(p.spoke, 36); // 0..100 coords
-    const base = Math.random() * Math.PI * 2;
-    const burst = 6;
-    for (let i = 0; i < burst; i++) {
-      const ang = base + (Math.random() * 0.9 - 0.45);
-      const spd = 1.1 + Math.random() * 1.2;
-      confettiFrame.push({
-        x: node.x,
-        y: node.y,
-        vx: Math.cos(ang) * spd * 1.15,
-        vy: Math.sin(ang) * spd * 1.15 - 0.12,
-        life: 1.0,
-        size: 0.9 + Math.random() * 0.5,
-        color: confColors[(Math.random() * confColors.length) | 0],
-      });
-    }
-  }
-}
-
-// Per-frame update & draw (dt in seconds)
-function updateAndDrawExportConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
-  if (!hasConfetti) return;
-
-  // Update physics
-  for (let i = confettiFrame.length - 1; i >= 0; i--) {
-    const p = confettiFrame[i];
-    p.x += p.vx * dtSec * 60;       // scale to ~60fps feel
-    p.y += p.vy * dtSec * 60;
-    p.vy += 0.03 * dtSec * 60;      // gravity
-    p.life -= 0.06 * dtSec * 60;    // faster fade → pulse-like
-    if (p.life <= 0) confettiFrame.splice(i, 1);
-  }
-
-  // Draw in normalized space → map to content rect
-  ctx.save();
-  ctx.translate(drawX * SCALE, drawY * SCALE);
-  ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
-  const prevComp = ctx.globalCompositeOperation;
-  ctx.globalCompositeOperation = "source-over";
-
-  for (const p of confettiFrame) {
-    const a = Math.max(0.28, Math.min(1, p.life));
-    const r = p.size * (0.85 + 0.30 * (1 - p.life)); // subtle pulse
-    ctx.globalAlpha = a;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = prevComp;
-  ctx.restore();
-}
-
-    type Particle = { x:number; y:number; vx:number; vy:number; life:number; size:number; color:string };
-    const confColors = [T.gold, T.minor, "#FFD36B"];
-    const particles: Particle[] = [];
-    let lastSpawn = -1;
-
-    // Helper: step → overlay SVG string
+    // 5) SVG overlay per step (glow exact) with proper freezing across 4 segments
     function overlaySvgForStep(stepIdx: number): string {
-      // Compute visible spokes up to this step
-      const majVis = exportPoints.filter(p => p.k === "maj" && p.step <= stepIdx).map(p => p.spoke).slice(-TRAIL_WINDOW);
-      const minVis = exportPoints.filter(p => p.k === "min" && p.step <= stepIdx).map(p => p.spoke).slice(-TRAIL_WINDOW);
+      const segIdx = Math.floor(stepIdx / TOK_COUNT_E); // 0..3
 
-        // Build paths in SVG path syntax from spokes
-  const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
-  const pathMin = minVis.length ? pathFromNodes(minVis) : "";
+      let majVis: number[] = [];
+      let minVis: number[] = [];
 
-  // Match live: thinner stroke under glow, thicker without glow
-  const strokeWidth = useGlow ? 1.15 : 1.4;
+      if (segIdx === 0) {
+        // Major pass 1: draw from 0..step
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step <= stepIdx).map(p => p.spoke);
+        minVis = [];
+      } else if (segIdx === 1) {
+        // Major pass 2: draw from TOK..step (fresh string)
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step >= TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
+        minVis = [];
+      } else if (segIdx === 2) {
+        // Minor pass 1: freeze final Major from pass 2 (TOK..2TOK-1), draw Minor from 2TOK..step
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step >= TOK_COUNT_E && p.step < 2*TOK_COUNT_E).map(p => p.spoke);
+        minVis = exportPoints.filter(p => p.k==="min" && p.step >= 2*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
+      } else {
+        // Minor pass 2: keep Major frozen (same as above), draw Minor from 3TOK..step (fresh string)
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step >= TOK_COUNT_E && p.step < 2*TOK_COUNT_E).map(p => p.spoke);
+        minVis = exportPoints.filter(p => p.k==="min" && p.step >= 3*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
+      }
 
-  // SVG glow filter block (same as live)
-  const filterBlock = `
-    <defs>
-      <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
-        <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
-        <feMerge>
-          <feMergeNode in="b2" />
-          <feMergeNode in="b1" />
-          <feMergeNode in="SourceGraphic" />
-        </feMerge>
-      </filter>
-    </defs>
-  `;
+      const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
+      const pathMin = minVis.length ? pathFromNodes(minVis) : "";
+
+      const strokeWidth = trailMode.startsWith("glow") ? 1.15 : 1.4;
+      const filterBlock = `
+        <defs>
+          <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
+            <feMerge>
+              <feMergeNode in="b2" />
+              <feMergeNode in="b1" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      `;
 
       return `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${liveW}" height="${liveH}" shape-rendering="geometricPrecision">
-          ${useGlow ? filterBlock : ""}
-          ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${useGlow ? `filter="url(#vt-glow)"` : ""} />` : ""}
-          ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${useGlow ? `filter="url(#vt-glow)"` : ""} />` : ""}
-          
+          ${trailMode.startsWith("glow") ? filterBlock : ""}
+          ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
+          ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
         </svg>
       `;
     }
 
-    // Pre-render overlay images for each step (so drawing during record is cheap)
     const overlays: HTMLImageElement[] = [];
     for (let i = 0; i < STEPS_E; i++) {
       const svgMarkup = overlaySvgForStep(i);
       const img = await svgToImage(svgMarkup);
       overlays.push(img);
     }
-    // — Canvas pulse head helpers (normalized 0..100 space) —
-function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
-function nodePt(spoke: number) {
-  const p = nodePosition(spoke, 36); // {x,y} in 0..100
-  return p;
-}
 
-// draw a short glowing head between two nodes (color = T.gold/T.minor)
-function drawPulseHead(ctx: CanvasRenderingContext2D, fromSpoke: number, toSpoke: number, frac: number, color: string) {
-  const a = nodePt(fromSpoke);
-  const b = nodePt(toSpoke);
-  const hx = lerp(a.x, b.x, Math.max(0, Math.min(1, frac)));
-  const hy = lerp(a.y, b.y, Math.max(0, Math.min(1, frac)));
+    // 6) Export confetti — pulsing “bubbles” (polar) like ToneDial export
+    type CParticle = { ox:number; oy:number; r:number; vr:number; ang:number; vang:number; life:number; size:number; color:string };
+    const confetti: CParticle[] = [];
+    const confColors = [T.gold, T.minor, "#FFD36B"];
+    let prevStep = -1;
 
-  ctx.save();
-  ctx.translate(drawX * SCALE, drawY * SCALE);
-  ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
+    function spawnConfettiForStep(stepIdx: number) {
+      const pts = exportPoints.filter(p => p.step === stepIdx);
+      if (!pts.length) return;
 
-  const prevComp = ctx.globalCompositeOperation;
-  const prevBlur = ctx.shadowBlur;
-  const prevCol  = ctx.shadowColor;
+      for (const p of pts) {
+        const node = nodePosition(p.spoke, 36); // 0..100
+        const base = Math.random() * Math.PI * 2;
 
-  // additive glow for head
-  ctx.globalCompositeOperation = "lighter";
-  ctx.shadowBlur  = 8 * SCALE;
-  ctx.shadowColor = color;
+        // main burst
+        const burst = 7;
+        for (let i = 0; i < burst; i++) {
+          const ang  = base + (Math.random() * 1.8 - 0.9);
+          const vang = (Math.random() * 0.10 - 0.05);
+          const r0   = 0.25 + Math.random() * 0.35;
+          const vr0  = 0.80 + Math.random() * 0.60;
+          confetti.push({
+            ox: node.x, oy: node.y,
+            r: r0, vr: vr0,
+            ang, vang,
+            life: 1.0,
+            size: 0.9 + Math.random() * 0.5,
+            color: confColors[(Math.random() * confColors.length) | 0],
+          });
+        }
+        // sparks
+        for (let s = 0; s < 2; s++) {
+          confetti.push({
+            ox: node.x, oy: node.y,
+            r: 0.15 + Math.random() * 0.25,
+            vr: 1.40 + Math.random() * 0.55,
+            ang: Math.random() * Math.PI * 2,
+            vang: (Math.random() * 0.12 - 0.06),
+            life: 0.80,
+            size: 1.0 + Math.random() * 0.5,
+            color: confColors[(Math.random() * confColors.length) | 0],
+          });
+        }
+        // linger seeds
+        for (let j = 0; j < 2; j++) {
+          confetti.push({
+            ox: node.x, oy: node.y,
+            r: 1.1 + (Math.random() * 0.2 - 0.1),
+            vr: -(0.06 + Math.random() * 0.08),
+            ang: Math.random() * Math.PI * 2,
+            vang: (Math.random() * 0.04 - 0.02),
+            life: 1.0,
+            size: 0.9 + Math.random() * 0.4,
+            color: confColors[(Math.random() * confColors.length) | 0],
+          });
+        }
+      }
+    }
 
-  // outer soft head
-  ctx.strokeStyle = color;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = 2.0; // normalized; scaled by ctx.scale above
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(hx, hy);
-  ctx.stroke();
+    function updateAndDrawConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
+      if (!trailMode.includes("+confetti")) return;
 
-  // bright core
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = 0.9;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(hx, hy);
-  ctx.stroke();
+      const DT = dtSec * 60;        // ~frames
+      // Launch vs Settle phases
+      const LAUNCH_WINDOW = 0.18;
+      const R0 = 1.15;
+      const R_MAX_LAUNCH = 5.0;
+      const R_MAX_SETTLE = 3.2;
+      const RADIAL_DAMP_L = 0.985;
+      const RADIAL_DAMP_S = 0.965;
+      const SPRING_L = 0.020;
+      const SPRING_S = 0.060;
+      const LIFE_DECAY = 0.018;
+      const ANG_DAMP = 0.995;
 
-  // restore
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = prevComp;
-  ctx.shadowBlur  = prevBlur;
-  ctx.shadowColor = prevCol;
-  ctx.restore();
-}
-    // Fixed total recording time from the discrete schedule (4 passes):
-const TOTAL_MS_FIXED = (STEPS_E * NOTE_MS_E) + 300; // + small tail
+      // update polar particles
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const p = confetti[i];
+        const age = 1 - p.life;
+        const isLaunch = age < LAUNCH_WINDOW;
 
-    // ===== 6) Start recording and draw frames =====
-    function drawFrame() {
-      // Background
+        const radialJitter = (Math.random() - 0.5) * 0.02 * DT;
+        const angJitter    = (Math.random() - 0.5) * 0.003 * DT;
+
+        const RADIAL_DAMP = isLaunch ? RADIAL_DAMP_L : RADIAL_DAMP_S;
+        const SPRING      = isLaunch ? SPRING_L      : SPRING_S;
+        const R_MAX       = isLaunch ? R_MAX_LAUNCH  : R_MAX_SETTLE;
+        const flightBoost = isLaunch ? (0.30 * DT)   : 0;
+
+        p.vr = p.vr * Math.pow(RADIAL_DAMP, DT)
+             - SPRING * (p.r - R0) * DT
+             + radialJitter + flightBoost;
+
+        p.r  += p.vr * DT;
+
+        if (p.r < 0)     { p.r = 0;     p.vr *= -0.6; }
+        if (p.r > R_MAX) { p.r = R_MAX; p.vr *= -0.6; }
+
+        p.ang  += (p.vang + angJitter) * DT;
+        p.vang *= Math.pow(ANG_DAMP, DT);
+
+        p.life -= LIFE_DECAY * DT;
+        if (p.life <= 0) { confetti.splice(i, 1); }
+      }
+
+      // draw (normalized → canvas)
+      ctx.save();
+      ctx.translate(drawX * SCALE, drawY * SCALE);
+      ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
+      const prevComp = ctx.globalCompositeOperation;
+      ctx.globalCompositeOperation = "source-over";
+
+      for (const p of confetti) {
+        const px = p.ox + p.r * Math.cos(p.ang);
+        const py = p.oy + p.r * Math.sin(p.ang);
+        const alpha = Math.max(0.35, Math.min(1, p.life));
+        const rPix  = p.size * (0.85 + 0.25 * (1 - p.life));
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(px, py, rPix, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = prevComp;
+      ctx.restore();
+    }
+
+    // 7) Recording loop (fixed time from schedule)
+    const TOTAL_MS_FIXED = (STEPS_E * NOTE_MS_E) + 300;
+
+    function drawFrameBase() {
+      // bg
       c.fillStyle = T.bg; c.fillRect(0, 0, canvas.width, canvas.height);
-      // Date text
+      // title line (date)
       c.save();
       c.font = `${datePx * SCALE}px Inter, system-ui, sans-serif`;
       c.textAlign = "center"; c.textBaseline = "middle";
@@ -988,74 +1001,43 @@ const TOTAL_MS_FIXED = (STEPS_E * NOTE_MS_E) + 300; // + small tail
       c.fillStyle = T.gold;
       c.fillText(dateText, (FRAME_W * SCALE)/2, dateBaselineY);
       c.restore();
-      // Gold panel border
+      // panel border
       c.save();
       c.strokeStyle = T.gold; c.lineWidth = 2 * SCALE;
       c.strokeRect((SIDE_PAD / 2) * SCALE, SAFE_TOP * SCALE, (FRAME_W - SIDE_PAD) * SCALE, (drawH + dateBlockH + TOP_GAP) * SCALE);
       c.restore();
-      // Base SVG snapshot
+      // base snapshot
       c.drawImage(bgImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
     }
 
     const recStart = performance.now();
     rec.start();
-    // Track step progress and frame timing for dynamic confetti
-let prevStep = -1;
-let lastFrameTs = 0;
+    let lastTs = 0;
 
     (function loop() {
-  const nowTs = performance.now();
-  const elapsed = nowTs - recStart;
-  const i = Math.min(STEPS_E - 1, Math.floor(elapsed / NOTE_MS_E));
-  // Sub-step progress within the current step (0..1)
-  const stepStartMs = Math.floor(elapsed / NOTE_MS_E) * NOTE_MS_E;
-  const subFrac = Math.max(0, Math.min(1, (elapsed - stepStartMs) / NOTE_MS_E));
+      const nowTs = performance.now();
+      const elapsed = nowTs - recStart;
+      const i = Math.min(STEPS_E - 1, Math.floor(elapsed / NOTE_MS_E));
+      const dtSec = lastTs ? (nowTs - lastTs) / 1000 : (1 / FPS);
+      lastTs = nowTs;
 
-  // Δ-time between frames (seconds)
-  const dtSec = lastFrameTs ? (nowTs - lastFrameTs) / 1000 : (1 / FPS);
-  lastFrameTs = nowTs;
+      drawFrameBase();
 
-      // Draw base frame
-      drawFrame();
-
-      // Draw overlay image for this step (paths + glow + confetti) scaled to the content rect
+      // trails/glow overlay (pre-rendered)
       const ov = overlays[i];
       if (ov) {
         c.drawImage(ov, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
       }
-      // === Pulse head like live: draw a short glowing segment toward the next node ===
-// Determine which key (maj/min) is active at this step and the last two spokes for that key
-const segIdx = Math.floor(i / TOK_COUNT_E);                  // 0..3
-const kNow: "maj"|"min" = (SEGMENTS_E[segIdx] === "BbMajor") ? "maj" : "min";
 
-// Get all spokes for this key up to current step
-const vis = exportPoints.filter(p => p.k === kNow && p.step <= i).map(p => p.spoke);
+      // confetti per frame (spawn on new steps, then update/draw)
+      if (i > prevStep) {
+        for (let s = prevStep + 1; s <= i; s++) spawnConfettiForStep(s);
+        prevStep = i;
+      }
+      updateAndDrawConfetti(c, dtSec);
 
-// Need at least two spokes to draw head from previous to current
-if (vis.length >= 2) {
-  const fromSpoke = vis[vis.length - 2];
-  const toSpoke   = vis[vis.length - 1];
-  const headColor = (kNow === "maj") ? T.gold : T.minor;
-  drawPulseHead(c, fromSpoke, toSpoke, subFrac, headColor);
-}
-
-      // === Dynamic confetti (per frame) ===
-if (hasConfetti) {
-  // spawn new confetti for any new step index
-  if (i > prevStep) {
-    for (let s = prevStep + 1; s <= i; s++) spawnConfettiForStep(s);
-    prevStep = i;
-  }
-  // update physics + draw on this frame
-  updateAndDrawExportConfetti(c, dtSec);
-}
-
-     // Stop when the step schedule ends (+ small tail), independent of AudioContext drift
-if (elapsed < TOTAL_MS_FIXED) {
-  requestAnimationFrame(loop);
-} else {
-  rec.stop();
-} 
+      if (elapsed < TOTAL_MS_FIXED) requestAnimationFrame(loop);
+      else rec.stop();
     })();
 
     const recorded: Blob = await new Promise((res) => {
@@ -1063,7 +1045,7 @@ if (elapsed < TOTAL_MS_FIXED) {
     });
     const outBlob = await convertToMp4Server(recorded);
 
-    const safe = (inputDisplay || "date").replace(/[^A-Za-z0-9\-_.]+/g, "-");
+    const safe = (dateText || "date").replace(/[^A-Za-z0-9\-_.]+/g, "-");
     const a = document.createElement("a");
     a.download = `${safe}.mp4`;
     a.href = URL.createObjectURL(outBlob);
@@ -1074,7 +1056,7 @@ if (elapsed < TOTAL_MS_FIXED) {
   } finally {
     setIsExporting(false);
   }
-}, [inputDisplay, bg, T, trailMode, tokens]);
+}, [inputDisplay, bg, T, trailMode, tokens]);  
 
   /* Render */
   const canPlay = normalized.trim().length > 0;
