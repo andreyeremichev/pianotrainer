@@ -270,6 +270,28 @@ export default function ToneDialPage() {
     const el = document.createElement("style"); el.textContent = css; document.head.appendChild(el);
     return () => { try { document.head.removeChild(el); } catch {} };
   }, []);
+  // Prefill from shared links: ?q=..., &trail=..., &bg=..., &zero=...
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  try {
+    const sp = new URLSearchParams(window.location.search);
+
+    // phrase
+    const q = sp.get("q");
+    if (q) setRaw(sanitizePhoneInput(q)); // rely on URLSearchParams decoding
+
+    // optional: restore UI state
+    const t = sp.get("trail");
+    if (t === "pulse" || t === "glow" || t === "lines" || t === "glow+confetti" || t === "lines+confetti") {
+      setTrailMode(t as TrailMode);
+    }
+    const b = sp.get("bg");
+    if (b === "dark" || b === "light") setBg(b as BgMode);
+
+    const z = sp.get("zero");
+    if (z === "chromatic" || z === "rest") setZeroPolicy(z as ZeroPolicy);
+  } catch {}
+}, []);
 
   /* State */
   const [bg, setBg] = useState<BgMode>("dark");
@@ -282,6 +304,17 @@ export default function ToneDialPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [showHelper, setShowHelper] = useState(true);
+  // Playback-time UI toggles
+const [showDegreesStrip, setShowDegreesStrip] = useState(true);     // hide during play, show otherwise
+const [activeTick, setActiveTick] = useState<string[] | null>(null); // current shortened tick line
+
+// Precomputed queue of shortened ticks aligned to playable notes
+const tickQueueRef = useRef<string[][]>([]);
+const tickIndexRef = useRef(0);
+const tickClearRef = useRef<number | null>(null); // for clearing short tick timeouts
+// Live Pulse-only: transient node pulse (centered dot “pop” on active node)
+const [hotPulse, setHotPulse] = useState<{ x:number; y:number; color:string } | null>(null);
+const hotPulseClearRef = useRef<number | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -329,7 +362,7 @@ const degreesStrip = useMemo(() => {
 
   // basic particles for live sparkles (node-local; gated by +confetti mode)
   function spawnParticles(pool: Ember[], max: number, svg: SVGSVGElement, x: number, y: number, palette: string[], count = 5) {
-    if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
+    if (!trailMode.includes("+confetti")) return;
     const g = svg.querySelector("#embers") as SVGGElement | null;
     if (!g) return;
     for (let k = 0; k < count; k++) {
@@ -348,7 +381,7 @@ const degreesStrip = useMemo(() => {
     }
   }
   function updateParticles(pool: Ember[]) {
-    if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
+    if (!trailMode.includes("+confetti")) return;
     for (let i = pool.length - 1; i >= 0; i--) {
       const e = pool[i];
       e.x += e.vx; e.y += e.vy; e.vy += 0.03; e.life -= 0.06;
@@ -462,7 +495,7 @@ function buildCaptionAndCurrentChain(
   // Controls
   if (lastChar === "+") return { caption, currentChain: ["+", "intro"] };
   if (lastChar === "#") return { caption, currentChain: ["#", "resolve"] };
-  if (lastChar === "*") return { caption, currentChain: ["*", "mode"] };
+  if (lastChar === "*") return { caption, currentChain: ["*", "rest"] };
   if (lastChar === "-") return { caption, currentChain: ["-", "rest"] };
 
   // Letters
@@ -570,14 +603,66 @@ function buildDegreesLineTokens(raw: string, tokens: Token[], zeroPolicy: ZeroPo
   }
   return out;
 }
+// Build a shortened tick queue aligned to playable tokens (deg/chroma), skipping rests/controls
+function buildShortTickQueue(raw: string, tokens: Token[], zeroPolicy: ZeroPolicy): string[][] {
+  const s = (raw || "").toUpperCase();
+  const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+  const queue: string[][] = [];
+
+  // Walk raw & playable in parallel: each letter/digit consumes next playable
+  let pi = 0;
+  const ordinal = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+
+    // skip rests/controls for ticks (hyphen and '*' treated as rest per your spec)
+    if (ch === "-" || ch === "*" || ch === "+" || ch === "#" || ch === " ") continue;
+
+    if (/[A-Z0-9]/.test(ch)) {
+      const t = playable[pi++];
+      if (!t) continue;
+
+      if (t.kind === "deg") {
+        const dnum = Number(t.d);
+        const lab = ordinal(dnum);
+        if (/[A-Z]/.test(ch)) {
+          // Letter: LETTER → T9-digit → (loop?) → DEG
+          const d = T9[ch]; // "2".."9"
+          if ((t as any).up) {
+            const loopLab = t.d === "1" ? "loop → 1st" : (t.d === "2" ? "loop → 2nd" : `loop → ${lab}`);
+            queue.push([ch, d, loopLab]);
+          } else {
+            queue.push([ch, d, lab]);
+          }
+        } else {
+          // Digit input
+          if (ch === "8") queue.push(["8", "loop → 1st"]);
+          else if (ch === "9") queue.push(["9", "loop → 2nd"]);
+          else if (/[1-7]/.test(ch)) queue.push([`→ ${lab}`]); // shortened: show only final degree
+          else queue.push([lab]); // fallback
+        }
+      } else if (t.kind === "chroma") {
+        const chroma = t.c; // "♭2" or "♯4"
+        if (/[A-Z]/.test(ch)) {
+          const d = T9[ch];
+          queue.push([ch, d, chroma]);
+        } else {
+          queue.push([ch, chroma]);
+        }
+      }
+    }
+  }
+  return queue;
+}
 
   /* =========================
      Live playback (2 passes per mode)
   ========================= */
   const NOTE_MS = 250; // base step
   const TOK_COUNT = Math.max(1, tokens.length);
-  const SEGMENTS: KeyName[] = ["BbMajor","Cminor"]; // one pass: Major → Minor
-const STEPS = TOK_COUNT * SEGMENTS.length;
+  const SEGMENTS: KeyName[] = ["BbMajor","Cminor","BbMajor","Cminor"]; // (Major→Minor) × 2
+  const STEPS = TOK_COUNT * SEGMENTS.length;
   const startCore = useCallback(async () => {
     if (isRunning) return;
     try { (document.activeElement as HTMLElement | null)?.blur(); } catch {}
@@ -586,8 +671,16 @@ const STEPS = TOK_COUNT * SEGMENTS.length;
     nodesMajRef.current = []; nodesMinRef.current = [];
     setOverlays([]);
     setIsRunning(true);
-    setShowHelper(false);             // hide helper during/after playback
-    if (!hasPlayed) setHasPlayed(true);
+setShowHelper(false);             // hide helper during/after playback
+setShowDegreesStrip(false);       // hide degrees strip during playback
+
+// Build the shortened tick queue for this run
+tickQueueRef.current = buildShortTickQueue(raw, tokens, zeroPolicy);
+tickIndexRef.current = 0;
+setActiveTick(null);
+if (tickClearRef.current) { clearTimeout(tickClearRef.current); tickClearRef.current = null; }
+
+if (!hasPlayed) setHasPlayed(true);
 
     const ac = getCtx();
     const t0 = ac.currentTime + 0.12;
@@ -607,6 +700,8 @@ const STEPS = TOK_COUNT * SEGMENTS.length;
       const segIdx = Math.floor(i / TOK_COUNT) % SEGMENTS.length;
       curMode = SEGMENTS[segIdx];
       const tok = tokens[i % TOK_COUNT];
+      // New segment → restart ticks so they repeat each pass
+
       const at = t0 + i * (NOTE_MS / 1000);
 
       // mode toggles and resolve are instantaneous musical marks
@@ -654,56 +749,108 @@ const STEPS = TOK_COUNT * SEGMENTS.length;
     }
 
     // RAF loop to draw a SINGLE clean string per pass
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const stepDurSec = NOTE_MS / 1000;
-    let lastDrawnStep = -1;
+if (rafRef.current) cancelAnimationFrame(rafRef.current);
+const stepDurSec = NOTE_MS / 1000;
+let lastDrawnStep = -1;
 
     function loopLive() {
-      const now = getCtx().currentTime;
-      const step = Math.floor((now - t0Ref.current) / stepDurSec);
+  const now = getCtx().currentTime;
+  const step = Math.floor((now - t0Ref.current) / stepDurSec);
 
-      if (step > lastDrawnStep) {
-        for (let s = lastDrawnStep + 1; s <= step; s++) {
-          if (s < 0 || s >= STEPS) continue;
+  if (step > lastDrawnStep) {
+    for (let s = lastDrawnStep + 1; s <= step; s++) {
+      if (s < 0 || s >= STEPS) continue;
 
-          const segIdx = Math.floor(s / TOK_COUNT) % SEGMENTS.length;
-          const nowKey: KeyName = SEGMENTS[segIdx];
-          const tok = tokens[s % TOK_COUNT];
+      const segIdx = Math.floor(s / TOK_COUNT) % SEGMENTS.length;
+      const nowKey: KeyName = SEGMENTS[segIdx];
+      const tok = tokens[s % TOK_COUNT];
 
-          if (!tok || tok.kind === "rest" || tok.kind === "intro" || tok.kind === "resolve" || tok.kind === "toggle") {
-            // no node for these; still update particles fade
-            updateParticles(emberPool);
-            continue;
-          }
-
-          // reset the correct deque at start of each segment so we draw a fresh string per pass
-          const segStart = Math.floor(s / TOK_COUNT) * TOK_COUNT;
-          if (s === segStart) {
-            if (nowKey === "BbMajor") nodesMajRef.current = [];
-            else nodesMinRef.current = [];
-          }
-
-          let spoke = -1;
-          if (tok.kind === "deg") spoke = degToIndexForKey(tok.d, nowKey);
-          else if (tok.kind === "chroma") spoke = DEGREE_ORDER.indexOf(tok.c as any);
-          if (spoke >= 0) {
-            appendTrail(spoke, nowKey);
-            // sparkle at the node (confetti mode only)
-            const svgEl = svgRef.current;
-            if (svgEl) {
-              const p = nodePosition(spoke, 36);
-              const palette = [T.gold, T.minor, "#FFD36B"];
-              spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
-            }
-          }
-          updateParticles(emberPool);
-        }
-        lastDrawnStep = step;
+      // Skip non-playables; still let particles fade
+      if (!tok || tok.kind === "rest" || tok.kind === "intro" || tok.kind === "resolve" || tok.kind === "toggle") {
+        updateParticles(emberPool);
+        continue;
       }
 
-      if (step < STEPS) rafRef.current = requestAnimationFrame(loopLive);
-      else setIsRunning(false);
+      // Start of a new segment → reset the deque AND restart ticks
+      const segStart = Math.floor(s / TOK_COUNT) * TOK_COUNT;
+      if (s === segStart) {
+        if (nowKey === "BbMajor") nodesMajRef.current = [];
+        else nodesMinRef.current = [];
+        tickIndexRef.current = 0; // ensure ticks repeat each pass
+      }
+
+      // Compute spoke for playable token
+let spoke = -1;
+if (tok.kind === "deg") {
+  spoke = degToIndexForKey(tok.d, nowKey);
+} else if (tok.kind === "chroma") {
+  spoke = DEGREE_ORDER.indexOf(tok.c as any);
+}
+
+if (spoke >= 0) {
+  // Trails still update; Pulse mode simply doesn't render path strokes
+  appendTrail(spoke, nowKey);
+
+  const p = nodePosition(spoke, 36);
+
+  // ── Pulse-only: dot pulse (no confetti) ──
+  if (trailMode === "pulse") {
+    const color = nowKey === "BbMajor" ? T.gold : T.minor;
+    setHotPulse({ x: p.x, y: p.y, color });
+    if (hotPulseClearRef.current) clearTimeout(hotPulseClearRef.current);
+    hotPulseClearRef.current = window.setTimeout(() => {
+      setHotPulse(null);
+      hotPulseClearRef.current = null;
+    }, 220);
+  } else {
+    // non-Pulse modes: confetti only if +confetti
+    const svgEl = svgRef.current;
+    if (svgEl && trailMode.includes("+confetti")) {
+      const palette = [T.gold, T.minor, "#FFD36B"];
+      spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
     }
+  }
+
+  // ── Pulse-only educational tick (shortened chain) ──
+  if (trailMode === "pulse") {
+    const idx = tickIndexRef.current++;
+    const tick = tickQueueRef.current[idx];
+    if (tick && tick.length) {
+      setActiveTick(tick);
+      if (tickClearRef.current) clearTimeout(tickClearRef.current);
+      const TICK_MS = Math.max(180, Math.min(NOTE_MS - 40, 220));
+      tickClearRef.current = window.setTimeout(() => {
+        setActiveTick(null);
+        tickClearRef.current = null;
+      }, TICK_MS);
+    }
+  }
+}
+
+// Live particle fading (no-op in Pulse-only since confetti is disabled)
+updateParticles(emberPool);
+
+      // Advance live particle animation
+      updateParticles(emberPool);
+    }
+
+    lastDrawnStep = step;
+  }
+
+  // Continue or finish
+  if (step < STEPS) {
+    rafRef.current = requestAnimationFrame(loopLive);
+  } else {
+    // playback finished — clean up tick + restore degrees strip
+    setIsRunning(false);
+    setActiveTick(null);
+    if (tickClearRef.current) {
+      clearTimeout(tickClearRef.current);
+      tickClearRef.current = null;
+    }
+    setShowDegreesStrip(true); // bring back degrees strip after playback
+  }
+}
     rafRef.current = requestAnimationFrame(loopLive);
   }, [isRunning, hasPlayed, tokens, NOTE_MS, SEGMENTS, TOK_COUNT, T.gold, T.minor]);
 
@@ -736,13 +883,13 @@ const STEPS = TOK_COUNT * SEGMENTS.length;
   params.set("bg", bg);
   params.set("trail", trailMode);
   params.set("zero", zeroPolicy);
-  params.set("q", encodeURIComponent(raw || ""));
+  params.set("q", raw || "");
   const url = new URL(window.location.href);
   url.search = params.toString();
   return url.toString();
 }, [bg, trailMode, zeroPolicy, raw]);
 
-  // ===== Export (Download): SVG-exact trails/glow + dynamic confetti =====
+// ===== Export (Download): Pulse bubbles + centered ticks (Pulse), or overlays (others) =====
 const onDownloadVideo = useCallback(async () => {
   setIsExporting(true);
   try {
@@ -756,7 +903,7 @@ const onDownloadVideo = useCallback(async () => {
     const liveW = Math.max(2, Math.floor(rect.width));
     const liveH = Math.max(2, Math.floor(rect.height));
     const clone = svgEl.cloneNode(true) as SVGSVGElement;
-    // remove live paths and particles
+    // remove live path overlays + particles
     clone.querySelectorAll("path").forEach(p => p.remove());
     const embersClone = clone.querySelector("#embers"); if (embersClone) embersClone.remove();
     const css = await buildEmbeddedFontStyle();
@@ -809,24 +956,16 @@ const onDownloadVideo = useCallback(async () => {
     const drawX = Math.round((FRAME_W - drawW) / 2);
     const drawY = goldTop;
 
-    // 4) Build schedule (same as live): Maj → Min → Maj → Min
+    // 4) Schedule: (Major → Minor) × 2
     const NOTE_MS_E = 250;
     const TOK_COUNT_E = Math.max(1, tokens.length);
-    const SEGMENTS_E: KeyName[] = ["BbMajor","Cminor"]; // one pass: Major → Minor
-const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
+    const SEGMENTS_E: KeyName[] = ["BbMajor","Cminor","BbMajor","Cminor"];
+    const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
 
-    // Audio schedule + exportPoints (spokes)
+    // Audio schedule + points
     const t0 = ac.currentTime + 0.25;
-    let latestStopAt = t0;
     type ExpPoint = { k: "maj" | "min"; step: number; spoke: number };
     const exportPoints: ExpPoint[] = [];
-
-    // helpers (intro/resolve)
-    const scheduleIntroChordE = (at: number, key: KeyName) => scheduleIntroChord(ac, at, key);
-    const scheduleResolveCadenceE = (at: number, key: KeyName) => scheduleResolveCadence(ac, at, key);
-
-    // '+' at start → intro chord in the first segment’s mode
-    if (tokens[0]?.kind === "intro") { scheduleIntroChordE(t0, SEGMENTS_E[0]); }
 
     function scheduleNote(name: string, at: number, dur = 0.25) {
       loadBuffer(name).then(buf => {
@@ -838,7 +977,6 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
         src.connect(g); g.connect(exportDst); g.connect(ac.destination);
         try { src.start(at); src.stop(at + dur); } catch {}
       }).catch(()=>{});
-      latestStopAt = Math.max(latestStopAt, at + dur);
     }
 
     let modeToggled = false;
@@ -853,8 +991,8 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
       const at = t0 + i * (NOTE_MS_E / 1000);
 
       if (tok?.kind === "toggle") { modeToggled = !modeToggled; continue; }
-      if (tok?.kind === "resolve") { scheduleResolveCadenceE(at, keyNow); continue; }
       if (tok?.kind === "intro" || tok?.kind === "rest") continue;
+      if (tok?.kind === "resolve") { continue; } // (optional) schedule V→I here
 
       let midi: number | null = null;
       if (tok.kind === "deg") midi = degreeToMidi(tok.d, keyNow, tok.up);
@@ -864,254 +1002,196 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
       }
       if (midi != null) {
         scheduleNote(midiToNoteName(midi), at);
-        // export point (spoke)
-        const spoke = tok.kind === "deg"
-          ? degToIndexForKey(tok.d, keyNow)
-          : DEGREE_ORDER.indexOf(tok.c as any);
+        const spoke = tok.kind === "deg" ? degToIndexForKey(tok.d, keyNow) : DEGREE_ORDER.indexOf(tok.c as any);
         if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
       }
     }
 
-    // 5) Pre-render per-step SVG overlays (glow exact)
-    const TRAIL_WINDOW = 9999; // full string within pass
-    const useGlow = true; // export always matches live glow when selected
+    // 4a) Ticks (export)
+    const playableStepFlags = new Array(STEPS_E).fill(false);
+    for (const p of exportPoints) playableStepFlags[p.step] = true;
+
+    const tickQueueBase = buildShortTickQueue(raw, tokens, zeroPolicy);
+    let tickIdx = 0;
+    function getTickForStep(stepIdx: number): string[] | null {
+      if (stepIdx % TOK_COUNT_E === 0) tickIdx = 0; // restart each pass
+      return tickQueueBase[tickIdx++] || null;
+    }
+    let currentTick: string[] | null = null;
+    let tickUntil = 0;
+    const TICK_MS = Math.max(NOTE_MS_E - 16, 180);
+
+    // 5) Overlays (only for non-Pulse modes)
     function overlaySvgForStep(stepIdx: number): string {
-  const segIdx = Math.floor(stepIdx / TOK_COUNT_E) % SEGMENTS_E.length;
+      const segIdx = Math.floor(stepIdx / TOK_COUNT_E) % SEGMENTS_E.length;
 
-  let majVis: number[] = [];
-  let minVis: number[] = [];
+      let majVis: number[] = [];
+      let minVis: number[] = [];
 
-  if (segIdx === 0) {
-    // MAJOR pass: draw Major up to current step; no Minor yet
-    majVis = exportPoints
-      .filter(p => p.k === "maj" && p.step <= stepIdx)
-      .map(p => p.spoke);
-    minVis = [];
-  } else {
-    // MINOR pass: keep Major FROZEN from its full pass (0..TOK_COUNT_E-1)
-    majVis = exportPoints
-      .filter(p => p.k === "maj" && p.step < TOK_COUNT_E)
-      .map(p => p.spoke);
-    // Draw Minor from start of its pass (TOK_COUNT_E) up to current step
-    minVis = exportPoints
-      .filter(p => p.k === "min" && p.step >= TOK_COUNT_E && p.step <= stepIdx)
-      .map(p => p.spoke);
-  }
+      if (segIdx === 0) {
+        // Major pass 1
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step <= stepIdx).map(p => p.spoke);
+        minVis = [];
+      } else if (segIdx === 1) {
+        // Minor pass 1
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step < TOK_COUNT_E).map(p => p.spoke);
+        minVis = exportPoints.filter(p => p.k==="min" && p.step >= TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
+      } else if (segIdx === 2) {
+        // Major pass 2
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step >= 2*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
+        minVis = [];
+      } else {
+        // Minor pass 2
+        majVis = exportPoints.filter(p => p.k==="maj" && p.step >= 2*TOK_COUNT_E && p.step < 3*TOK_COUNT_E).map(p => p.spoke);
+        minVis = exportPoints.filter(p => p.k==="min" && p.step >= 3*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
+      }
 
-  const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
-  const pathMin = minVis.length ? pathFromNodes(minVis) : "";
+      const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
+      const pathMin = minVis.length ? pathFromNodes(minVis) : "";
 
-  const strokeWidth = trailMode.startsWith("glow") ? 1.15 : 1.4;
-  const filterBlock = `
-    <defs>
-      <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
-        <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
-        <feMerge>
-          <feMergeNode in="b2" />
-          <feMergeNode in="b1" />
-          <feMergeNode in="SourceGraphic" />
-        </feMerge>
-      </filter>
-    </defs>
-  `;
+      const strokeWidth = trailMode.startsWith("glow") ? 1.15 : 1.4;
+      const filterBlock = `
+        <defs>
+          <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
+            <feMerge>
+              <feMergeNode in="b2" />
+              <feMergeNode in="b1" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      `;
 
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${liveW}" height="${liveH}" shape-rendering="geometricPrecision">
-      ${trailMode.startsWith("glow") ? filterBlock : ""}
-      ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
-      ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
-    </svg>
-  `;
-}
-
-    const overlays: HTMLImageElement[] = [];
-    for (let i = 0; i < STEPS_E; i++) {
-      const svgMarkup = overlaySvgForStep(i);
-      const img = await svgToImage(svgMarkup);
-      overlays.push(img);
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${liveW}" height="${liveH}" shape-rendering="geometricPrecision">
+          ${trailMode.startsWith("glow") ? filterBlock : ""}
+          ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
+          ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
+        </svg>
+      `;
     }
 
-    // Per-frame confetti (dynamic)
-    type CParticle = {
-  // origin (node position) in 0..100 normalized SVG space
-  ox: number; oy: number;
-  // polar around origin
-  r: number;    // radial distance
-  vr: number;   // radial velocity
-  ang: number;  // angle (radians)
-  vang: number; // angular velocity (radians per frame @ ~60fps)
-  // visuals
-  life: number; size: number; color: string;
-};
+    // 5a) Pre-render overlay images for download (avoid name clash with live `overlays` state)
+    const overlayImgs: HTMLImageElement[] = [];
+    if (trailMode !== "pulse") {
+      for (let k = 0; k < STEPS_E; k++) {
+        const svgMarkup = overlaySvgForStep(k);
+        const img = await svgToImage(svgMarkup);
+        overlayImgs.push(img);
+      }
+    }
+
+    // 6) Bubble pulses (export) — polar model (used for Pulse mode and +confetti)
+    type CParticle = { ox:number; oy:number; r:number; vr:number; ang:number; vang:number; life:number; size:number; color:string };
     const confetti: CParticle[] = [];
     const confColors = [T.gold, T.minor, "#FFD36B"];
-    let lastSpawn = -1;
 
-   function spawnConfettiForStep(stepIdx: number) {
-  // allow pulses in Pulse-only mode and in +Confetti modes
-  if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
+    function spawnConfettiForStep(stepIdx: number) {
+      if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
+      const pts = exportPoints.filter(p => p.step === stepIdx);
+      if (!pts.length) return;
 
-  const pts = exportPoints.filter(p => p.step === stepIdx);
-  if (!pts.length) return;
+      for (const p of pts) {
+        const node = nodePosition(p.spoke, 36);
+        const base = Math.random() * Math.PI * 2;
 
-  for (const p of pts) {
-    const node = nodePosition(p.spoke, 36); // 0..100 space
-    const base = Math.random() * Math.PI * 2;
+        const burst = 7;
+        for (let i = 0; i < burst; i++) {
+          const ang  = base + (Math.random() * 1.8 - 0.9);
+          const vang = (Math.random() * 0.10 - 0.05);
+          const r0   = 0.25 + Math.random() * 0.35;
+          const vr0  = 0.80 + Math.random() * 0.60;
 
-    // Main burst (visible outward puff, decent spread)
-    const burst = 7;
-    for (let i = 0; i < burst; i++) {
-      const ang  = base + (Math.random() * 1.8 - 0.9);   // wider fan
-      const vang = (Math.random() * 0.10 - 0.05);        // moderate spin
-      const r0   = 0.25 + Math.random() * 0.35;          // close to node
-      const vr0  = 0.80 + Math.random() * 0.60;          // strong outward puff
-
-      confetti.push({
-        ox: node.x, oy: node.y,
-        r: r0, vr: vr0,
-        ang, vang,
-        life: 1.0,
-        size: 0.9 + Math.random() * 0.5,
-        color: confColors[(Math.random() * confColors.length) | 0],
-      });
+          confetti.push({ ox: node.x, oy: node.y, r: r0, vr: vr0, ang, vang, life: 1.0,
+            size: 0.9 + Math.random() * 0.5, color: confColors[(Math.random() * confColors.length) | 0] });
+        }
+        for (let s = 0; s < 2; s++) {
+          confetti.push({ ox: node.x, oy: node.y, r: 0.15 + Math.random() * 0.25, vr: 1.40 + Math.random() * 0.55,
+            ang: Math.random() * Math.PI * 2, vang: (Math.random() * 0.12 - 0.06),
+            life: 0.80, size: 1.0 + Math.random() * 0.5, color: confColors[(Math.random() * 0.5) | 0] });
+        }
+      }
     }
 
-    // Short sparks (extra kick; fade quicker)
-    for (let s = 0; s < 2; s++) {
-      confetti.push({
-        ox: node.x, oy: node.y,
-        r: 0.15 + Math.random() * 0.25,
-        vr: 1.40 + Math.random() * 0.55,               // very visible impulse
-        ang: Math.random() * Math.PI * 2,
-        vang: (Math.random() * 0.12 - 0.06),
-        life: 0.80,                                     // shorter-lived spark
-        size: 1.0 + Math.random() * 0.5,
-        color: confColors[(Math.random() * confColors.length) | 0],
-      });
+    function updateAndDrawConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
+      if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
+
+      const DT = dtSec * 60;
+      const LAUNCH_WINDOW = 0.18;
+      const R0 = 1.15, R_MAX_LAUNCH = 5.0, R_MAX_SETTLE = 3.2;
+      const RADIAL_DAMP_L = 0.985, RADIAL_DAMP_S = 0.965;
+      const SPRING_L = 0.020, SPRING_S = 0.060;
+      const LIFE_DECAY = 0.018, ANG_DAMP = 0.995;
+
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const p = confetti[i];
+        const age = 1 - p.life;
+        const isLaunch = age < LAUNCH_WINDOW;
+
+        const radialJitter = (Math.random() - 0.5) * 0.02 * DT;
+        const angJitter    = (Math.random() - 0.5) * 0.003 * DT;
+
+        const RADIAL_DAMP = isLaunch ? RADIAL_DAMP_L : RADIAL_DAMP_S;
+        const SPRING      = isLaunch ? SPRING_L      : SPRING_S;
+        const R_MAX       = isLaunch ? R_MAX_LAUNCH  : R_MAX_SETTLE;
+
+        const flightBoost = isLaunch ? (0.30 * DT) : 0;
+
+        p.vr = p.vr * Math.pow(RADIAL_DAMP, DT)
+             - SPRING * (p.r - R0) * DT
+             + radialJitter + flightBoost;
+        p.r  += p.vr * DT;
+
+        if (p.r < 0)     { p.r = 0;     p.vr *= -0.6; }
+        if (p.r > R_MAX) { p.r = R_MAX; p.vr *= -0.6; }
+
+        p.ang  += (p.vang + angJitter) * DT;
+        p.vang *= Math.pow(ANG_DAMP, DT);
+
+        p.life -= LIFE_DECAY * DT;
+        if (p.life <= 0) { confetti.splice(i, 1); }
+      }
+
+      // Draw pulses relative to content rect
+      ctx.save();
+      ctx.translate(drawX * SCALE, drawY * SCALE);
+      ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
+      const prevComp = ctx.globalCompositeOperation;
+      ctx.globalCompositeOperation = "source-over";
+      for (const p of confetti) {
+        const px = p.ox + p.r * Math.cos(p.ang);
+        const py = p.oy + p.r * Math.sin(p.ang);
+        const alpha = Math.max(0.35, Math.min(1, p.life));
+        const rPix  = p.size * (0.85 + 0.25 * (1 - p.life));
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(px, py, rPix, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = prevComp;
+      ctx.restore();
     }
 
-    // Linger seeds (keep node alive after burst)
-    for (let j = 0; j < 2; j++) {
-      confetti.push({
-        ox: node.x, oy: node.y,
-        r: 1.1 + (Math.random() * 0.2 - 0.1),          // near preferred ring
-        vr: -(0.06 + Math.random() * 0.08),            // slight inward pull
-        ang: Math.random() * Math.PI * 2,
-        vang: (Math.random() * 0.04 - 0.02),           // gentle spin
-        life: 1.0,
-        size: 0.9 + Math.random() * 0.4,
-        color: confColors[(Math.random() * confColors.length) | 0],
-      });
-    }
-  }
-}
-function updateAndDrawConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
-  if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return; 
-
-  // ---------- Phase tuning & constants (export-only) ----------
-  const DT = dtSec * 60;        // normalize to ~frames
-  // Launch phase gives a visible outward puff, then particles settle & pulse.
-  const LAUNCH_WINDOW = 0.18;   // first ~18% of life (~180ms @60fps)
-
-  const R0            = 1.15;   // preferred ring radius around node (normalized units)
-  const R_MAX_LAUNCH  = 5.0;    // allow farther flight during launch
-  const R_MAX_SETTLE  = 3.2;    // tighter radius once settled
-
-  const RADIAL_DAMP_L = 0.985;  // lighter damping in launch → more flight
-  const RADIAL_DAMP_S = 0.965;  // normal damping in settle
-  const SPRING_L      = 0.020;  // very soft spring in launch
-  const SPRING_S      = 0.060;  // stronger spring in settle → pull to ring
-
-  const LIFE_DECAY    = 0.018;  // slower fade → linger
-  const ANG_DAMP      = 0.995;  // keep spin longer
-
-  // ---------- Update (polar around origin) ----------
-  for (let i = confetti.length - 1; i >= 0; i--) {
-    const p = confetti[i]; // {ox,oy,r,vr,ang,vang,life,size,color}
-
-    // phase by age
-    const age = 1 - p.life;
-    const isLaunch = age < LAUNCH_WINDOW;
-
-    // small noise so nothing gets “stuck”
-    const radialJitter = (Math.random() - 0.5) * 0.02 * DT;
-    const angJitter    = (Math.random() - 0.5) * 0.003 * DT;
-
-    // phase-specific params
-    const RADIAL_DAMP = isLaunch ? RADIAL_DAMP_L : RADIAL_DAMP_S;
-    const SPRING      = isLaunch ? SPRING_L      : SPRING_S;
-    const R_MAX       = isLaunch ? R_MAX_LAUNCH  : R_MAX_SETTLE;
-
-    // extra outward kick early to guarantee a visible burst
-    const flightBoost = isLaunch ? (0.30 * DT) : 0;
-
-    // radial motion: damping + spring toward R0 + jitter + initial kick
-    p.vr = p.vr * Math.pow(RADIAL_DAMP, DT)
-         - SPRING * (p.r - R0) * DT
-         + radialJitter
-         + flightBoost;
-
-    p.r  += p.vr * DT;
-
-    // bounds with soft bounce
-    if (p.r < 0)       { p.r = 0;        p.vr *= -0.6; }
-    if (p.r > R_MAX)   { p.r = R_MAX;    p.vr *= -0.6; }
-
-    // angular drift (slight damping + jitter)
-    p.ang  += (p.vang + angJitter) * DT;
-    p.vang *= Math.pow(ANG_DAMP, DT);
-
-    // lifetime (linger)
-    p.life -= LIFE_DECAY * DT;
-    if (p.life <= 0) { confetti.splice(i, 1); }
-  }
-
-  // ---------- Draw (convert polar → cartesian in normalized 0..100 space) ----------
-  ctx.save();
-  ctx.translate(drawX * SCALE, drawY * SCALE);
-  ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
-
-  const prevComp = ctx.globalCompositeOperation;
-  ctx.globalCompositeOperation = "source-over";
-
-  for (const p of confetti) {
-    const px = p.ox + p.r * Math.cos(p.ang);
-    const py = p.oy + p.r * Math.sin(p.ang);
-
-    const alpha = Math.max(0.35, Math.min(1, p.life));           // visibility floor
-    const rPix  = p.size * (0.85 + 0.25 * (1 - p.life));         // subtle pulse
-
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(px, py, rPix, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = prevComp;
-  ctx.restore();
-}
-
-  
-    // 6) Recording loop
-    // Fixed total time = discrete schedule + small tail
-    const TOTAL_MS_FIXED = (STEPS_E * NOTE_MS_E) + 300;
-
+    // 6a) Draw helpers
     function drawFrameBase() {
       // bg
       c.fillStyle = (bg === "dark" ? themeDark.bg : themeLight.bg);
       c.fillRect(0, 0, canvas.width, canvas.height);
-      // title line (number)
+      // input line (smaller, slightly higher)
       c.save();
-      c.font = `${datePx * SCALE}px Inter, system-ui, sans-serif`;
+      const inputFontScale = 0.75;
+      c.font = `${datePx * inputFontScale * SCALE}px Inter, system-ui, sans-serif`;
       c.textAlign = "center"; c.textBaseline = "middle";
       c.lineWidth = Math.max(2, Math.floor(datePx * 0.12)) * SCALE;
       c.strokeStyle = bg === "dark" ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.12)";
-      c.strokeText(dateText, (FRAME_W * SCALE)/2, dateBaselineY);
+      const inputY = dateBaselineY - (20 * SCALE);
+      c.strokeText(dateText, (FRAME_W * SCALE)/2, inputY);
       c.fillStyle = (bg === "dark" ? themeDark.gold : themeLight.gold);
-      c.fillText(dateText, (FRAME_W * SCALE)/2, dateBaselineY);
+      c.fillText(dateText, (FRAME_W * SCALE)/2, inputY);
       c.restore();
       // panel border
       c.save();
@@ -1119,10 +1199,37 @@ function updateAndDrawConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
       c.lineWidth = 2 * SCALE;
       c.strokeRect((SIDE_PAD / 2) * SCALE, SAFE_TOP * SCALE, (FRAME_W - SIDE_PAD) * SCALE, (drawH + dateBlockH + TOP_GAP) * SCALE);
       c.restore();
-      // base snapshot
+      // base circle/labels snapshot
       c.drawImage(bgImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
     }
 
+    // centered tick text inside the circle
+    function drawTickOverlay(tick: string[]) {
+      const text = tick.join(" \u2192 ");
+      const centerX = (drawX + drawW / 2) * SCALE;
+      const centerY = (drawY + drawH / 2) * SCALE;
+      const MAX_W = drawW * 0.90 * SCALE;
+      let fontPx = 68;
+      c.save();
+      c.textAlign = "center"; c.textBaseline = "middle";
+      c.font = `${fontPx * SCALE}px Inter, system-ui, sans-serif`;
+      let w = c.measureText(text).width;
+      if (w > MAX_W) {
+        const ratio = MAX_W / Math.max(w, 1);
+        fontPx = Math.max(18, Math.floor(fontPx * ratio));
+        c.font = `${fontPx * SCALE}px Inter, system-ui, sans-serif`;
+      }
+      const strokeW = Math.max(2, Math.round(fontPx * 0.18)) * SCALE;
+      c.lineWidth = strokeW;
+      c.strokeStyle = "rgba(0,0,0,0.35)";
+      c.strokeText(text, centerX, centerY);
+      c.fillStyle = T.text;
+      c.fillText(text, centerX, centerY);
+      c.restore();
+    }
+
+    // 7) Recording loop
+    const TOTAL_MS_FIXED = (STEPS_E * NOTE_MS_E) + 300;
     const recStart = performance.now();
     rec.start();
     let lastTs = 0;
@@ -1135,21 +1242,35 @@ function updateAndDrawConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
       const dtSec = lastTs ? (nowTs - lastTs) / 1000 : (1 / FPS);
       lastTs = nowTs;
 
-      // base
       drawFrameBase();
-      // overlay trails (glow/lines) pre-rendered for this step
-      const ov = overlays[i];
-if (trailMode !== "pulse" && ov) {
-  c.drawImage(ov, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
-}
-      // confetti per frame (spawn for new steps, then update/draw)
-      if (trailMode === "pulse" || trailMode.includes("+confetti")) {
 
+      // overlays only for non-Pulse modes
+      const ovImg = overlayImgs[i];
+      if (trailMode !== "pulse" && ovImg) {
+        c.drawImage(ovImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
+      }
+
+      // Pulse-only: trigger a tick on each new playable step (we'll draw it later, on top)
+      if (trailMode === "pulse") {
+        if (i > prevStep && playableStepFlags[i]) {
+          currentTick = getTickForStep(i);
+          tickUntil = nowTs + TICK_MS;
+        }
+      }
+
+      // pulses (+confetti modes reuse same engine)
+      if (trailMode === "pulse" || trailMode.includes("+confetti")) {
         if (i > prevStep) {
           for (let s = prevStep + 1; s <= i; s++) spawnConfettiForStep(s);
           prevStep = i;
         }
         updateAndDrawConfetti(c, dtSec);
+      }
+
+      // draw tick last (on top)
+      if (trailMode === "pulse") {
+        if (currentTick && nowTs < tickUntil) drawTickOverlay(currentTick);
+        else currentTick = null;
       }
 
       if (elapsed < TOTAL_MS_FIXED) requestAnimationFrame(loop);
@@ -1159,6 +1280,9 @@ if (trailMode !== "pulse" && ov) {
     const recorded: Blob = await new Promise((res) => {
       rec.onstop = () => res(new Blob(chunks, { type: mimeType || "video/webm" }));
     });
+
+    
+    // const outBlob = await convertToMp4Server(recorded);
     const outBlob = await convertToMp4Server(recorded);
 
     const safe = (raw || "number").replace(/[^A-Za-z0-9\-_.]+/g, "-");
@@ -1172,7 +1296,7 @@ if (trailMode !== "pulse" && ov) {
   } finally {
     setIsExporting(false);
   }
-}, [raw, bg, trailMode, zeroPolicy, tokens, T.gold, T.minor]);
+}, [raw, bg, trailMode, zeroPolicy, tokens, T.gold, T.minor]); 
 
   /* =========================
      Render (header + input + circle + actions)
@@ -1253,9 +1377,39 @@ if (trailMode !== "pulse" && ov) {
     ) : null}
   </div>
 )}
+{/* Shortened transform tick (hide in Pulse-only mode) */}
+{trailMode !== "pulse" && (
+  <div
+    className="tick-line"
+    style={{
+      height: 18,
+      marginTop: 6,
+      overflow: "hidden",
+      textAlign: "center",
+      opacity: isRunning && activeTick && activeTick.length ? 0.95 : 0,
+      transition: "opacity 120ms ease",
+      pointerEvents: "none",
+      whiteSpace: "nowrap",
+    }}
+  >
+    {activeTick && activeTick.length ? (
+      <span style={{ fontSize: 12, color: T.text }}>
+        {activeTick.map((step, i) => (
+          <React.Fragment key={i}>
+            <span>{step}</span>
+            {i < activeTick.length - 1 ? (
+              <span style={{ opacity: 0.6 }}> → </span>
+            ) : null}
+          </React.Fragment>
+        ))}
+      </span>
+    ) : null}
+  </div>
+)}
 
 {/* Degrees strip (one line, mimics input; plain text, no glow) */}
-        <div
+        {showDegreesStrip && (
+          <div
   className="degrees-strip"
   aria-label="Degrees"
   style={{
@@ -1280,6 +1434,7 @@ if (trailMode !== "pulse" && ov) {
       : "Degrees will appear here…"}
   </span>
 </div> 
+)}
 
           {/* Circle */}
           <div className="minw0" style={{ display:"grid", justifyContent:"center", paddingInline: 2 }}>
@@ -1333,6 +1488,49 @@ if (trailMode !== "pulse" && ov) {
                 />
               ))}
               <g id="embers" />
+              {/* Live Pulse-only overlay: centered ticks + node pulse */}
+{trailMode === "pulse" && (
+  <>
+    {/* centered ticks (live) */}
+    {isRunning && activeTick && activeTick.length > 0 && (
+      <text
+        x="50"
+        y="50"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize="6.8"          // tweak 6.5–8 as needed
+        fill={T.text}
+        style={{ userSelect: "none", pointerEvents: "none" }}
+      >
+        {activeTick.join(" \u2192 ")}
+      </text>
+    )}
+
+    {/* dot pulse on the active node (brief pop) */}
+    {hotPulse && (
+      <>
+        {/* bright dot */}
+        <circle
+          cx={hotPulse.x}
+          cy={hotPulse.y}
+          r="2.2"
+          fill={hotPulse.color}
+          opacity="0.95"
+        />
+        {/* soft ring */}
+        <circle
+          cx={hotPulse.x}
+          cy={hotPulse.y}
+          r="4.4"
+          fill="none"
+          stroke={hotPulse.color}
+          strokeWidth="0.6"
+          opacity="0.45"
+        />
+      </>
+    )}
+  </>
+)}
             </svg>
           </div>
                     {/* Actions (Play/Replay + Download + Share) */}
