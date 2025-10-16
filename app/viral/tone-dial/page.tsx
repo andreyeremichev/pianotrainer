@@ -242,7 +242,7 @@ function pickRecorderMime(): string {
 /* =========================
    Component
 ========================= */
-type TrailMode = "glow" | "lines" | "glow+confetti" | "lines+confetti";
+type TrailMode = "pulse" | "glow" | "lines" | "glow+confetti" | "lines+confetti";
 
 export default function ToneDialPage() {
   /* CSS */
@@ -274,13 +274,14 @@ export default function ToneDialPage() {
   /* State */
   const [bg, setBg] = useState<BgMode>("dark");
   const T = pickTheme(bg);
-  const [trailMode, setTrailMode] = useState<TrailMode>("glow");
+  const [trailMode, setTrailMode] = useState<TrailMode>("pulse");
   const [zeroPolicy, setZeroPolicy] = useState<ZeroPolicy>("chromatic");
   const [raw, setRaw] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [showHelper, setShowHelper] = useState(true);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -304,6 +305,14 @@ export default function ToneDialPage() {
 
   // Build tokens from input
   const tokens = useMemo(() => tokenizePhone(raw, zeroPolicy), [raw, zeroPolicy]);
+  // Build caption (final degrees) + per-char transform chains
+const { caption: captionDegrees, currentChain } = useMemo(() => {
+  return buildCaptionAndCurrentChain(raw, tokens, zeroPolicy);
+}, [raw, tokens, zeroPolicy]);
+// Build the one-line degrees strip that mimics the input
+const degreesStrip = useMemo(() => {
+  return buildDegreesLineTokens(raw, tokens, zeroPolicy);
+}, [raw, tokens, zeroPolicy]);
 
   /* Helpers */
   function appendTrail(spoke: number, key: KeyName) {
@@ -320,7 +329,7 @@ export default function ToneDialPage() {
 
   // basic particles for live sparkles (node-local; gated by +confetti mode)
   function spawnParticles(pool: Ember[], max: number, svg: SVGSVGElement, x: number, y: number, palette: string[], count = 5) {
-    if (!trailMode.includes("+confetti")) return;
+    if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
     const g = svg.querySelector("#embers") as SVGGElement | null;
     if (!g) return;
     for (let k = 0; k < count; k++) {
@@ -339,7 +348,7 @@ export default function ToneDialPage() {
     }
   }
   function updateParticles(pool: Ember[]) {
-    if (!trailMode.includes("+confetti")) return;
+    if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
     for (let i = pool.length - 1; i >= 0; i--) {
       const e = pool[i];
       e.x += e.vx; e.y += e.vy; e.vy += 0.03; e.life -= 0.06;
@@ -390,6 +399,164 @@ export default function ToneDialPage() {
       }).catch(()=>{});
     });
   }
+  // --- ToneDial caption + transform helpers ---
+// ordinal suffix for degree labels
+function ordinalLabel(n: number) {
+  if (n === 1) return "1st";
+  if (n === 2) return "2nd";
+  if (n === 3) return "3rd";
+  return `${n}th`;
+}
+
+// T9 group label for a letter
+function t9GroupLabel(ch: string): string | null {
+  const u = ch.toUpperCase();
+  if ("ABC".includes(u)) return "(ABC)";
+  if ("DEF".includes(u)) return "(DEF)";
+  if ("GHI".includes(u)) return "(GHI)";
+  if ("JKL".includes(u)) return "(JKL)";
+  if ("MNO".includes(u)) return "(MNO)";
+  if ("PQRS".includes(u)) return "(PQRS)";
+  if ("TUV".includes(u)) return "(TUV)";
+  if ("WXYZ".includes(u)) return "(WXYZ)";
+  return null;
+}
+
+// Build caption degrees (from tokens) and a per-char transform chain (from raw input + tokens)
+// - Caption shows only final playable targets (degrees or chromatic), no rests or control marks.
+// - Transform chain shows the mapping for *each typed character*.
+function buildCaptionAndCurrentChain(
+  raw: string,
+  tokens: Token[],
+  zeroPolicy: ZeroPolicy
+): { caption: string[]; currentChain: string[] } {
+  const caption: string[] = [];
+  let currentChain: string[] = [];
+
+  // helpers
+  const ordinalLabel = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+  const t9GroupLabel = (u: string): string | null => {
+    if ("ABC".includes(u)) return "(ABC)";
+    if ("DEF".includes(u)) return "(DEF)";
+    if ("GHI".includes(u)) return "(GHI)";
+    if ("JKL".includes(u)) return "(JKL)";
+    if ("MNO".includes(u)) return "(MNO)";
+    if ("PQRS".includes(u)) return "(PQRS)";
+    if ("TUV".includes(u)) return "(TUV)";
+    if ("WXYZ".includes(u)) return "(WXYZ)";
+    return null;
+  };
+
+  // walk tokens to build caption (final playable targets)
+  for (const t of tokens) {
+    if (t.kind === "deg") caption.push(ordinalLabel(Number(t.d)));
+    else if (t.kind === "chroma") caption.push(t.c);
+  }
+
+  // Build chain for the *latest* typed character only
+  const src = (raw || "").toUpperCase();
+  if (!src.length) return { caption, currentChain };
+
+  // pointer over tokens to align to the newest playable token
+  let playableTokens: Token[] = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+  const lastChar = src[src.length - 1];
+
+  // Controls
+  if (lastChar === "+") return { caption, currentChain: ["+", "intro"] };
+  if (lastChar === "#") return { caption, currentChain: ["#", "resolve"] };
+  if (lastChar === "*") return { caption, currentChain: ["*", "mode"] };
+  if (lastChar === "-") return { caption, currentChain: ["-", "rest"] };
+
+  // Letters → T9 → playable (match to last playable token)
+  if (/[A-Z]/.test(lastChar)) {
+    const group = t9GroupLabel(lastChar) ?? "";
+    const d = T9[lastChar]; // "2".."9"
+    const t = playableTokens[playableTokens.length - 1];
+    if (!t) return { caption, currentChain: [lastChar, group, d] };
+
+    if (t.kind === "deg") {
+      const lab = ordinalLabel(Number(t.d));
+      if (t.up) {
+        const loopLab = t.d === "1" ? "loop → 1st" : (t.d === "2" ? "loop → 2nd" : `loop → ${lab}`);
+        currentChain = [lastChar, group, d, loopLab];
+      } else {
+        currentChain = [lastChar, group, d, lab];
+      }
+    } else {
+      // chromatic for 0
+      currentChain = [lastChar, group, d, t.c];
+    }
+    return { caption, currentChain };
+  }
+
+  // Digits → playable (match to last playable token)
+  if (/[0-9]/.test(lastChar)) {
+    const t = playableTokens[playableTokens.length - 1];
+    if (!t) {
+      if (lastChar === "8") return { caption, currentChain: ["8", "loop → 1st"] };
+      if (lastChar === "9") return { caption, currentChain: ["9", "loop → 2nd"] };
+      if (lastChar === "0") return { caption, currentChain: ["0", zeroPolicy === "rest" ? "rest" : "chromatic"] };
+      return { caption, currentChain: [lastChar] };
+    }
+    if (t.kind === "deg") {
+      const lab = ordinalLabel(Number(t.d));
+      if (t.up) {
+        const loopLab = t.d === "1" ? "loop → 1st" : (t.d === "2" ? "loop → 2nd" : `loop → ${lab}`);
+        currentChain = [lastChar, loopLab];
+      } else {
+        currentChain = [lastChar, lab];
+      }
+    } else {
+      currentChain = [lastChar, t.c];
+    }
+    return { caption, currentChain };
+  }
+
+  return { caption, currentChain };
+}
+// One-line degrees strip that mimics the input exactly (per character)
+function buildDegreesLineTokens(raw: string, tokens: Token[], zeroPolicy: ZeroPolicy): string[] {
+  const out: string[] = [];
+  // playable token queue for letters/digits alignment
+  const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+  let pi = 0;
+
+  const ordinal = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+  const s = (raw || "").toUpperCase();
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+
+    // controls/rests mirror as-is to preserve alignment
+    if (ch === "+" || ch === "#" || ch === "*" || ch === " ") { out.push(ch); continue; }
+    if (ch === "-") { out.push("-"); continue; }
+
+    // letters and digits both consume from playable queue (so 0 alternation & 8/9 loop are true to audio)
+    if (/[A-Z0-9]/.test(ch)) {
+      const t = playable[pi++];
+      if (!t) { // no playable left (e.g., trailing controls); show a best-effort token
+        if (ch === "8") { out.push("1st"); continue; }
+        if (ch === "9") { out.push("2nd"); continue; }
+        if (ch === "0") { out.push(zeroPolicy === "rest" ? "·" : "♭2/#4"); continue; }
+        if (/[1-7]/.test(ch)) { out.push(ordinal(Number(ch))); continue; }
+        // letter fallback (rare): show as thin dot to keep spacing
+        out.push("·"); continue;
+      }
+
+      if (t.kind === "deg") {
+        out.push(ordinal(Number(t.d))); // up flag already folded into final degree by your playback
+      } else {
+        // chromatic from zero alternation
+        out.push(t.c); // "♭2" or "♯4"
+      }
+      continue;
+    }
+
+    // anything else → thin spacer dot (keeps positions honest without visual noise)
+    out.push("·");
+  }
+  return out;
+}
 
   /* =========================
      Live playback (2 passes per mode)
@@ -406,6 +573,7 @@ const STEPS = TOK_COUNT * SEGMENTS.length;
     nodesMajRef.current = []; nodesMinRef.current = [];
     setOverlays([]);
     setIsRunning(true);
+    setShowHelper(false);             // hide helper during/after playback
     if (!hasPlayed) setHasPlayed(true);
 
     const ac = getCtx();
@@ -768,6 +936,9 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
     let lastSpawn = -1;
 
    function spawnConfettiForStep(stepIdx: number) {
+  // allow pulses in Pulse-only mode and in +Confetti modes
+  if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
+
   const pts = exportPoints.filter(p => p.step === stepIdx);
   if (!pts.length) return;
 
@@ -822,8 +993,8 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
     }
   }
 }
-  function updateAndDrawConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
-  if (!trailMode.includes("+confetti")) return;
+function updateAndDrawConfetti(ctx: CanvasRenderingContext2D, dtSec: number) {
+  if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return; 
 
   // ---------- Phase tuning & constants (export-only) ----------
   const DT = dtSec * 60;        // normalize to ~frames
@@ -955,11 +1126,12 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
       drawFrameBase();
       // overlay trails (glow/lines) pre-rendered for this step
       const ov = overlays[i];
-      if (ov) {
-        c.drawImage(ov, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
-      }
+if (trailMode !== "pulse" && ov) {
+  c.drawImage(ov, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
+}
       // confetti per frame (spawn for new steps, then update/draw)
-      if (trailMode.includes("+confetti")) {
+      if (trailMode === "pulse" || trailMode.includes("+confetti")) {
+
         if (i > prevStep) {
           for (let s = prevStep + 1; s <= i; s++) spawnConfettiForStep(s);
           prevStep = i;
@@ -1020,7 +1192,10 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
           >
             <input
               value={raw}
-              onChange={e => setRaw(sanitizePhoneInput(e.target.value))}
+              onChange={e => {
+  setRaw(sanitizePhoneInput(e.target.value));
+  setShowHelper(true);            // re-show helper while typing
+}}
               placeholder="+49 171-HELLO#*"
               inputMode="text"
               enterKeyHint="done"
@@ -1039,25 +1214,59 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
               }}
               aria-label="Type a phone number"
             />
-            <button
-              onClick={start}
-              disabled={isRunning || !raw.trim()}
-              style={{
-                background: isRunning || !raw.trim() ? (bg === "dark" ? "#1a2430" : "#E8ECF2") : T.gold,
-                color:      isRunning || !raw.trim() ? T.muted : (bg === "dark" ? "#081019" : "#FFFFFF"),
-                border: "none",
-                borderRadius: 999,
-                padding: "10px 16px",
-                fontWeight: 700,
-                cursor: isRunning || !raw.trim() ? "not-allowed" : "pointer",
-                fontSize: 16,
-                minHeight: 40,
-              }}
-              title={hasPlayed ? "⟲ Replay" : "▶ Play"}
-            >
-              {hasPlayed ? "⟲ Replay" : "▶ Play"}
-            </button>
+            
           </form>
+          
+{/* Transform helper (hide during playback) */}
+{showHelper && (
+  <div className="transform-helper" style={{
+    marginTop:6, display:"flex", gap:8, justifyContent:"center", alignItems:"center", flexWrap:"wrap"
+  }}>
+    {currentChain && currentChain.length ? (
+      currentChain.map((step, idx) => (
+        <React.Fragment key={idx}>
+          <span className="chain-node" style={{
+            padding:"1px 6px", borderRadius:6,
+            background: bg==="dark" ? "#0F1821" : "#F3F5F8",
+            border:`1px solid ${T.border}`, color: T.text, whiteSpace:"nowrap", fontSize:13
+          }}>
+            {step}
+          </span>
+          {idx < currentChain.length - 1 ? (
+            <span aria-hidden="true" style={{ opacity:0.6, fontSize:12 }}>→</span>
+          ) : null}
+        </React.Fragment>
+      ))
+    ) : null}
+  </div>
+)}
+
+{/* Degrees strip (one line, mimics input; plain text, no glow) */}
+        <div
+  className="degrees-strip"
+  aria-label="Degrees"
+  style={{
+    marginTop: 6,
+    whiteSpace: "nowrap",        // single line
+    overflowX: "auto",           // scroll if too long
+    textAlign: "center",         // keeps it visually centered under input
+    padding: "2px 4px",
+  }}
+>
+  <span
+    style={{
+      fontSize: 16,              // smaller than input
+      fontWeight: 400,
+      letterSpacing: "-0.1px",   // a touch condensed
+      color: T.text,             // plain text
+      fontVariantNumeric: "tabular-nums",
+    }}
+  >
+    {degreesStrip.length
+      ? degreesStrip.join("\u2009")   /* narrow space (non-breaking-like) between tokens */
+      : "Degrees will appear here…"}
+  </span>
+</div> 
 
           {/* Circle */}
           <div className="minw0" style={{ display:"grid", justifyContent:"center", paddingInline: 2 }}>
@@ -1098,7 +1307,7 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
                 );
               })}
               {/* Live trails */}
-              {overlays.map(ov => (
+              {trailMode !== "pulse" && overlays.map(ov => (
                 <path
                   key={ov.id}
                   d={ov.path}
@@ -1157,6 +1366,7 @@ const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
               {/* Trails */}
               <select value={trailMode} onChange={e=>setTrailMode(e.target.value as TrailMode)}
                 style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
+                <option value="pulse">Trails: Pulse only</option>
                 <option value="glow">Trails: Glow</option>
                 <option value="lines">Trails: Lines</option>
                 <option value="glow+confetti">Trails: Glow & Confetti</option>
@@ -1330,4 +1540,3 @@ function ShareSheet({
     </div>
   );
 }
-
