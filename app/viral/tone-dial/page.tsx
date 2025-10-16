@@ -433,8 +433,7 @@ function buildCaptionAndCurrentChain(
   const caption: string[] = [];
   let currentChain: string[] = [];
 
-  // helpers
-  const ordinalLabel = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+  const ordinal = (n: number) => (n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`);
   const t9GroupLabel = (u: string): string | null => {
     if ("ABC".includes(u)) return "(ABC)";
     if ("DEF".includes(u)) return "(DEF)";
@@ -447,19 +446,18 @@ function buildCaptionAndCurrentChain(
     return null;
   };
 
-  // walk tokens to build caption (final playable targets)
+  // Build caption from playable tokens (final degrees/chromatics)
   for (const t of tokens) {
-    if (t.kind === "deg") caption.push(ordinalLabel(Number(t.d)));
+    if (t.kind === "deg") caption.push(ordinal(Number(t.d)));
     else if (t.kind === "chroma") caption.push(t.c);
   }
 
-  // Build chain for the *latest* typed character only
   const src = (raw || "").toUpperCase();
   if (!src.length) return { caption, currentChain };
 
-  // pointer over tokens to align to the newest playable token
-  let playableTokens: Token[] = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
   const lastChar = src[src.length - 1];
+  const playableTokens = tokens.filter((t) => t.kind === "deg" || t.kind === "chroma");
+  const lastPlayable = playableTokens[playableTokens.length - 1];
 
   // Controls
   if (lastChar === "+") return { caption, currentChain: ["+", "intro"] };
@@ -467,51 +465,66 @@ function buildCaptionAndCurrentChain(
   if (lastChar === "*") return { caption, currentChain: ["*", "mode"] };
   if (lastChar === "-") return { caption, currentChain: ["-", "rest"] };
 
-  // Letters → T9 → playable (match to last playable token)
+  // Letters
   if (/[A-Z]/.test(lastChar)) {
-    const group = t9GroupLabel(lastChar) ?? "";
+    const group = t9GroupLabel(lastChar);
+    const g = group ?? "";
     const d = T9[lastChar]; // "2".."9"
-    const t = playableTokens[playableTokens.length - 1];
-    if (!t) return { caption, currentChain: [lastChar, group, d] };
 
-    if (t.kind === "deg") {
-      const lab = ordinalLabel(Number(t.d));
-      if (t.up) {
-        const loopLab = t.d === "1" ? "loop → 1st" : (t.d === "2" ? "loop → 2nd" : `loop → ${lab}`);
-        currentChain = [lastChar, group, d, loopLab];
+    if (!lastPlayable) return { caption, currentChain: [lastChar, g, d] };
+
+    if (lastPlayable.kind === "deg") {
+      const lab = ordinal(Number(lastPlayable.d));
+      if ((lastPlayable as any).up) {
+        const loopLab =
+          lastPlayable.d === "1" ? "loop → 1st" :
+          lastPlayable.d === "2" ? "loop → 2nd" : `loop → ${lab}`;
+        currentChain = [lastChar, g, d, loopLab];
       } else {
-        currentChain = [lastChar, group, d, lab];
+        currentChain = [lastChar, g, d, lab];
       }
+      return { caption, currentChain };
+    } else if (lastPlayable.kind === "chroma") {
+      const chroma = lastPlayable.c; // "♭2" or "♯4"
+      currentChain = [lastChar, g, d, chroma];
+      return { caption, currentChain };
     } else {
-      // chromatic for 0
-      currentChain = [lastChar, group, d, t.c];
+      // Fallback guard
+      return { caption, currentChain: [lastChar, g, d] };
     }
-    return { caption, currentChain };
   }
 
-  // Digits → playable (match to last playable token)
+  // Digits
   if (/[0-9]/.test(lastChar)) {
-    const t = playableTokens[playableTokens.length - 1];
-    if (!t) {
+    if (!lastPlayable) {
       if (lastChar === "8") return { caption, currentChain: ["8", "loop → 1st"] };
       if (lastChar === "9") return { caption, currentChain: ["9", "loop → 2nd"] };
       if (lastChar === "0") return { caption, currentChain: ["0", zeroPolicy === "rest" ? "rest" : "chromatic"] };
+      if (/[1-7]/.test(lastChar)) return { caption, currentChain: [lastChar, ordinal(Number(lastChar))] };
       return { caption, currentChain: [lastChar] };
     }
-    if (t.kind === "deg") {
-      const lab = ordinalLabel(Number(t.d));
-      if (t.up) {
-        const loopLab = t.d === "1" ? "loop → 1st" : (t.d === "2" ? "loop → 2nd" : `loop → ${lab}`);
+
+    if (lastPlayable.kind === "deg") {
+      const lab = ordinal(Number(lastPlayable.d));
+      if ((lastPlayable as any).up) {
+        const loopLab =
+          lastPlayable.d === "1" ? "loop → 1st" :
+          lastPlayable.d === "2" ? "loop → 2nd" : `loop → ${lab}`;
         currentChain = [lastChar, loopLab];
       } else {
         currentChain = [lastChar, lab];
       }
+      return { caption, currentChain };
+    } else if (lastPlayable.kind === "chroma") {
+      const chroma = lastPlayable.c;
+      currentChain = [lastChar, chroma];
+      return { caption, currentChain };
     } else {
-      currentChain = [lastChar, t.c];
+      return { caption, currentChain: [lastChar] };
     }
-    return { caption, currentChain };
   }
 
+  // Anything else
   return { caption, currentChain };
 }
 // One-line degrees strip that mimics the input exactly (per character)
