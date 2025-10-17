@@ -142,8 +142,8 @@ const T9: Record<string, string> = {
 type ZeroPolicy = "chromatic" | "rest";
 type Token =
   | { kind:"rest"; char:"-"}
-  | { kind:"deg"; d:Diatonic; up?: boolean; src:string }
-  | { kind:"chroma"; c:Chromatic; src:"0" }
+  | { kind:"deg";    d:Diatonic; up?: boolean; src:string; srcChar?: string }
+  | { kind:"chroma"; c:Chromatic;           src:"0";   srcChar?: string }
   | { kind:"intro" }            // '+' at start
   | { kind:"resolve" }          // '#'
   | { kind:"toggle" }           // '*'
@@ -151,17 +151,31 @@ type Token =
 
 const zeroFlipRef = { current: true };
 
-function pushDigit(tokens: Token[], digit: string, zeroPolicy: ZeroPolicy) {
+function pushDigit(
+  tokens: Token[],
+  digit: string,
+  zeroPolicy: ZeroPolicy,
+  originChar?: string // ← original letter (e.g., 'C', 'W'), undefined for pure digits
+) {
   if (digit === "0") {
     if (zeroPolicy === "rest") { tokens.push({ kind:"rest", char:"-" }); return; }
     const next: Chromatic = zeroFlipRef.current ? "♭2" : "♯4";
     zeroFlipRef.current = !zeroFlipRef.current;
-    tokens.push({ kind:"chroma", c: next, src:"0" });
+    tokens.push({ kind:"chroma", c: next, src:"0", srcChar: originChar });
     return;
   }
-  if ("1234567".includes(digit)) { tokens.push({ kind:"deg", d: digit as Diatonic, src: digit }); return; }
-  if (digit === "8") { tokens.push({ kind:"deg", d:"1", up:true, src:"8" }); return; }
-  if (digit === "9") { tokens.push({ kind:"deg", d:"2", up:true, src:"9" }); return; }
+  if ("1234567".includes(digit)) {
+    tokens.push({ kind:"deg", d: digit as Diatonic, src: digit, srcChar: originChar });
+    return;
+  }
+  if (digit === "8") {
+    tokens.push({ kind:"deg", d:"1", up:true, src:"8", srcChar: originChar });
+    return;
+  }
+  if (digit === "9") {
+    tokens.push({ kind:"deg", d:"2", up:true, src:"9", srcChar: originChar });
+    return;
+  }
 }
 
 function tokenizePhone(raw: string, zeroPolicy: ZeroPolicy): Token[] {
@@ -177,7 +191,7 @@ function tokenizePhone(raw: string, zeroPolicy: ZeroPolicy): Token[] {
     if (ch === "-") { out.push({ kind:"rest", char:"-" }); continue; }
     if (ch === "#") { out.push({ kind:"resolve" }); continue; }
     if (ch === "*") { out.push({ kind:"toggle" }); continue; }
-    if (/[A-Z]/.test(ch)) { pushDigit(out, T9[ch], zeroPolicy); continue; }
+    if (/[A-Z]/.test(ch)) { pushDigit(out, T9[ch], zeroPolicy, ch); continue; }
     if (/[0-9]/.test(ch)) { pushDigit(out, ch, zeroPolicy); continue; }
     // spaces ignored
   }
@@ -682,19 +696,28 @@ tickIndexRef.current = 0;
 setActiveTick(null);
 if (tickClearRef.current) { clearTimeout(tickClearRef.current); tickClearRef.current = null; }
 // Build one shortened tick per TOKEN (index-aligned); auto-repeats every pass
-const ord = (n:number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+const ord = (n:number)=> (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
 tickStepsRef.current = tokens.map(tok => {
-  if (tok.kind === "rest") return [];
-  if (tok.kind === "chroma") return [tok.src, tok.c];     // 0 → ♭2 / #4
-  // ToneDial won't emit 'dual', but keep a safe fallback
+  if (tok.kind === "rest")   return [];
+  if (tok.kind === "chroma") {
+    // 0: letter → digit → chroma OR digit → chroma
+    return tok.srcChar ? [tok.srcChar, tok.src, tok.c] : [tok.src, tok.c];
+  }
+  // ToneDial won't emit 'dual', keep fallback
   if ((tok as any).kind === "dual") {
-    const t:any = tok;
-    return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
+    const t:any = tok; return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
   }
   if (tok.kind === "deg") {
+    // From a letter? Show letter and digit always (even for 1..7)
+    if (tok.srcChar) {
+      if (tok.up && tok.src === "8") return [tok.srcChar, "8", "loop → 1st"];
+      if (tok.up && tok.src === "9") return [tok.srcChar, "9", "loop → 2nd"];
+      return [tok.srcChar, tok.src, `→ ${ord(Number(tok.d))}`];
+    }
+    // From a digit:
     if (tok.up && tok.src === "8") return ["8", "loop → 1st"];
     if (tok.up && tok.src === "9") return ["9", "loop → 2nd"];
-    return [`→ ${ord(Number(tok.d))}`];                   // 1..7 (short)
+    return [`→ ${ord(Number(tok.d))}`];  // 1..7 input digit: arrow + degree only
   }
   return [];
 });
@@ -1058,19 +1081,26 @@ const onDownloadVideo = useCallback(async () => {
     for (const p of exportPoints) playableStepFlags[p.step] = true;
 
     const ord = (n:number)=> (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
-    const tickStepsExport: string[][] = tokens.map(tok => {
-      if (tok.kind === "rest") return [];
-      if (tok.kind === "chroma") return [tok.src, tok.c];
-      if ((tok as any).kind === "dual") {
-        const t:any = tok; return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
-      }
-      if (tok.kind === "deg") {
-        if (tok.up && tok.src === "8") return ["8","loop → 1st"];
-        if (tok.up && tok.src === "9") return ["9","loop → 2nd"];
-        return [`→ ${ord(Number(tok.d))}`];
-      }
-      return [];
-    });
+const tickStepsExport: string[][] = tokens.map(tok => {
+  if (tok.kind === "rest")   return [];
+  if (tok.kind === "chroma") {
+    return tok.srcChar ? [tok.srcChar, tok.src, tok.c] : [tok.src, tok.c];
+  }
+  if ((tok as any).kind === "dual") {
+    const t:any = tok; return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
+  }
+  if (tok.kind === "deg") {
+    if (tok.srcChar) {
+      if (tok.up && tok.src === "8") return [tok.srcChar, "8", "loop → 1st"];
+      if (tok.up && tok.src === "9") return [tok.srcChar, "9", "loop → 2nd"];
+      return [tok.srcChar, tok.src, `→ ${ord(Number(tok.d))}`];
+    }
+    if (tok.up && tok.src === "8") return ["8", "loop → 1st"];
+    if (tok.up && tok.src === "9") return ["9", "loop → 2nd"];
+    return [`→ ${ord(Number(tok.d))}`];
+  }
+  return [];
+});
     let currentTick: string[] | null = null;
     let tickUntil = 0;
     const TICK_MS = Math.max(NOTE_MS_E - 16, 180);
