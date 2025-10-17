@@ -312,6 +312,8 @@ const [activeTick, setActiveTick] = useState<string[] | null>(null); // current 
 const tickQueueRef = useRef<string[][]>([]);
 const tickIndexRef = useRef(0);
 const tickClearRef = useRef<number | null>(null); // for clearing short tick timeouts
+// One shortened tick per token (live; repeats every pass)
+const tickStepsRef = useRef<string[][]>([]);
 // Live Pulse-only: transient node pulse (centered dot “pop” on active node)
 const [hotPulse, setHotPulse] = useState<{ x:number; y:number; color:string } | null>(null);
 const hotPulseClearRef = useRef<number | null>(null);
@@ -679,6 +681,23 @@ tickQueueRef.current = buildShortTickQueue(raw, tokens, zeroPolicy);
 tickIndexRef.current = 0;
 setActiveTick(null);
 if (tickClearRef.current) { clearTimeout(tickClearRef.current); tickClearRef.current = null; }
+// Build one shortened tick per TOKEN (index-aligned); auto-repeats every pass
+const ord = (n:number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+tickStepsRef.current = tokens.map(tok => {
+  if (tok.kind === "rest") return [];
+  if (tok.kind === "chroma") return [tok.src, tok.c];     // 0 → ♭2 / #4
+  // ToneDial won't emit 'dual', but keep a safe fallback
+  if ((tok as any).kind === "dual") {
+    const t:any = tok;
+    return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
+  }
+  if (tok.kind === "deg") {
+    if (tok.up && tok.src === "8") return ["8", "loop → 1st"];
+    if (tok.up && tok.src === "9") return ["9", "loop → 2nd"];
+    return [`→ ${ord(Number(tok.d))}`];                   // 1..7 (short)
+  }
+  return [];
+});
 
 if (!hasPlayed) setHasPlayed(true);
 
@@ -748,12 +767,12 @@ if (!hasPlayed) setHasPlayed(true);
       }
     }
 
-    // RAF loop to draw a SINGLE clean string per pass
+// RAF loop to draw a SINGLE clean string per pass
 if (rafRef.current) cancelAnimationFrame(rafRef.current);
 const stepDurSec = NOTE_MS / 1000;
 let lastDrawnStep = -1;
 
-    function loopLive() {
+function loopLive() {
   const now = getCtx().currentTime;
   const step = Math.floor((now - t0Ref.current) / stepDurSec);
 
@@ -765,73 +784,66 @@ let lastDrawnStep = -1;
       const nowKey: KeyName = SEGMENTS[segIdx];
       const tok = tokens[s % TOK_COUNT];
 
-      // Skip non-playables; still let particles fade
+      // Skip non-playables; still let confetti fade if that mode is active
       if (!tok || tok.kind === "rest" || tok.kind === "intro" || tok.kind === "resolve" || tok.kind === "toggle") {
-        updateParticles(emberPool);
+        if (trailMode.includes("+confetti")) updateParticles(emberPool);
         continue;
       }
 
-      // Start of a new segment → reset the deque AND restart ticks
+      // Start of a new segment → fresh string per pass
       const segStart = Math.floor(s / TOK_COUNT) * TOK_COUNT;
       if (s === segStart) {
         if (nowKey === "BbMajor") nodesMajRef.current = [];
         else nodesMinRef.current = [];
-        tickIndexRef.current = 0; // ensure ticks repeat each pass
       }
 
       // Compute spoke for playable token
-let spoke = -1;
-if (tok.kind === "deg") {
-  spoke = degToIndexForKey(tok.d, nowKey);
-} else if (tok.kind === "chroma") {
-  spoke = DEGREE_ORDER.indexOf(tok.c as any);
-}
+      let spoke = -1;
+      if (tok.kind === "deg") {
+        spoke = degToIndexForKey(tok.d, nowKey);
+      } else if (tok.kind === "chroma") {
+        spoke = DEGREE_ORDER.indexOf(tok.c as any);
+      }
 
-if (spoke >= 0) {
-  // Trails still update; Pulse mode simply doesn't render path strokes
-  appendTrail(spoke, nowKey);
+      if (spoke >= 0) {
+        // trails still update; Pulse mode simply doesn't render the path strokes
+        appendTrail(spoke, nowKey);
 
-  const p = nodePosition(spoke, 36);
+        if (trailMode === "pulse") {
+          // ── dot pulse on active node ──
+          const p = nodePosition(spoke, 36);
+          const color = nowKey === "BbMajor" ? T.gold : T.minor;
+          setHotPulse({ x: p.x, y: p.y, color });
+          if (hotPulseClearRef.current) clearTimeout(hotPulseClearRef.current);
+          hotPulseClearRef.current = window.setTimeout(() => {
+            setHotPulse(null);
+            hotPulseClearRef.current = null;
+          }, 220);
 
-  // ── Pulse-only: dot pulse (no confetti) ──
-  if (trailMode === "pulse") {
-    const color = nowKey === "BbMajor" ? T.gold : T.minor;
-    setHotPulse({ x: p.x, y: p.y, color });
-    if (hotPulseClearRef.current) clearTimeout(hotPulseClearRef.current);
-    hotPulseClearRef.current = window.setTimeout(() => {
-      setHotPulse(null);
-      hotPulseClearRef.current = null;
-    }, 220);
-  } else {
-    // non-Pulse modes: confetti only if +confetti
-    const svgEl = svgRef.current;
-    if (svgEl && trailMode.includes("+confetti")) {
-      const palette = [T.gold, T.minor, "#FFD36B"];
-      spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
-    }
-  }
+          // ── centered tick (shortened) — repeat per pass by index ──
+          const tick = tickStepsRef.current[s % TOK_COUNT] || [];
+          if (tick.length) {
+            setActiveTick(tick);
+            if (tickClearRef.current) clearTimeout(tickClearRef.current);
+            const TICK_MS = Math.max(180, Math.min(NOTE_MS - 40, 220));
+            tickClearRef.current = window.setTimeout(() => {
+              setActiveTick(null);
+              tickClearRef.current = null;
+            }, TICK_MS);
+          }
+        } else if (trailMode.includes("+confetti")) {
+          // non-Pulse modes: confetti only if +confetti
+          const svgEl = svgRef.current;
+          if (svgEl) {
+            const p = nodePosition(spoke, 36);
+            const palette = [T.gold, T.minor, "#FFD36B"];
+            spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
+          }
+        }
+      }
 
-  // ── Pulse-only educational tick (shortened chain) ──
-  if (trailMode === "pulse") {
-    const idx = tickIndexRef.current++;
-    const tick = tickQueueRef.current[idx];
-    if (tick && tick.length) {
-      setActiveTick(tick);
-      if (tickClearRef.current) clearTimeout(tickClearRef.current);
-      const TICK_MS = Math.max(180, Math.min(NOTE_MS - 40, 220));
-      tickClearRef.current = window.setTimeout(() => {
-        setActiveTick(null);
-        tickClearRef.current = null;
-      }, TICK_MS);
-    }
-  }
-}
-
-// Live particle fading (no-op in Pulse-only since confetti is disabled)
-updateParticles(emberPool);
-
-      // Advance live particle animation
-      updateParticles(emberPool);
+      // Advance/live-fade confetti particles only for +confetti modes
+      if (trailMode.includes("+confetti")) updateParticles(emberPool);
     }
 
     lastDrawnStep = step;
@@ -841,17 +853,21 @@ updateParticles(emberPool);
   if (step < STEPS) {
     rafRef.current = requestAnimationFrame(loopLive);
   } else {
-    // playback finished — clean up tick + restore degrees strip
+    // playback finished — clean up tick + pulse + restore degrees strip
     setIsRunning(false);
     setActiveTick(null);
     if (tickClearRef.current) {
       clearTimeout(tickClearRef.current);
       tickClearRef.current = null;
     }
-    setShowDegreesStrip(true); // bring back degrees strip after playback
+    if (hotPulseClearRef.current) {
+      clearTimeout(hotPulseClearRef.current);
+      hotPulseClearRef.current = null;
+    }
+    setShowDegreesStrip(true);
   }
 }
-    rafRef.current = requestAnimationFrame(loopLive);
+rafRef.current = requestAnimationFrame(loopLive);
   }, [isRunning, hasPlayed, tokens, NOTE_MS, SEGMENTS, TOK_COUNT, T.gold, T.minor]);
 
   /* =========================
@@ -903,7 +919,6 @@ const onDownloadVideo = useCallback(async () => {
     const liveW = Math.max(2, Math.floor(rect.width));
     const liveH = Math.max(2, Math.floor(rect.height));
     const clone = svgEl.cloneNode(true) as SVGSVGElement;
-    // remove live path overlays + particles
     clone.querySelectorAll("path").forEach(p => p.remove());
     const embersClone = clone.querySelector("#embers"); if (embersClone) embersClone.remove();
     const css = await buildEmbeddedFontStyle();
@@ -962,11 +977,9 @@ const onDownloadVideo = useCallback(async () => {
     const SEGMENTS_E: KeyName[] = ["BbMajor","Cminor","BbMajor","Cminor"];
     const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
 
-    // Audio schedule + points
     const t0 = ac.currentTime + 0.25;
-    type ExpPoint = { k: "maj" | "min"; step: number; spoke: number };
-    const exportPoints: ExpPoint[] = [];
 
+    // schedule a note routed to exportDst
     function scheduleNote(name: string, at: number, dur = 0.25) {
       loadBuffer(name).then(buf => {
         const src = ac.createBufferSource(); src.buffer = buf;
@@ -977,6 +990,32 @@ const onDownloadVideo = useCallback(async () => {
         src.connect(g); g.connect(exportDst); g.connect(ac.destination);
         try { src.start(at); src.stop(at + dur); } catch {}
       }).catch(()=>{});
+    }
+
+    // Export-wrapped '+' and '#' (use scheduleNote → exportDst)
+    function scheduleIntroChordE(at: number, key: KeyName) {
+      (["1","3","5"] as Diatonic[]).forEach((d, idx) => {
+        const midi = degreeToMidi(d, key);
+        scheduleNote(midiToNoteName(midi), at + idx * 0.06);
+      });
+    }
+    function scheduleResolveCadenceE(at: number, key: KeyName) {
+      ([
+        { d: "5" as Diatonic, t: at },
+        { d: "1" as Diatonic, t: at + 0.12 },
+      ]).forEach(({ d, t }) => {
+        const midi = degreeToMidi(d, key);
+        scheduleNote(midiToNoteName(midi), t);
+      });
+    }
+
+    // Audio schedule + points
+    type ExpPoint = { k: "maj" | "min"; step: number; spoke: number };
+    const exportPoints: ExpPoint[] = [];
+
+    // Optional: if you want '+' only at start (parity with live):
+    if (tokens[0]?.kind === "intro") {
+      scheduleIntroChordE(t0, SEGMENTS_E[0]);
     }
 
     let modeToggled = false;
@@ -991,37 +1030,52 @@ const onDownloadVideo = useCallback(async () => {
       const at = t0 + i * (NOTE_MS_E / 1000);
 
       if (tok?.kind === "toggle") { modeToggled = !modeToggled; continue; }
-      if (tok?.kind === "intro" || tok?.kind === "rest") continue;
-      if (tok?.kind === "resolve") { continue; } // (optional) schedule V→I here
+      if (tok?.kind === "intro") { continue; } // already handled at start (optional parity)
+      if (tok?.kind === "resolve") { scheduleResolveCadenceE(at, keyNow); continue; }
+      if (tok?.kind === "rest") continue;
 
       let midi: number | null = null;
-      if (tok.kind === "deg") midi = degreeToMidi(tok.d, keyNow, tok.up);
-      else if (tok.kind === "chroma") {
+      if (tok.kind === "deg") {
+        midi = degreeToMidi(tok.d, keyNow, tok.up);
+      } else if (tok.kind === "chroma") {
         const pc = degreeToPcOffset(tok.c as any, keyNow);
         midi = snapPcToComfortableMidi(pc);
       }
       if (midi != null) {
         scheduleNote(midiToNoteName(midi), at);
-        const spoke = tok.kind === "deg" ? degToIndexForKey(tok.d, keyNow) : DEGREE_ORDER.indexOf(tok.c as any);
+        let spoke = -1;
+        if (tok.kind === "deg") {
+          spoke = degToIndexForKey(tok.d, keyNow);
+        } else if (tok.kind === "chroma") {
+          spoke = DEGREE_ORDER.indexOf(tok.c as any);
+        }
         if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
       }
     }
 
-    // 4a) Ticks (export)
+    // 4a) Ticks (export) — build per-token and repeat each pass
     const playableStepFlags = new Array(STEPS_E).fill(false);
     for (const p of exportPoints) playableStepFlags[p.step] = true;
 
-    const tickQueueBase = buildShortTickQueue(raw, tokens, zeroPolicy);
-    let tickIdx = 0;
-    function getTickForStep(stepIdx: number): string[] | null {
-      if (stepIdx % TOK_COUNT_E === 0) tickIdx = 0; // restart each pass
-      return tickQueueBase[tickIdx++] || null;
-    }
+    const ord = (n:number)=> (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+    const tickStepsExport: string[][] = tokens.map(tok => {
+      if (tok.kind === "rest") return [];
+      if (tok.kind === "chroma") return [tok.src, tok.c];
+      if ((tok as any).kind === "dual") {
+        const t:any = tok; return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
+      }
+      if (tok.kind === "deg") {
+        if (tok.up && tok.src === "8") return ["8","loop → 1st"];
+        if (tok.up && tok.src === "9") return ["9","loop → 2nd"];
+        return [`→ ${ord(Number(tok.d))}`];
+      }
+      return [];
+    });
     let currentTick: string[] | null = null;
     let tickUntil = 0;
     const TICK_MS = Math.max(NOTE_MS_E - 16, 180);
 
-    // 5) Overlays (only for non-Pulse modes)
+    // 5) Overlays (non-Pulse modes)
     function overlaySvgForStep(stepIdx: number): string {
       const segIdx = Math.floor(stepIdx / TOK_COUNT_E) % SEGMENTS_E.length;
 
@@ -1029,19 +1083,15 @@ const onDownloadVideo = useCallback(async () => {
       let minVis: number[] = [];
 
       if (segIdx === 0) {
-        // Major pass 1
         majVis = exportPoints.filter(p => p.k==="maj" && p.step <= stepIdx).map(p => p.spoke);
         minVis = [];
       } else if (segIdx === 1) {
-        // Minor pass 1
         majVis = exportPoints.filter(p => p.k==="maj" && p.step < TOK_COUNT_E).map(p => p.spoke);
         minVis = exportPoints.filter(p => p.k==="min" && p.step >= TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
       } else if (segIdx === 2) {
-        // Major pass 2
         majVis = exportPoints.filter(p => p.k==="maj" && p.step >= 2*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
         minVis = [];
       } else {
-        // Minor pass 2
         majVis = exportPoints.filter(p => p.k==="maj" && p.step >= 2*TOK_COUNT_E && p.step < 3*TOK_COUNT_E).map(p => p.spoke);
         minVis = exportPoints.filter(p => p.k==="min" && p.step >= 3*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
       }
@@ -1073,7 +1123,6 @@ const onDownloadVideo = useCallback(async () => {
       `;
     }
 
-    // 5a) Pre-render overlay images for download (avoid name clash with live `overlays` state)
     const overlayImgs: HTMLImageElement[] = [];
     if (trailMode !== "pulse") {
       for (let k = 0; k < STEPS_E; k++) {
@@ -1083,7 +1132,7 @@ const onDownloadVideo = useCallback(async () => {
       }
     }
 
-    // 6) Bubble pulses (export) — polar model (used for Pulse mode and +confetti)
+    // 6) Pulses (export) — polar model (Pulse & +confetti)
     type CParticle = { ox:number; oy:number; r:number; vr:number; ang:number; vang:number; life:number; size:number; color:string };
     const confetti: CParticle[] = [];
     const confColors = [T.gold, T.minor, "#FFD36B"];
@@ -1092,25 +1141,17 @@ const onDownloadVideo = useCallback(async () => {
       if (!(trailMode === "pulse" || trailMode.includes("+confetti"))) return;
       const pts = exportPoints.filter(p => p.step === stepIdx);
       if (!pts.length) return;
-
       for (const p of pts) {
         const node = nodePosition(p.spoke, 36);
         const base = Math.random() * Math.PI * 2;
-
         const burst = 7;
         for (let i = 0; i < burst; i++) {
           const ang  = base + (Math.random() * 1.8 - 0.9);
           const vang = (Math.random() * 0.10 - 0.05);
           const r0   = 0.25 + Math.random() * 0.35;
           const vr0  = 0.80 + Math.random() * 0.60;
-
           confetti.push({ ox: node.x, oy: node.y, r: r0, vr: vr0, ang, vang, life: 1.0,
             size: 0.9 + Math.random() * 0.5, color: confColors[(Math.random() * confColors.length) | 0] });
-        }
-        for (let s = 0; s < 2; s++) {
-          confetti.push({ ox: node.x, oy: node.y, r: 0.15 + Math.random() * 0.25, vr: 1.40 + Math.random() * 0.55,
-            ang: Math.random() * Math.PI * 2, vang: (Math.random() * 0.12 - 0.06),
-            life: 0.80, size: 1.0 + Math.random() * 0.5, color: confColors[(Math.random() * 0.5) | 0] });
         }
       }
     }
@@ -1139,9 +1180,7 @@ const onDownloadVideo = useCallback(async () => {
 
         const flightBoost = isLaunch ? (0.30 * DT) : 0;
 
-        p.vr = p.vr * Math.pow(RADIAL_DAMP, DT)
-             - SPRING * (p.r - R0) * DT
-             + radialJitter + flightBoost;
+        p.vr = p.vr * Math.pow(RADIAL_DAMP, DT) - SPRING * (p.r - R0) * DT + radialJitter + flightBoost;
         p.r  += p.vr * DT;
 
         if (p.r < 0)     { p.r = 0;     p.vr *= -0.6; }
@@ -1154,7 +1193,6 @@ const onDownloadVideo = useCallback(async () => {
         if (p.life <= 0) { confetti.splice(i, 1); }
       }
 
-      // Draw pulses relative to content rect
       ctx.save();
       ctx.translate(drawX * SCALE, drawY * SCALE);
       ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
@@ -1178,10 +1216,8 @@ const onDownloadVideo = useCallback(async () => {
 
     // 6a) Draw helpers
     function drawFrameBase() {
-      // bg
       c.fillStyle = (bg === "dark" ? themeDark.bg : themeLight.bg);
       c.fillRect(0, 0, canvas.width, canvas.height);
-      // input line (smaller, slightly higher)
       c.save();
       const inputFontScale = 0.75;
       c.font = `${datePx * inputFontScale * SCALE}px Inter, system-ui, sans-serif`;
@@ -1193,17 +1229,14 @@ const onDownloadVideo = useCallback(async () => {
       c.fillStyle = (bg === "dark" ? themeDark.gold : themeLight.gold);
       c.fillText(dateText, (FRAME_W * SCALE)/2, inputY);
       c.restore();
-      // panel border
       c.save();
       c.strokeStyle = (bg === "dark" ? themeDark.gold : themeLight.gold);
       c.lineWidth = 2 * SCALE;
       c.strokeRect((SIDE_PAD / 2) * SCALE, SAFE_TOP * SCALE, (FRAME_W - SIDE_PAD) * SCALE, (drawH + dateBlockH + TOP_GAP) * SCALE);
       c.restore();
-      // base circle/labels snapshot
       c.drawImage(bgImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
     }
 
-    // centered tick text inside the circle
     function drawTickOverlay(tick: string[]) {
       const text = tick.join(" \u2192 ");
       const centerX = (drawX + drawW / 2) * SCALE;
@@ -1245,20 +1278,20 @@ const onDownloadVideo = useCallback(async () => {
       drawFrameBase();
 
       // overlays only for non-Pulse modes
-      const ovImg = overlayImgs[i];
-      if (trailMode !== "pulse" && ovImg) {
-        c.drawImage(ovImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
-      }
-
-      // Pulse-only: trigger a tick on each new playable step (we'll draw it later, on top)
-      if (trailMode === "pulse") {
-        if (i > prevStep && playableStepFlags[i]) {
-          currentTick = getTickForStep(i);
-          tickUntil = nowTs + TICK_MS;
+      if (trailMode !== "pulse") {
+        const ovImg = overlayImgs[i];
+        if (ovImg) {
+          c.drawImage(ovImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
         }
       }
 
-      // pulses (+confetti modes reuse same engine)
+      // Pulse-only: trigger a tick on each new playable step (repeat per pass)
+      if (trailMode === "pulse" && i > prevStep && playableStepFlags[i]) {
+        currentTick = tickStepsExport[i % TOK_COUNT_E] || null;
+        tickUntil = nowTs + TICK_MS;
+      }
+
+      // Pulses engine (Pulse and +confetti)
       if (trailMode === "pulse" || trailMode.includes("+confetti")) {
         if (i > prevStep) {
           for (let s = prevStep + 1; s <= i; s++) spawnConfettiForStep(s);
@@ -1281,10 +1314,8 @@ const onDownloadVideo = useCallback(async () => {
       rec.onstop = () => res(new Blob(chunks, { type: mimeType || "video/webm" }));
     });
 
-    
-    // const outBlob = await convertToMp4Server(recorded);
+    // Convert to MP4
     const outBlob = await convertToMp4Server(recorded);
-
     const safe = (raw || "number").replace(/[^A-Za-z0-9\-_.]+/g, "-");
     const a = document.createElement("a");
     a.download = `${safe}.mp4`;
@@ -1296,7 +1327,7 @@ const onDownloadVideo = useCallback(async () => {
   } finally {
     setIsExporting(false);
   }
-}, [raw, bg, trailMode, zeroPolicy, tokens, T.gold, T.minor]); 
+}, [raw, bg, trailMode, zeroPolicy, tokens, T.gold, T.minor]);
 
   /* =========================
      Render (header + input + circle + actions)
