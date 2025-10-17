@@ -1,9 +1,14 @@
 "use client";
+import { useEffect } from "react";
 import Script from "next/script";
 
 export default function GoogleAnalytics() {
   const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
-  console.log("[GA check] ID:", GA_ID);
+
+  // Confirm runtime environment (client-side)
+  useEffect(() => {
+    console.log("[GA runtime check] ID:", GA_ID);
+  }, [GA_ID]);
 
   return (
     <>
