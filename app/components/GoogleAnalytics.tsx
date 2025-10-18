@@ -2,8 +2,7 @@
 import Script from "next/script";
 
 export default function GoogleAnalytics() {
-  // TEMP: hard-code your real GA4 Measurement ID
-  const GA_ID = "G-XH43YJ2XQ8"; // ← replace with your ID
+  const GA_ID = "G-XH43YJ2XQ8"; // ← your real GA4 ID
 
   return (
     <>
