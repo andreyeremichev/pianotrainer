@@ -712,7 +712,7 @@ tickStepsRef.current = tokens.map(tok => {
     if (tok.srcChar) {
       if (tok.up && tok.src === "8") return [tok.srcChar, "8", "loop → 1st"];
       if (tok.up && tok.src === "9") return [tok.srcChar, "9", "loop → 2nd"];
-      return [tok.srcChar, tok.src, `→ ${ord(Number(tok.d))}`];
+      return [tok.srcChar, tok.src, ord(Number(tok.d))];
     }
     // From a digit:
     if (tok.up && tok.src === "8") return ["8", "loop → 1st"];
@@ -726,6 +726,8 @@ if (!hasPlayed) setHasPlayed(true);
 
     const ac = getCtx();
     const t0 = ac.currentTime + 0.12;
+    // If input contains '+', we play the intro at the start of every segment (Maj/Min/Maj/Min)
+    const hasIntro = tokens.some(t => (t as any).kind === "intro");
     t0Ref.current = t0;
 
     // schedule: walk through 4 segments, each plays full token list once
@@ -733,10 +735,7 @@ if (!hasPlayed) setHasPlayed(true);
     let modeToggled = false; // reacts to '*' in-stream
     let writeIdx = 0;
 
-    // if '+' at start, schedule intro once in current mode
-    if (tokens[0]?.kind === "intro") {
-      scheduleIntroChord(ac, t0, curMode);
-    }
+    
 
     for (let i = 0; i < STEPS; i++) {
       const segIdx = Math.floor(i / TOK_COUNT) % SEGMENTS.length;
@@ -745,6 +744,13 @@ if (!hasPlayed) setHasPlayed(true);
       // New segment → restart ticks so they repeat each pass
 
       const at = t0 + i * (NOTE_MS / 1000);
+      // 🔸 intro at segment start (if '+' present)
+  if (hasIntro && (i % TOK_COUNT) === 0) {
+    const keyForIntro: KeyName = modeToggled
+      ? (curMode === "BbMajor" ? "Cminor" : "BbMajor")
+      : curMode;
+    scheduleIntroChord(ac, at, keyForIntro);
+  }
 
       // mode toggles and resolve are instantaneous musical marks
       if (tok?.kind === "toggle") {
@@ -763,6 +769,8 @@ if (!hasPlayed) setHasPlayed(true);
         continue;
       }
       if (tok?.kind === "rest") continue;
+      // At the start of each segment, treat as a fresh pass: play intro if '+' present
+
 
       // pick key considering '*' toggled mode
       const keyNow: KeyName = modeToggled
@@ -789,6 +797,8 @@ if (!hasPlayed) setHasPlayed(true);
         }).catch(()=>{});
       }
     }
+
+    
 
 // RAF loop to draw a SINGLE clean string per pass
 if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -999,6 +1009,7 @@ const onDownloadVideo = useCallback(async () => {
     const TOK_COUNT_E = Math.max(1, tokens.length);
     const SEGMENTS_E: KeyName[] = ["BbMajor","Cminor","BbMajor","Cminor"];
     const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
+    const hasIntro = tokens.some(t => (t as any).kind === "intro");
 
     const t0 = ac.currentTime + 0.25;
 
@@ -1048,14 +1059,20 @@ const onDownloadVideo = useCallback(async () => {
       const keyNow: KeyName = modeToggled
         ? (keyNowBase === "BbMajor" ? "Cminor" : "BbMajor")
         : keyNowBase;
-      const kTag: "maj" | "min" = keyNow === "BbMajor" ? "maj" : "min";
+      const kTag: "maj" | "min" = SEGMENTS_E[segIdx] === "BbMajor" ? "maj" : "min";
       const tok = tokens[i % TOK_COUNT_E];
       const at = t0 + i * (NOTE_MS_E / 1000);
+        // Treat each segment as a separate pass: if input has '+', play intro at segment start
+  if (hasIntro && (i % TOK_COUNT_E) === 0) {
+    scheduleIntroChordE(at, keyNow);
+  }
 
       if (tok?.kind === "toggle") { modeToggled = !modeToggled; continue; }
       if (tok?.kind === "intro") { continue; } // already handled at start (optional parity)
       if (tok?.kind === "resolve") { scheduleResolveCadenceE(at, keyNow); continue; }
       if (tok?.kind === "rest") continue;
+
+      
 
       let midi: number | null = null;
       if (tok.kind === "deg") {
@@ -1093,7 +1110,7 @@ const tickStepsExport: string[][] = tokens.map(tok => {
     if (tok.srcChar) {
       if (tok.up && tok.src === "8") return [tok.srcChar, "8", "loop → 1st"];
       if (tok.up && tok.src === "9") return [tok.srcChar, "9", "loop → 2nd"];
-      return [tok.srcChar, tok.src, `→ ${ord(Number(tok.d))}`];
+      return [tok.srcChar, tok.src, ord(Number(tok.d))];
     }
     if (tok.up && tok.src === "8") return ["8", "loop → 1st"];
     if (tok.up && tok.src === "9") return ["9", "loop → 2nd"];
@@ -1105,53 +1122,42 @@ const tickStepsExport: string[][] = tokens.map(tok => {
     let tickUntil = 0;
     const TICK_MS = Math.max(NOTE_MS_E - 16, 180);
 
-    // 5) Overlays (non-Pulse modes)
-    function overlaySvgForStep(stepIdx: number): string {
-      const segIdx = Math.floor(stepIdx / TOK_COUNT_E) % SEGMENTS_E.length;
+    // 5) Overlays (non-Pulse modes) — continuous trails across all segments
+function overlaySvgForStep(stepIdx: number): string {
+  // Use ALL spokes up to stepIdx for each color → continuous paths
+  const majVis = exportPoints
+    .filter(p => p.k === "maj" && p.step <= stepIdx)
+    .map(p => p.spoke);
+  const minVis = exportPoints
+    .filter(p => p.k === "min" && p.step <= stepIdx)
+    .map(p => p.spoke);
 
-      let majVis: number[] = [];
-      let minVis: number[] = [];
+  const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
+  const pathMin = minVis.length ? pathFromNodes(minVis) : "";
 
-      if (segIdx === 0) {
-        majVis = exportPoints.filter(p => p.k==="maj" && p.step <= stepIdx).map(p => p.spoke);
-        minVis = [];
-      } else if (segIdx === 1) {
-        majVis = exportPoints.filter(p => p.k==="maj" && p.step < TOK_COUNT_E).map(p => p.spoke);
-        minVis = exportPoints.filter(p => p.k==="min" && p.step >= TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
-      } else if (segIdx === 2) {
-        majVis = exportPoints.filter(p => p.k==="maj" && p.step >= 2*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
-        minVis = [];
-      } else {
-        majVis = exportPoints.filter(p => p.k==="maj" && p.step >= 2*TOK_COUNT_E && p.step < 3*TOK_COUNT_E).map(p => p.spoke);
-        minVis = exportPoints.filter(p => p.k==="min" && p.step >= 3*TOK_COUNT_E && p.step <= stepIdx).map(p => p.spoke);
-      }
+  const strokeWidth = trailMode.startsWith("glow") ? 1.15 : 1.4;
+  const filterBlock = `
+    <defs>
+      <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
+        <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
+        <feMerge>
+          <feMergeNode in="b2" />
+          <feMergeNode in="b1" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+  `;
 
-      const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
-      const pathMin = minVis.length ? pathFromNodes(minVis) : "";
-
-      const strokeWidth = trailMode.startsWith("glow") ? 1.15 : 1.4;
-      const filterBlock = `
-        <defs>
-          <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
-            <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
-            <feMerge>
-              <feMergeNode in="b2" />
-              <feMergeNode in="b1" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-      `;
-
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${liveW}" height="${liveH}" shape-rendering="geometricPrecision">
-          ${trailMode.startsWith("glow") ? filterBlock : ""}
-          ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
-          ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
-        </svg>
-      `;
-    }
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${liveW}" height="${liveH}" shape-rendering="geometricPrecision">
+      ${trailMode.startsWith("glow") ? filterBlock : ""}
+      ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
+      ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
+    </svg>
+  `;
+}
 
     const overlayImgs: HTMLImageElement[] = [];
     if (trailMode !== "pulse") {
