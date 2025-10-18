@@ -1297,10 +1297,17 @@ function overlaySvgForStep(stepIdx: number): string {
       c.restore();
     }
 
+    
+
     // 7) Recording loop
     const TOTAL_MS_FIXED = (STEPS_E * NOTE_MS_E) + 300;
     const recStart = performance.now();
     rec.start();
+    // Fallback: ensure recorder stops even if loop aborts (prevents crazy durations)
+const hardStopTimer = window.setTimeout(() => {
+  try { rec.stop(); } catch {}
+}, TOTAL_MS_FIXED + 500);
+
     let lastTs = 0;
     let prevStep = -1;
 
@@ -1347,8 +1354,17 @@ function overlaySvgForStep(stepIdx: number): string {
     })();
 
     const recorded: Blob = await new Promise((res) => {
-      rec.onstop = () => res(new Blob(chunks, { type: mimeType || "video/webm" }));
-    });
+  rec.onstop = () => {
+    try {
+      // stop canvas capture tracks and audio tracks to finalize duration cleanly
+      try { stream.getTracks().forEach(t => t.stop()); } catch {}
+      try { exportDst.stream.getTracks().forEach(t => t.stop()); } catch {}
+      try { window.clearTimeout(hardStopTimer); } catch {}
+    } finally {
+      res(new Blob(chunks, { type: mimeType || "video/webm" }));
+    }
+  };
+});
 
     // Convert to MP4
     const outBlob = await convertToMp4Server(recorded);
