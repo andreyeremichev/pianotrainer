@@ -1055,6 +1055,8 @@ const onDownloadVideo = useCallback(async () => {
     let modeToggled = false;
     for (let i = 0; i < STEPS_E; i++) {
       const segIdx = Math.floor(i / TOK_COUNT_E) % SEGMENTS_E.length;
+        // Reset '*' toggle at the start of each segment (each Maj/Min pass)
+  if ((i % TOK_COUNT_E) === 0) modeToggled = false;
       const keyNowBase: KeyName = SEGMENTS_E[segIdx];
       const keyNow: KeyName = modeToggled
         ? (keyNowBase === "BbMajor" ? "Cminor" : "BbMajor")
