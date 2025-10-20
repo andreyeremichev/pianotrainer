@@ -43,7 +43,7 @@ export default function HomePage() {
       <section style={pageStyles.hero}>
         <h1 style={pageStyles.h1}>Make Notes Come Alive 🎵</h1>
         <p style={pageStyles.sub}>
-          Tap "Root" or "1st Inv", hear, and see chords right away — no signup, no theory needed.
+          Tap "Root" or "1st Inv" "2nd Inv", hear, and see chords right away — no signup, no theory needed.
         </p>
 
         {/* Mini Chords Helper Preview (compact, interactive) */}
