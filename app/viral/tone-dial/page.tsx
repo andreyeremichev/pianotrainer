@@ -516,6 +516,9 @@ function buildDegreesLineTokens(raw: string, tokens: Token[], zeroPolicy: ZeroPo
     if (ch === "-") { out.push("-"); continue; }
 
     if (/[A-Z0-9]/.test(ch)) {
+      // NEW: Zero as Rest → render '-' and DO NOT consume a playable token
+  if (ch === "0" && zeroPolicy === "rest") { out.push("-"); continue; }
+
       const t = playable[pi++];
       if (!t) {
         if (ch === "8") { out.push("1st inv"); continue; }
@@ -902,10 +905,15 @@ function drawCaptionCanvas(activePlayableIdx: number, keyNow: KeyName) {
   {
     let p = 0;
     for (let ci = 0; ci < src.length && p < playable.length; ci++) {
-      if (/[A-Z0-9]/.test(src[ci])) {
-        labels[ci] = labelForTokenCanvas(playable[p], keyNow);
-        p++;
-      }
+     if (/[A-Z0-9]/.test(src[ci])) {
+  // NEW: Zero as Rest → label '-' and DO NOT consume a playable
+  if (src[ci] === "0" && zeroPolicy === "rest") {
+    labels[ci] = "-";
+    continue;
+  }
+  labels[ci] = labelForTokenCanvas(playable[p], keyNow);
+  p++;
+} 
     }
   }
 
@@ -1050,21 +1058,37 @@ if (lab === "♭2/♯4") {
     const hasIntro = tokens.some(t => (t as any).kind === "intro");
 
     // Build mapping playableIndex → charIndex and charIndex → playableIndex for highlighting
-const srcChars = (raw || "").toUpperCase().split("");
+const srcStr = (raw || "").toUpperCase();
 const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
-const p2c: number[] = [];
-const c2p: number[] = Array(srcChars.length).fill(-1);
-let pi = 0;
-for (let ci = 0; ci < srcChars.length && pi < playable.length; ci++) {
-  const ch = srcChars[ci];
-  if (/[A-Z0-9]/.test(ch)) {
-    p2c.push(ci);
-    c2p[ci] = pi;
-    pi++;
+
+const p2c: number[] = [];                         // playable index -> char index
+const c2p: number[] = Array(srcStr.length).fill(-1); // char index -> playable index (optional)
+let ci = 0;                                       // scan source chars left-to-right
+
+for (let p = 0; p < playable.length; p++) {
+  // advance to the next source char that can host a playable
+  while (ci < srcStr.length) {
+    const ch = srcStr[ci];
+
+    if (/[A-Z0-9]/.test(ch)) {
+      // NEW: if the source char is '0' and zeroPolicy is 'rest', skip it (no playable)
+      if (ch === "0" && zeroPolicy === "rest") { ci++; continue; }
+
+      // map this playable 'p' to source char index 'ci'
+      p2c.push(ci);
+      c2p[ci] = p2c.length - 1;
+      ci++;                                      // move past this char for the next playable
+      break;                                     // go to next playable
+    }
+    ci++;                                        // non-alnum chars are skipped
   }
 }
+
+
 playableToCharRef.current = p2c;
 charToPlayableRef.current = c2p;
+// Initialize caption highlight playable index for the new run
+playedIdxRef.current = 0;
 
     // --------- LIVE scheduling loop (letters = melody, digits = chords) ----------
     for (let i = 0; i < STEPS; i++) {
@@ -1169,69 +1193,71 @@ charToPlayableRef.current = c2p;
     const step = Math.floor((now - t0Ref.current) / stepDurSec);
 
     if (step > lastDrawnStep) {
-          
-      for (let s = lastDrawnStep + 1; s <= step; s++) {
-        if (s < 0 || s >= STEPS) continue;
+  for (let s = lastDrawnStep + 1; s <= step; s++) {
+    if (s < 0 || s >= STEPS) continue;
 
-        const segIdx = Math.floor(s / TOK_COUNT) % SEGMENTS.length;
-        const nowKey: KeyName = SEGMENTS[segIdx];
-        const tok = tokens[s % TOK_COUNT];
+    // Which segment are we in now (Maj, Maj, Min, Min)?
+    const segIdx = Math.floor(s / TOK_COUNT) % SEGMENTS.length;
+    const nowKey: KeyName = SEGMENTS[segIdx];
 
-        // Skip non-playables; still let confetti fade if that mode is active
-        if (!tok || tok.kind === "rest" || tok.kind === "intro" || tok.kind === "resolve" || tok.kind === "toggle") {
-          if (trailMode.includes("+confetti")) updateParticles(emberPool);
-          continue;
-        }
+    // Reset trails AND the playable highlight index at the *start* of each segment
+    const segStart = Math.floor(s / TOK_COUNT) * TOK_COUNT;
+    if (s === segStart) {
+      if (nowKey === "BbMajor") nodesMajRef.current = [];
+      else nodesMinRef.current = [];
+      playedIdxRef.current = 0; // << reset playable index at segment boundary
+    }
 
-     // Start of a new segment → fresh string per pass AND reset playable index
-const segStart = Math.floor(s / TOK_COUNT) * TOK_COUNT;
-if (s === segStart) {
-  if (nowKey === "BbMajor") nodesMajRef.current = [];
-  else nodesMinRef.current = [];
-  playedIdxRef.current = 0; // reset at segment start (Maj, Maj, Min, Min)
-}   
+    const tok = tokens[s % TOK_COUNT];
+
+    // Skip non-playables; still let confetti fade in +confetti modes
+    if (!tok || tok.kind === "rest" || tok.kind === "intro" || tok.kind === "resolve" || tok.kind === "toggle") {
+      if (trailMode.includes("+confetti")) updateParticles(emberPool);
+      continue;
+    }
 
     // Compute spoke for trail: treat letters & digits equally as degrees
-let spoke = -1;
-if (tok.kind === "deg") {
-  spoke = degToIndexForKey(tok.d, nowKey);
-} else if (tok.kind === "chroma") {
-  spoke = DEGREE_ORDER.indexOf(tok.c as any);
-}
-
-if (spoke >= 0) {
-  // trails still update
-  appendTrail(spoke, nowKey);
-
-  // ✅ Highlight using a persistent playable index (skips '-' and '*')
-drawCaptionCanvas(playedIdxRef.current, nowKey);
-playedIdxRef.current++; // advance only after a playable token
-
-  // keep your existing pulse/confetti code here unchanged
-  if (trailMode === "pulse") {
-    // dot pulse on active node
-    const p = nodePosition(spoke, 36);
-    const color = nowKey === "BbMajor" ? T.gold : T.minor;
-    setHotPulse({ x: p.x, y: p.y, color });
-    if (hotPulseClearRef.current) clearTimeout(hotPulseClearRef.current);
-    hotPulseClearRef.current = window.setTimeout(() => {
-      setHotPulse(null);
-      hotPulseClearRef.current = null;
-    }, 220);
-  } else if (trailMode.includes("+confetti")) {
-    const svgEl = svgRef.current;
-    if (svgEl) {
-      const p = nodePosition(spoke, 36);
-      const palette = [T.gold, T.minor, "#FFD36B"];
-      spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
+    let spoke = -1;
+    if (tok.kind === "deg") {
+      spoke = degToIndexForKey(tok.d, nowKey);
+    } else if (tok.kind === "chroma") {
+      spoke = DEGREE_ORDER.indexOf(tok.c as any);
     }
-  }
-}
 
-        if (trailMode.includes("+confetti")) updateParticles(emberPool);
+    if (spoke >= 0) {
+      // Trails always update
+      appendTrail(spoke, nowKey);
+
+      // ✅ Highlight using persistent playable index (skips '+', '-', '*', etc.)
+      drawCaptionCanvas(playedIdxRef.current, nowKey);
+      playedIdxRef.current++; // advance only for playables
+
+      // Pulse-only or +confetti visuals (unchanged)
+      if (trailMode === "pulse") {
+        const p = nodePosition(spoke, 36);
+        const color = nowKey === "BbMajor" ? T.gold : T.minor;
+        setHotPulse({ x: p.x, y: p.y, color });
+        if (hotPulseClearRef.current) clearTimeout(hotPulseClearRef.current);
+        hotPulseClearRef.current = window.setTimeout(() => {
+          setHotPulse(null);
+          hotPulseClearRef.current = null;
+        }, 220);
+      } else if (trailMode.includes("+confetti")) {
+        const svgEl = svgRef.current;
+        if (svgEl) {
+          const p = nodePosition(spoke, 36);
+          const palette = [T.gold, T.minor, "#FFD36B"];
+          spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
+        }
       }
-      lastDrawnStep = step;
     }
+
+    // Fade confetti between steps in +confetti modes
+    if (trailMode.includes("+confetti")) updateParticles(emberPool);
+  }
+
+  lastDrawnStep = step;
+}
 
     if (step < STEPS) {
       rafRef.current = requestAnimationFrame(loopLive);
@@ -1727,13 +1753,25 @@ function drawTokenWithSupE(ctx: CanvasRenderingContext2D, text: string, x: numbe
 }
 
 // Build mapping (playableIndex -> charIndex)
-const srcCharsE = (raw || "").toUpperCase().split("");
+const srcStrE = (raw || "").toUpperCase();
 const playableE = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
 const p2cE: number[] = [];
 {
-  let piE = 0;
-  for (let ci = 0; ci < srcCharsE.length && piE < playableE.length; ci++) {
-    if (/[A-Z0-9]/.test(srcCharsE[ci])) { p2cE.push(ci); piE++; }
+  let ci = 0;
+  for (let p = 0; p < playableE.length; p++) {
+    while (ci < srcStrE.length) {
+      const ch = srcStrE[ci];
+
+      if (/[A-Z0-9]/.test(ch)) {
+        // NEW: '0' as rest → skip (no playable mapped to this char)
+        if (ch === "0" && zeroPolicy === "rest") { ci++; continue; }
+
+        p2cE.push(ci);
+        ci++;
+        break;
+      }
+      ci++;
+    }
   }
 }
 
@@ -1747,7 +1785,15 @@ function drawExportCaption(ctx: CanvasRenderingContext2D, activePlayable: number
   {
     let p = 0;
     for (let ci = 0; ci < src.length && p < playable.length; ci++) {
-      if (/[A-Z0-9]/.test(src[ci])) { labels[ci] = labelForTokenCanvas(playable[p], keyNow); p++; }
+     if (/[A-Z0-9]/.test(src[ci])) {
+  // NEW: Zero as Rest → label '-' and DO NOT consume a playable
+  if (src[ci] === "0" && zeroPolicy === "rest") {
+    labels[ci] = "-";
+    continue;
+  }
+  labels[ci] = labelForTokenCanvas(playable[p], keyNow);
+  p++;
+} 
     }
   }
 
