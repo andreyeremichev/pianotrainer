@@ -58,7 +58,7 @@ function pathFromNodes(indices: number[]): string {
 }
 
 /* =========================
-   Musical mapping (Bb Major / C minor)
+   Musical mapping (B♭ Major / C minor)
 ========================= */
 type KeyName = "BbMajor" | "Cminor";
 const KEY_TONIC_PC: Record<KeyName, number> = { BbMajor: 10, Cminor: 0 };
@@ -116,7 +116,7 @@ function degreeToMidi(d: Diatonic, key: KeyName, up?: boolean): number {
   const tonic = KEY_TONIC_PC[key];
   const off = degreeToPcOffset(d as DegLabel, key);
   const pc = (tonic + off) % 12;
-  const base = (up ? 5 : 4) * 12; // around C4/C5
+  const base = (up ? 5 : 4) * 12; // favor around C4/C5
   for (let m = base - 12; m <= base + 12; m++) if (m >= 36 && m <= 84 && (m % 12) === pc) return m;
   return base + pc;
 }
@@ -129,7 +129,6 @@ function snapPcToComfortableMidi(pc: number, preferC4 = true): number {
 /* =========================
    Phone input: sanitize + T9 + tokenizer
 ========================= */
-// Allowed: 0–9, A–Z, + # * and '-' as rest. Everything else stripped.
 function sanitizePhoneInput(s: string): string {
   return s.replace(/[^0-9A-Za-z\+\#\*\- ]/g, "").toUpperCase();
 }
@@ -144,19 +143,14 @@ type Token =
   | { kind:"rest"; char:"-"}
   | { kind:"deg";    d:Diatonic; up?: boolean; src:string; srcChar?: string }
   | { kind:"chroma"; c:Chromatic;           src:"0";   srcChar?: string }
-  | { kind:"intro" }            // '+' at start
+  | { kind:"intro" }            // '+'
   | { kind:"resolve" }          // '#'
   | { kind:"toggle" }           // '*'
 ;
 
 const zeroFlipRef = { current: true };
 
-function pushDigit(
-  tokens: Token[],
-  digit: string,
-  zeroPolicy: ZeroPolicy,
-  originChar?: string // ← original letter (e.g., 'C', 'W'), undefined for pure digits
-) {
+function pushDigit(tokens: Token[], digit: string, zeroPolicy: ZeroPolicy, originChar?: string) {
   if (digit === "0") {
     if (zeroPolicy === "rest") { tokens.push({ kind:"rest", char:"-" }); return; }
     const next: Chromatic = zeroFlipRef.current ? "♭2" : "♯4";
@@ -183,23 +177,21 @@ function tokenizePhone(raw: string, zeroPolicy: ZeroPolicy): Token[] {
   const out: Token[] = [];
   zeroFlipRef.current = true;
   let i = 0;
-  // '+' only meaningful at the very beginning
   if (s.startsWith("+")) { out.push({ kind:"intro" }); i = 1; }
 
   for (; i < s.length; i++) {
     const ch = s[i];
     if (ch === "-") { out.push({ kind:"rest", char:"-" }); continue; }
     if (ch === "#") { out.push({ kind:"resolve" }); continue; }
-    if (ch === "*") { out.push({ kind:"toggle" }); continue; }
+    if (ch === "*") { out.push({ kind:"toggle" }); continue; } // short rest (handled later)
     if (/[A-Z]/.test(ch)) { pushDigit(out, T9[ch], zeroPolicy, ch); continue; }
     if (/[0-9]/.test(ch)) { pushDigit(out, ch, zeroPolicy); continue; }
-    // spaces ignored
   }
   return out;
 }
 
 /* =========================
-   Export helpers: server convert + SVG serializer (reuse)
+   Export helpers
 ========================= */
 async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
   if (inputBlob.type.includes("mp4")) return inputBlob;
@@ -213,13 +205,12 @@ async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
     const out = await resp.blob();
     if (out.size === 0) throw new Error("server returned empty blob");
     return out;
-  } catch (err) {
-    console.warn("[convert] fallback to raw container", err);
+  } catch {
     return inputBlob;
   }
 }
 async function buildEmbeddedFontStyle(): Promise<string> {
-  return `text{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-variant-numeric: tabular-nums;}`;
+  return `text{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; font-variant-numeric: tabular-nums;}`;
 }
 function serializeFullSvg(svgEl: SVGSVGElement, w: number, h: number, extraCss = ""): string {
   let raw = new XMLSerializer().serializeToString(svgEl);
@@ -247,65 +238,47 @@ function pickRecorderMime(): string {
     "video/webm",
   ];
   for (const t of candidates) {
-    try {
-      if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t;
-    } catch {}
+    try { if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t; } catch {}
   }
   return "video/webm";
 }
+
 /* =========================
    Component
 ========================= */
 type TrailMode = "pulse" | "glow" | "lines" | "glow+confetti" | "lines+confetti";
 
 export default function ToneDialPage() {
-  /* CSS */
+  /* CSS + Prefill */
   useEffect(() => {
     const css = `
       .vt-card, .vt-panel, .vt-actions { box-sizing: border-box; }
       .vt-panel { width: 100%; max-width: 100%; min-width: 0; position: relative; }
       .vt-card  { padding-inline: 16px; }
       .vt-panel, .vt-actions { padding-inline: 14px; }
-      @media (max-width: 390px) {
-        .vt-card  { padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right)); }
+      @media (max-width: 390px) { .vt-card  { padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right)); }
         .vt-panel { padding-inline: calc(14px + env(safe-area-inset-left)) calc(14px + env(safe-area-inset-right)); }
         .vt-actions { padding-inline: calc(14px + env(safe-area-inset-left)) calc(14px + env(safe-area-inset-right)); }
-        .action-text{ display: none !important; }
-      }
-      @media (max-width: 360px) {
-        .vt-card  { padding-inline: calc(20px + env(safe-area-inset-left)) calc(20px + env(safe-area-inset-right)); }
+        .action-text{ display: none !important; } }
+      @media (max-width: 360px) { .vt-card  { padding-inline: calc(20px + env(safe-area-inset-left)) calc(20px + env(safe-area-inset-right)); }
         .vt-panel { padding-inline: calc(18px + env(safe-area-inset-left)) calc(18px + env(safe-area-inset-right)); }
-        .vt-actions { padding-inline: calc(18px + env(safe-area-inset-left)) calc(18px + env(safe-area-inset-right)); }
-      }
+        .vt-actions { padding-inline: calc(18px + env(safe-area-inset-left)) calc(18px + env(safe-area-inset-right)); } }
       .vt-actions { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; column-gap:10px; row-gap:8px; }
       .minw0 { min-width:0 !important; }
-      .caption span.hl { color: var(--gold); font-weight: 800; }
     `;
     const el = document.createElement("style"); el.textContent = css; document.head.appendChild(el);
     return () => { try { document.head.removeChild(el); } catch {} };
   }, []);
-  // Prefill from shared links: ?q=..., &trail=..., &bg=..., &zero=...
-useEffect(() => {
-  if (typeof window === "undefined") return;
-  try {
-    const sp = new URLSearchParams(window.location.search);
-
-    // phrase
-    const q = sp.get("q");
-    if (q) setRaw(sanitizePhoneInput(q)); // rely on URLSearchParams decoding
-
-    // optional: restore UI state
-    const t = sp.get("trail");
-    if (t === "pulse" || t === "glow" || t === "lines" || t === "glow+confetti" || t === "lines+confetti") {
-      setTrailMode(t as TrailMode);
-    }
-    const b = sp.get("bg");
-    if (b === "dark" || b === "light") setBg(b as BgMode);
-
-    const z = sp.get("zero");
-    if (z === "chromatic" || z === "rest") setZeroPolicy(z as ZeroPolicy);
-  } catch {}
-}, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const q = sp.get("q"); if (q) setRaw(sanitizePhoneInput(q));
+      const t = sp.get("trail"); if (t === "pulse" || t === "glow" || t === "lines" || t === "glow+confetti" || t === "lines+confetti") setTrailMode(t as TrailMode);
+      const b = sp.get("bg"); if (b === "dark" || b === "light") setBg(b as BgMode);
+      const z = sp.get("zero"); if (z === "chromatic" || z === "rest") setZeroPolicy(z as ZeroPolicy);
+    } catch {}
+  }, []);
 
   /* State */
   const [bg, setBg] = useState<BgMode>("dark");
@@ -318,50 +291,261 @@ useEffect(() => {
   const [isExporting, setIsExporting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [showHelper, setShowHelper] = useState(true);
-  // Playback-time UI toggles
-const [showDegreesStrip, setShowDegreesStrip] = useState(true);     // hide during play, show otherwise
-const [activeTick, setActiveTick] = useState<string[] | null>(null); // current shortened tick line
 
-// Precomputed queue of shortened ticks aligned to playable notes
-const tickQueueRef = useRef<string[][]>([]);
-const tickIndexRef = useRef(0);
-const tickClearRef = useRef<number | null>(null); // for clearing short tick timeouts
-// One shortened tick per token (live; repeats every pass)
-const tickStepsRef = useRef<string[][]>([]);
-// Live Pulse-only: transient node pulse (centered dot “pop” on active node)
-const [hotPulse, setHotPulse] = useState<{ x:number; y:number; color:string } | null>(null);
-const hotPulseClearRef = useRef<number | null>(null);
+  // Playback-time UI (degrees strip vs aligned labels)
+  const [showDegreesStrip, setShowDegreesStrip] = useState(true);
 
+  // Pulse overlay
+  const [hotPulse, setHotPulse] = useState<{ x:number; y:number; color:string } | null>(null);
+  const hotPulseClearRef = useRef<number | null>(null);
+
+  // Refs
   const svgRef = useRef<SVGSVGElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  const rafRef = useRef<number>(0);
+  const t0Ref = useRef<number>(0);
+  // Caption canvas (live): top input line + bottom labels; highlighted in sync
+const captionCanvasRef = useRef<HTMLCanvasElement | null>(null);
+const captionSizeRef = useRef<{ w:number; h:number }>({ w: 0, h: 0 });
+// Live caption highlight: playable index within the current segment
+const playedIdxRef = useRef(0);
 
-  // live trails
+// Map playable token index → source char index (for highlighting)
+// and char index → playable index (for bottom labels); built at start
+const playableToCharRef = useRef<number[]>([]);
+const charToPlayableRef = useRef<number[]>([]);
+
+  // Trails
   type Overlay = { id: "maj"|"min"; color: string; path: string };
   const [overlays, setOverlays] = useState<Overlay[]>([]);
   const nodesMajRef = useRef<number[]>([]);
   const nodesMinRef = useRef<number[]>([]);
-  const TRAIL_N = 9999; // keep full string within each pass
+  const TRAIL_N = 9999;
 
-  // confetti (live, lightweight SVG particles)
+  // confetti (live)
   type Ember = { x: number; y: number; vx: number; vy: number; life: number; el: SVGCircleElement };
   const emberPool = useRef<Ember[]>([]).current;
   const maxEmbers = 80;
 
-  // loop control
-  const rafRef = useRef<number>(0);
-  const t0Ref = useRef<number>(0);
-
-  // Build tokens from input
+  // Tokens
   const tokens = useMemo(() => tokenizePhone(raw, zeroPolicy), [raw, zeroPolicy]);
-  // Build caption (final degrees) + per-char transform chains
-const { caption: captionDegrees, currentChain } = useMemo(() => {
-  return buildCaptionAndCurrentChain(raw, tokens, zeroPolicy);
-}, [raw, tokens, zeroPolicy]);
-// Build the one-line degrees strip that mimics the input
-const degreesStrip = useMemo(() => {
-  return buildDegreesLineTokens(raw, tokens, zeroPolicy);
-}, [raw, tokens, zeroPolicy]);
+
+// --- ToneDial caption + transform helpers ---
+// ordinal suffix for degree labels
+function ordinalLabel(n: number) {
+  if (n === 1) return "1st";
+  if (n === 2) return "2nd";
+  if (n === 3) return "3rd";
+  return `${n}th`;
+}
+
+// T9 group label for a letter
+function t9GroupLabel(ch: string): string | null {
+  const u = ch.toUpperCase();
+  if ("ABC".includes(u)) return "(ABC)";
+  if ("DEF".includes(u)) return "(DEF)";
+  if ("GHI".includes(u)) return "(GHI)";
+  if ("JKL".includes(u)) return "(JKL)";
+  if ("MNO".includes(u)) return "(MNO)";
+  if ("PQRS".includes(u)) return "(PQRS)";
+  if ("TUV".includes(u)) return "(TUV)";
+  if ("WXYZ".includes(u)) return "(WXYZ)";
+  return null;
+}
+
+
+// Render ordinals + accidental numbers as superscript in a single token.
+// Handles:
+//  - "1st", "2nd", "3rd", "4th"      → superscript suffix
+//  - "1st inv", "2nd inv"            → superscript suffix, keep " inv"
+//  - "♭2", "♯4", "♭2/♯4"            → superscript the numerals after accidentals (both sides)
+function renderWithSupers(token: string): React.ReactNode {
+  // 1) Inversions: "1st inv" / "2nd inv" / "3rd inv" / "4th inv"
+  const invMatch = token.match(/^(\d+)(st|nd|rd|th)\s+(inv)$/i);
+  if (invMatch) {
+    const [, num, suf, tail] = invMatch;
+    return (
+      <>
+        {num}
+        <sup style={{ fontSize: "0.65em", verticalAlign: "super" }}>{suf}</sup> {tail}
+      </>
+    );
+  }
+
+  // 2) Pure ordinals: "1st" / "2nd" / "3rd" / "4th"
+  const ordMatch = token.match(/^(\d+)(st|nd|rd|th)$/i);
+  if (ordMatch) {
+    const [, num, suf] = ordMatch;
+    return (
+      <>
+        {num}
+        <sup style={{ fontSize: "0.65em", verticalAlign: "super" }}>{suf}</sup>
+      </>
+    );
+  }
+
+  // 3) Accidentals: "♭2", "♯4", and the combined "♭2/♯4"
+  //    We superscript the digits after each accidental sign.
+  if (/^[♭♯]\d+(\/[♭♯]\d+)?$/.test(token)) {
+    const parts = token.split("/");
+    const renderPart = (p: string) => {
+      const m = p.match(/^([♭♯])(\d+)$/);
+      if (!m) return <>{p}</>;
+      const [, acc, num] = m;
+      return (
+        <>
+          {acc}
+          <sup style={{ fontSize: "0.65em", verticalAlign: "super" }}>{num}</sup>
+        </>
+      );
+    };
+    return (
+      <>
+        {renderPart(parts[0])}
+        {parts[1] ? (
+          <>
+            <span>/</span>
+            {renderPart(parts[1])}
+          </>
+        ) : null}
+      </>
+    );
+  }
+
+  // Default: return as-is
+  return <>{token}</>;
+}
+
+// Build caption degrees (from tokens) and a per-char transform chain (from raw input + tokens)
+// - Caption shows only final playable targets (degrees or chromatic), no rests or control marks.
+// - Transform chain shows the mapping for *each typed character* (Major preview).
+function buildCaptionAndCurrentChain(
+  raw: string,
+  tokens: Token[],
+  zeroPolicy: ZeroPolicy
+): { caption: string[]; currentChain: string[] } {
+  const caption: string[] = [];
+  let currentChain: string[] = [];
+  const ordinal = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+
+  // caption = final playable tokens only
+  for (const t of tokens) {
+    if (t.kind === "deg") caption.push(ordinal(Number(t.d)));
+    else if (t.kind === "chroma") caption.push(t.c);
+  }
+
+  const src = (raw || "").toUpperCase();
+  if (!src.length) return { caption, currentChain };
+
+  const lastChar = src[src.length - 1];
+  const playableTokens = tokens.filter((t) => t.kind === "deg" || t.kind === "chroma");
+  const lastPlayable = playableTokens[playableTokens.length - 1];
+
+  // Controls (preview)
+  if (lastChar === "+") return { caption, currentChain: ["+", "intro"] };
+  if (lastChar === "#") return { caption, currentChain: ["#", "resolve"] };
+  if (lastChar === "*") return { caption, currentChain: ["*", "rest"] };
+  if (lastChar === "-") return { caption, currentChain: ["-", "rest"] };
+
+  // Letters
+  if (/[A-Z]/.test(lastChar)) {
+    const group = t9GroupLabel(lastChar) ?? "";
+    const d = T9[lastChar]; // "2".."9"
+    if (!lastPlayable) return { caption, currentChain: [lastChar, group, d] };
+
+    if (lastPlayable.kind === "deg") {
+      const lab = ordinal(Number(lastPlayable.d));
+      if ((lastPlayable as any).up) {
+        const loopLab =
+          lastPlayable.d === "1" ? "loop → 1st" :
+          lastPlayable.d === "2" ? "loop → 2nd" : `loop → ${lab}`;
+        currentChain = [lastChar, group, d, loopLab];
+      } else {
+        currentChain = [lastChar, group, d, lab];
+      }
+      return { caption, currentChain };
+    } else {
+      // letter→chroma (0)
+      currentChain = [lastChar, group, d, lastPlayable.c];
+      return { caption, currentChain };
+    }
+  }
+
+  // Digits
+  if (/[0-9]/.test(lastChar)) {
+    if (!lastPlayable) {
+      if (lastChar === "8") return { caption, currentChain: ["8", "1st inv"] };
+      if (lastChar === "9") return { caption, currentChain: ["9", "2nd inv"] };
+      if (lastChar === "0") return { caption, currentChain: ["0", zeroPolicy === "rest" ? "rest" : "chromatic"] };
+      if (/[1-7]/.test(lastChar)) return { caption, currentChain: [lastChar, ordinal(Number(lastChar))] };
+      return { caption, currentChain: [lastChar] };
+    }
+
+    if (lastPlayable.kind === "deg") {
+      const lab = ordinal(Number(lastPlayable.d));
+      if ((lastPlayable as any).up) {
+        const invLab = (lastPlayable.src === "8") ? "1st inv" : (lastPlayable.src === "9") ? "2nd inv" : lab;
+        currentChain = [lastChar, invLab];
+      } else {
+        currentChain = [lastChar, lab];
+      }
+      return { caption, currentChain };
+    } else {
+      currentChain = [lastChar, lastPlayable.c];
+      return { caption, currentChain };
+    }
+  }
+
+  return { caption, currentChain };
+}
+
+// One-line degrees strip that mimics the input exactly (per character)
+function buildDegreesLineTokens(raw: string, tokens: Token[], zeroPolicy: ZeroPolicy): string[] {
+  const out: string[] = [];
+  const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+  let pi = 0;
+  const ordinal = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
+  const s = (raw || "").toUpperCase();
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+
+    // mirror controls to keep alignment
+    if (ch === "+" || ch === "#" || ch === "*" || ch === " ") { out.push(ch); continue; }
+    if (ch === "-") { out.push("-"); continue; }
+
+    if (/[A-Z0-9]/.test(ch)) {
+      const t = playable[pi++];
+      if (!t) {
+        if (ch === "8") { out.push("1st inv"); continue; }
+        if (ch === "9") { out.push("2nd inv"); continue; }
+        if (ch === "0") { out.push(zeroPolicy === "rest" ? "·" : "♭2/#4"); continue; }
+        if (/[1-7]/.test(ch)) { out.push(ordinal(Number(ch))); continue; }
+        out.push("·"); continue;
+      }
+
+      if (t.kind === "deg") {
+        if (t.src === "8") out.push("1st inv");
+        else if (t.src === "9") out.push("2nd inv");
+        else out.push(ordinal(Number(t.d)));
+      } else {
+        out.push(t.c); // "♭2" or "♯4"
+      }
+      continue;
+    }
+
+    out.push("·");
+  }
+  return out;
+}
+  // Helper + simple pre-play degrees strip (keep existing behavior)
+  const { caption: captionDegrees, currentChain } = useMemo(() => {
+    return buildCaptionAndCurrentChain(raw, tokens, zeroPolicy);
+  }, [raw, tokens, zeroPolicy]);
+  const degreesStrip = useMemo(() => {
+    return buildDegreesLineTokens(raw, tokens, zeroPolicy);
+  }, [raw, tokens, zeroPolicy]);
 
   /* Helpers */
   function appendTrail(spoke: number, key: KeyName) {
@@ -376,7 +560,6 @@ const degreesStrip = useMemo(() => {
     ]);
   }
 
-  // basic particles for live sparkles (node-local; gated by +confetti mode)
   function spawnParticles(pool: Ember[], max: number, svg: SVGSVGElement, x: number, y: number, palette: string[], count = 5) {
     if (!trailMode.includes("+confetti")) return;
     const g = svg.querySelector("#embers") as SVGGElement | null;
@@ -408,500 +591,659 @@ const degreesStrip = useMemo(() => {
     }
   }
     /* =========================
-     Intro / Resolve helpers
-  ========================= */
-  // quick I-chord arpeggio for intro '+'
-  function scheduleIntroChord(ac: AudioContext, at: number, key: KeyName) {
-    const degrees: Diatonic[] = ["1","3","5"];
-    const step = 0.06; // arpeggiate up
-    degrees.forEach((d, idx) => {
-      const midi = degreeToMidi(d, key);
-      loadBuffer(midiToNoteName(midi)).then(buf => {
-        const src = ac.createBufferSource(); src.buffer = buf;
-        const g = ac.createGain();
-        const t = at + idx * step;
-        g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(1, t + 0.01);
-        g.gain.setTargetAtTime(0, t + 0.20, 0.05);
-        src.connect(g).connect(ac.destination);
-        try { src.start(t); src.stop(t + 0.25); } catch {}
-      }).catch(()=>{});
-    });
-  }
-  // quick V→I resolve for '#'
-  function scheduleResolveCadence(ac: AudioContext, at: number, key: KeyName) {
-    // V then I (short)
-    const seq: Array<{d:Diatonic, at:number}> = [
-      { d:"5", at },
-      { d:"1", at: at + 0.12 },
-    ];
-    seq.forEach(({d, at}) => {
-      const midi = degreeToMidi(d, key);
-      loadBuffer(midiToNoteName(midi)).then(buf => {
-        const src = ac.createBufferSource(); src.buffer = buf;
-        const g = ac.createGain();
-        g.gain.setValueAtTime(0, at);
-        g.gain.linearRampToValueAtTime(1, at + 0.01);
-        g.gain.setTargetAtTime(0, at + 0.20, 0.05);
-        src.connect(g).connect(ac.destination);
-        try { src.start(at); src.stop(at + 0.25); } catch {}
-      }).catch(()=>{});
-    });
-  }
-  // --- ToneDial caption + transform helpers ---
-// ordinal suffix for degree labels
-function ordinalLabel(n: number) {
-  if (n === 1) return "1st";
-  if (n === 2) return "2nd";
-  if (n === 3) return "3rd";
-  return `${n}th`;
-}
-
-// T9 group label for a letter
-function t9GroupLabel(ch: string): string | null {
-  const u = ch.toUpperCase();
-  if ("ABC".includes(u)) return "(ABC)";
-  if ("DEF".includes(u)) return "(DEF)";
-  if ("GHI".includes(u)) return "(GHI)";
-  if ("JKL".includes(u)) return "(JKL)";
-  if ("MNO".includes(u)) return "(MNO)";
-  if ("PQRS".includes(u)) return "(PQRS)";
-  if ("TUV".includes(u)) return "(TUV)";
-  if ("WXYZ".includes(u)) return "(WXYZ)";
-  return null;
-}
-
-// Build caption degrees (from tokens) and a per-char transform chain (from raw input + tokens)
-// - Caption shows only final playable targets (degrees or chromatic), no rests or control marks.
-// - Transform chain shows the mapping for *each typed character*.
-function buildCaptionAndCurrentChain(
-  raw: string,
-  tokens: Token[],
-  zeroPolicy: ZeroPolicy
-): { caption: string[]; currentChain: string[] } {
-  const caption: string[] = [];
-  let currentChain: string[] = [];
-
-  const ordinal = (n: number) => (n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`);
-  const t9GroupLabel = (u: string): string | null => {
-    if ("ABC".includes(u)) return "(ABC)";
-    if ("DEF".includes(u)) return "(DEF)";
-    if ("GHI".includes(u)) return "(GHI)";
-    if ("JKL".includes(u)) return "(JKL)";
-    if ("MNO".includes(u)) return "(MNO)";
-    if ("PQRS".includes(u)) return "(PQRS)";
-    if ("TUV".includes(u)) return "(TUV)";
-    if ("WXYZ".includes(u)) return "(WXYZ)";
-    return null;
-  };
-
-  // Build caption from playable tokens (final degrees/chromatics)
-  for (const t of tokens) {
-    if (t.kind === "deg") caption.push(ordinal(Number(t.d)));
-    else if (t.kind === "chroma") caption.push(t.c);
-  }
-
-  const src = (raw || "").toUpperCase();
-  if (!src.length) return { caption, currentChain };
-
-  const lastChar = src[src.length - 1];
-  const playableTokens = tokens.filter((t) => t.kind === "deg" || t.kind === "chroma");
-  const lastPlayable = playableTokens[playableTokens.length - 1];
-
-  // Controls
-  if (lastChar === "+") return { caption, currentChain: ["+", "intro"] };
-  if (lastChar === "#") return { caption, currentChain: ["#", "resolve"] };
-  if (lastChar === "*") return { caption, currentChain: ["*", "rest"] };
-  if (lastChar === "-") return { caption, currentChain: ["-", "rest"] };
-
-  // Letters
-  if (/[A-Z]/.test(lastChar)) {
-    const group = t9GroupLabel(lastChar);
-    const g = group ?? "";
-    const d = T9[lastChar]; // "2".."9"
-
-    if (!lastPlayable) return { caption, currentChain: [lastChar, g, d] };
-
-    if (lastPlayable.kind === "deg") {
-      const lab = ordinal(Number(lastPlayable.d));
-      if ((lastPlayable as any).up) {
-        const loopLab =
-          lastPlayable.d === "1" ? "loop → 1st" :
-          lastPlayable.d === "2" ? "loop → 2nd" : `loop → ${lab}`;
-        currentChain = [lastChar, g, d, loopLab];
-      } else {
-        currentChain = [lastChar, g, d, lab];
-      }
-      return { caption, currentChain };
-    } else if (lastPlayable.kind === "chroma") {
-      const chroma = lastPlayable.c; // "♭2" or "♯4"
-      currentChain = [lastChar, g, d, chroma];
-      return { caption, currentChain };
-    } else {
-      // Fallback guard
-      return { caption, currentChain: [lastChar, g, d] };
-    }
-  }
-
-  // Digits
-  if (/[0-9]/.test(lastChar)) {
-    if (!lastPlayable) {
-      if (lastChar === "8") return { caption, currentChain: ["8", "loop → 1st"] };
-      if (lastChar === "9") return { caption, currentChain: ["9", "loop → 2nd"] };
-      if (lastChar === "0") return { caption, currentChain: ["0", zeroPolicy === "rest" ? "rest" : "chromatic"] };
-      if (/[1-7]/.test(lastChar)) return { caption, currentChain: [lastChar, ordinal(Number(lastChar))] };
-      return { caption, currentChain: [lastChar] };
-    }
-
-    if (lastPlayable.kind === "deg") {
-      const lab = ordinal(Number(lastPlayable.d));
-      if ((lastPlayable as any).up) {
-        const loopLab =
-          lastPlayable.d === "1" ? "loop → 1st" :
-          lastPlayable.d === "2" ? "loop → 2nd" : `loop → ${lab}`;
-        currentChain = [lastChar, loopLab];
-      } else {
-        currentChain = [lastChar, lab];
-      }
-      return { caption, currentChain };
-    } else if (lastPlayable.kind === "chroma") {
-      const chroma = lastPlayable.c;
-      currentChain = [lastChar, chroma];
-      return { caption, currentChain };
-    } else {
-      return { caption, currentChain: [lastChar] };
-    }
-  }
-
-  // Anything else
-  return { caption, currentChain };
-}
-// One-line degrees strip that mimics the input exactly (per character)
-function buildDegreesLineTokens(raw: string, tokens: Token[], zeroPolicy: ZeroPolicy): string[] {
-  const out: string[] = [];
-  // playable token queue for letters/digits alignment
-  const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
-  let pi = 0;
-
-  const ordinal = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
-  const s = (raw || "").toUpperCase();
-
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-
-    // controls/rests mirror as-is to preserve alignment
-    if (ch === "+" || ch === "#" || ch === "*" || ch === " ") { out.push(ch); continue; }
-    if (ch === "-") { out.push("-"); continue; }
-
-    // letters and digits both consume from playable queue (so 0 alternation & 8/9 loop are true to audio)
-    if (/[A-Z0-9]/.test(ch)) {
-      const t = playable[pi++];
-      if (!t) { // no playable left (e.g., trailing controls); show a best-effort token
-        if (ch === "8") { out.push("1st"); continue; }
-        if (ch === "9") { out.push("2nd"); continue; }
-        if (ch === "0") { out.push(zeroPolicy === "rest" ? "·" : "♭2/#4"); continue; }
-        if (/[1-7]/.test(ch)) { out.push(ordinal(Number(ch))); continue; }
-        // letter fallback (rare): show as thin dot to keep spacing
-        out.push("·"); continue;
-      }
-
-      if (t.kind === "deg") {
-        out.push(ordinal(Number(t.d))); // up flag already folded into final degree by your playback
-      } else {
-        // chromatic from zero alternation
-        out.push(t.c); // "♭2" or "♯4"
-      }
-      continue;
-    }
-
-    // anything else → thin spacer dot (keeps positions honest without visual noise)
-    out.push("·");
-  }
-  return out;
-}
-// Build a shortened tick queue aligned to playable tokens (deg/chroma), skipping rests/controls
-function buildShortTickQueue(raw: string, tokens: Token[], zeroPolicy: ZeroPolicy): string[][] {
-  const s = (raw || "").toUpperCase();
-  const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
-  const queue: string[][] = [];
-
-  // Walk raw & playable in parallel: each letter/digit consumes next playable
-  let pi = 0;
-  const ordinal = (n: number) => (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
-
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-
-    // skip rests/controls for ticks (hyphen and '*' treated as rest per your spec)
-    if (ch === "-" || ch === "*" || ch === "+" || ch === "#" || ch === " ") continue;
-
-    if (/[A-Z0-9]/.test(ch)) {
-      const t = playable[pi++];
-      if (!t) continue;
-
-      if (t.kind === "deg") {
-        const dnum = Number(t.d);
-        const lab = ordinal(dnum);
-        if (/[A-Z]/.test(ch)) {
-          // Letter: LETTER → T9-digit → (loop?) → DEG
-          const d = T9[ch]; // "2".."9"
-          if ((t as any).up) {
-            const loopLab = t.d === "1" ? "loop → 1st" : (t.d === "2" ? "loop → 2nd" : `loop → ${lab}`);
-            queue.push([ch, d, loopLab]);
-          } else {
-            queue.push([ch, d, lab]);
-          }
-        } else {
-          // Digit input
-          if (ch === "8") queue.push(["8", "loop → 1st"]);
-          else if (ch === "9") queue.push(["9", "loop → 2nd"]);
-          else if (/[1-7]/.test(ch)) queue.push([`→ ${lab}`]); // shortened: show only final degree
-          else queue.push([lab]); // fallback
-        }
-      } else if (t.kind === "chroma") {
-        const chroma = t.c; // "♭2" or "♯4"
-        if (/[A-Z]/.test(ch)) {
-          const d = T9[ch];
-          queue.push([ch, d, chroma]);
-        } else {
-          queue.push([ch, chroma]);
-        }
-      }
-    }
-  }
-  return queue;
-}
-
-  /* =========================
-     Live playback (2 passes per mode)
+     Live playback (Major×2 → Minor×2)
   ========================= */
   const NOTE_MS = 250; // base step
   const TOK_COUNT = Math.max(1, tokens.length);
-  const SEGMENTS: KeyName[] = ["BbMajor","Cminor","BbMajor","Cminor"]; // (Major→Minor) × 2
+  const SEGMENTS: KeyName[] = ["BbMajor","BbMajor","Cminor","Cminor"];
   const STEPS = TOK_COUNT * SEGMENTS.length;
+
+  // ------- Chord helpers (live) --------
+  // Diatonic wrap helper: 1..7 degrees
+  const wrapDeg = (n: number): Diatonic => (["1","2","3","4","5","6","7"][(n - 1 + 7) % 7] as Diatonic);
+
+  // Triad degrees for a given root degree (diatonic stacks)
+  function triadDegrees(root: Diatonic): [Diatonic, Diatonic, Diatonic] {
+    const r = Number(root);
+    return [wrapDeg(r), wrapDeg(r + 2), wrapDeg(r + 4)];
+  }
+
+  // Schedule a single note (utility for live)
+  function scheduleNoteLive(ac: AudioContext, at: number, d: Diatonic, key: KeyName, up?: boolean, dur = 0.25) {
+    const midi = degreeToMidi(d, key, up);
+    const name = midiToNoteName(midi);
+    loadBuffer(name).then(buf => {
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(1, at + 0.01);
+      g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+      src.connect(g).connect(ac.destination);
+      try { src.start(at); src.stop(at + dur); } catch {}
+    }).catch(()=>{});
+  }
+
+  // Schedule a triad chord (close voicing around C4/C5)
+  function scheduleTriadLive(ac: AudioContext, at: number, rootDeg: Diatonic, key: KeyName, dur = 0.25) {
+    const [r, t3, t5] = triadDegrees(rootDeg);
+    // Play simultaneously for clarity
+    scheduleNoteLive(ac, at, r,  key, false, dur);
+    scheduleNoteLive(ac, at, t3, key, false, dur);
+    scheduleNoteLive(ac, at, t5, key, false, dur);
+  }
+
+  // Schedule inversions:
+  //  - 1st inv of I/i → [3,5,1↑]
+  //  - 2nd inv of II/ii° → [6,2↑,4↑] (we keep compact voicing by lifting wrapped tones)
+  function scheduleFirstInvTonic(ac: AudioContext, at: number, key: KeyName, isMinor: boolean, dur = 0.25) {
+    // I/i degrees
+    const d3: Diatonic = "3";
+    const d5: Diatonic = "5";
+    const d1: Diatonic = "1";
+    scheduleNoteLive(ac, at, d3, key, false, dur);
+    scheduleNoteLive(ac, at, d5, key, false, dur);
+    scheduleNoteLive(ac, at, d1, key, true,  dur); // raise the root for inversion feel
+  }
+  function scheduleSecondInvSupertonic(ac: AudioContext, at: number, key: KeyName, isMinor: boolean, dur = 0.25) {
+    // II in major: [2,4,6]; II° in minor: same diatonic degrees but quality differs in pitch map
+    const d6: Diatonic = "6";
+    const d2: Diatonic = "2";
+    const d4: Diatonic = "4";
+    scheduleNoteLive(ac, at, d6, key, false, dur);
+    scheduleNoteLive(ac, at, d2, key, true,  dur);  // lift to keep compact
+    scheduleNoteLive(ac, at, d4, key, true,  dur);
+  }
+  /* =========================
+   Intro / Resolve helpers (LIVE)
+========================= */
+// quick I-chord arpeggio for intro '+'
+function scheduleIntroChord(ac: AudioContext, at: number, key: KeyName) {
+  const degrees: Diatonic[] = ["1","3","5"];
+  const step = 0.06; // arpeggiate up
+  degrees.forEach((d, idx) => {
+    const midi = degreeToMidi(d, key);
+    loadBuffer(midiToNoteName(midi)).then(buf => {
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const g = ac.createGain();
+      const t = at + idx * step;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(1, t + 0.01);
+      g.gain.setTargetAtTime(0, t + 0.20, 0.05);
+      src.connect(g).connect(ac.destination);
+      try { src.start(t); src.stop(t + 0.25); } catch {}
+    }).catch(()=>{});
+  });
+}
+
+// quick V→I resolve for '#'
+function scheduleResolveCadence(ac: AudioContext, at: number, key: KeyName) {
+  // V then I (short)
+  const seq: Array<{d:Diatonic, at:number}> = [
+    { d:"5", at },
+    { d:"1", at: at + 0.12 },
+  ];
+  seq.forEach(({d, at}) => {
+    const midi = degreeToMidi(d, key);
+    loadBuffer(midiToNoteName(midi)).then(buf => {
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(1, at + 0.01);
+      g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+      src.connect(g).connect(ac.destination);
+      try { src.start(at); src.stop(at + 0.25); } catch {}
+    }).catch(()=>{});
+  });
+}
+
+// ---- Label helpers for canvas caption ----
+
+// Roman for 1..7 (Major)
+function romanMajor(d: Diatonic): string {
+  switch (d) {
+    case "1": return "I";
+    case "2": return "ii";
+    case "3": return "iii";
+    case "4": return "IV";
+    case "5": return "V";
+    case "6": return "vi";
+    case "7": return "vii°";
+  }
+}
+// Roman for 1..7 (Minor natural)
+function romanMinor(d: Diatonic): string {
+  switch (d) {
+    case "1": return "i";
+    case "2": return "ii°";
+    case "3": return "♭III";
+    case "4": return "iv";
+    case "5": return "v";
+    case "6": return "♭VI";
+    case "7": return "♭VII";
+  }
+}
+
+// Superscript painter on canvas for ordinals and accidentals (♭2, ♯4, "1st inv")
+function drawTokenWithSup(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): number {
+  // "1st inv"
+  let m = text.match(/^(\d+)(st|nd|rd|th)\s+(inv)$/i);
+  if (m) {
+    const [ , num, suf, tail ] = m;
+    ctx.fillText(num, x, y);
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(ctx.font) * 0.65);
+    const baseSize = ctx.font;
+    // Reduce & raise for superscript
+    const prev = ctx.font;
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    ctx.fillText(suf, x + wNum, y - supSize * 0.35);
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    ctx.fillText(" " + tail, x + wNum + wSup, y);
+    return wNum + wSup + ctx.measureText(" " + tail).width;
+  }
+
+
+  // "1st", "2nd" ...
+  m = text.match(/^(\d+)(st|nd|rd|th)$/i);
+  if (m) {
+    const [ , num, suf ] = m;
+    ctx.fillText(num, x, y);
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(ctx.font) * 0.65);
+    const prev = ctx.font;
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    ctx.fillText(suf, x + wNum, y - supSize * 0.35);
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    return wNum + wSup;
+  }
+
+  // "♭2", "♯4", or "♭2/♯4"
+  if (/^[♭♯]\d+(\/[♭♯]\d+)?$/.test(text)) {
+    const parts = text.split("/");
+    const drawAcc = (part: string, x0: number) => {
+      const mm = part.match(/^([♭♯])(\d+)$/);
+      if (!mm) { ctx.fillText(part, x0, y); return ctx.measureText(part).width; }
+      const [, acc, num] = mm;
+      ctx.fillText(acc, x0, y);
+      const wAcc = ctx.measureText(acc).width;
+      const supSize = Math.round(parseFloat(ctx.font) * 0.65);
+      const prev = ctx.font;
+      ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+      ctx.fillText(num, x0 + wAcc, y - supSize * 0.35);
+      const wNum = ctx.measureText(num).width;
+      ctx.font = prev;
+      return wAcc + wNum;
+    };
+    let dx = 0;
+    dx += drawAcc(parts[0], x);
+    if (parts[1]) {
+      ctx.fillText("/", x + dx, y);
+      dx += ctx.measureText("/").width;
+      dx += drawAcc(parts[1], x + dx);
+    }
+    return dx;
+  }
+
+  // default
+  ctx.fillText(text, x, y);
+  return ctx.measureText(text).width;
+}
+// Measure width of a token rendered like drawTokenWithSup, without drawing.
+function measureTokenWithSup(ctx: CanvasRenderingContext2D, text: string): number {
+  // Inversions: "1st inv" / "2nd inv"
+  let m = text.match(/^(\d+)(st|nd|rd|th)\s+(inv)$/i);
+  if (m) {
+    const [, num, suf, tail] = m;
+    const prev = ctx.font;
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(prev) * 0.65);
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    const wTail = ctx.measureText(" " + tail).width;
+    return wNum + wSup + wTail;
+  }
+
+  // Pure ordinals
+  m = text.match(/^(\d+)(st|nd|rd|th)$/i);
+  if (m) {
+    const [, num, suf] = m;
+    const prev = ctx.font;
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(prev) * 0.65);
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    return wNum + wSup;
+  }
+
+  // Accidentals and combined
+  if (/^[♭♯]\d+(\/[♭♯]\d+)?$/.test(text)) {
+    const parts = text.split("/");
+    const prev = ctx.font;
+    const supSize = Math.round(parseFloat(prev) * 0.65);
+    const measureAcc = (part: string) => {
+      const mm = part.match(/^([♭♯])(\d+)$/);
+      if (!mm) return ctx.measureText(part).width;
+      const [, acc, num] = mm;
+      const wAcc = ctx.measureText(acc).width;
+      ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+      const wNum = ctx.measureText(num).width;
+      ctx.font = prev;
+      return wAcc + wNum;
+    };
+    let w = measureAcc(parts[0]);
+    if (parts[1]) w += ctx.measureText("/").width + measureAcc(parts[1]);
+    return w;
+  }
+
+  return ctx.measureText(text).width;
+}
+// Label for a playable token for a given pass key
+function labelForTokenCanvas(tok: Token, key: KeyName): string {
+  // Symbols
+  if (tok.kind === "rest") return "·";
+  if (tok.kind === "intro") return "+";
+  if (tok.kind === "resolve") return "#";
+  if (tok.kind === "toggle") return "*";
+
+  const isMinor = (key === "Cminor");
+  const isLetter = !!(tok as any).srcChar;
+
+  if (tok.kind === "chroma") return "♭2/♯4";
+
+  if (tok.kind === "deg") {
+    // Letters: ordinals or loop markers
+    if (isLetter) {
+      if (tok.up && tok.src === "8") return "⟳1";          // loop 1
+      if (tok.up && tok.src === "9") return "⟳2";          // loop 2
+      // Normal letter ordinal
+      const n = Number(tok.d);
+      return n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`;
+    }
+
+    // Digits:
+    if ("1234567".includes(tok.src)) {
+      return isMinor ? romanMinor(tok.d) : romanMajor(tok.d);
+    }
+    if (tok.src === "8") return "1st inv";
+    if (tok.src === "9") return "2nd inv";
+  }
+
+  return "·";
+}
+function drawCaptionCanvas(activePlayableIdx: number, keyNow: KeyName) {
+  const cvs = captionCanvasRef.current;
+  if (!cvs) return;
+  const ctx = cvs.getContext("2d");
+  if (!ctx) return;
+
+  // Fit to device pixel ratio
+  const cssW = Math.round(cvs.getBoundingClientRect().width || 360);
+  const cssH = Math.round(cvs.getBoundingClientRect().height || 68);
+  const ratio = (window.devicePixelRatio || 1);
+  if (cvs.width !== cssW * ratio || cvs.height !== cssH * ratio) {
+    cvs.width = cssW * ratio;
+    cvs.height = cssH * ratio;
+  }
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+  // Clear
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  // Source and playable
+  const src = (raw || "").toUpperCase().split("");
+  const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+
+  // Build labels array per current pass, aligned to chars (non-playables = "")
+  const labels: string[] = new Array(src.length).fill("");
+  {
+    let p = 0;
+    for (let ci = 0; ci < src.length && p < playable.length; ci++) {
+      if (/[A-Z0-9]/.test(src[ci])) {
+        labels[ci] = labelForTokenCanvas(playable[p], keyNow);
+        p++;
+      }
+    }
+  }
+
+  // Build display elements for the top line: token or separator " · "
+  // We must keep a map from display element -> original char index (for highlight & bottom labels)
+  type Disp = { txt: string; isSep: boolean; charIndex: number }; // charIndex=-1 for seps
+  const disp: Disp[] = [];
+  for (let ci = 0; ci < src.length; ci++) {
+    // push token
+    disp.push({ txt: src[ci], isSep: false, charIndex: ci });
+    // push separator after every token (matches your reference look)
+    disp.push({ txt: " · ", isSep: true, charIndex: -1 });
+  }
+
+  // Active char index (from playable index)
+  const p2c = playableToCharRef.current;
+  const activeChar = (activePlayableIdx >= 0 && activePlayableIdx < p2c.length) ? p2c[activePlayableIdx] : -1;
+
+  // Typography
+  const topPx = 16;
+  const botPx = 13; // slightly smaller than before
+  const gap = 4;
+  const padX = 8;
+  const topFont = `${topPx}px Inter, system-ui, sans-serif`;
+  const botFont = `${botPx}px Inter, system-ui, sans-serif`;
+
+  // Measure per-display-element widths using top-line font
+  ctx.font = topFont;
+  ctx.textBaseline = "alphabetic";
+  const widths = disp.map(d => ctx.measureText(d.txt).width);
+  const totalW = widths.reduce((a, b) => a + b, 0);
+  let x = Math.max(padX, (cssW - totalW) / 2);
+  const topY = Math.round(topPx + 2);
+  const botY = Math.round(topY + gap + botPx + 2);
+
+  // Colors
+  const activeColor = (keyNow === "BbMajor") ? T.gold : T.minor;
+
+  // ---- Draw top line (tokens + separators) ----
+  for (let i = 0; i < disp.length; i++) {
+    const el = disp[i];
+    if (el.isSep) {
+      ctx.fillStyle = T.muted; // separators in muted color
+      ctx.fillText(el.txt, x, topY);
+      x += widths[i];
+      continue;
+    }
+    // token
+    const isActive = (el.charIndex === activeChar);
+    ctx.fillStyle = isActive ? activeColor : T.text;
+    ctx.fillText(el.txt, x, topY);
+    x += widths[i];
+  }
+
+  // ---- Draw bottom line (labels under tokens only; skip separators) ----
+  x = Math.max(padX, (cssW - totalW) / 2);
+  ctx.font = botFont;
+  for (let i = 0; i < disp.length; i++) {
+    const el = disp[i];
+    if (el.isSep) {
+      // advance over separator width; no label under it
+      x += widths[i];
+      continue;
+    }
+    const lab = labels[el.charIndex] || "";
+    if (lab) {
+  const isActive = (el.charIndex === activeChar);
+  ctx.fillStyle = isActive ? activeColor : T.text;
+
+  // Chroma '♭2/♯4': ♭2 on baseline, ♯4 one line below (like "inv")
+if (lab === "♭2/♯4") {
+  const topLab = "♭2";
+  const botLab = "♯4";
+  const wTop = measureTokenWithSup(ctx, topLab);
+  const wBot = measureTokenWithSup(ctx, botLab);
+  const xTop = x + (widths[i] - wTop) / 2;
+  const xBot = x + (widths[i] - wBot) / 2;
+
+  // ♭2 on baseline
+  drawTokenWithSup(ctx, topLab, xTop, botY);
+  // ♯4 one line below, using the same offset as "inv"
+  const offset = (botPx * 1) + 2; // small gap; tweak +/−2px if needed
+  drawTokenWithSup(ctx, botLab, xBot, botY + offset);
+}
+  // Stack inversions '1st inv' / '2nd inv'
+  else if (/^\d+(st|nd|rd|th)\s+inv$/i.test(lab)) {
+    
+    const topLab = lab.replace(/\s+inv$/i, "");
+    const botLab = "inv";
+    // Scale factor to match ♭2/♯4 compactness
+  const INV_SCALE = 0.6; // try 0.5–0.65 to taste
+  const prevFont = ctx.font;
+
+  // Use smaller font for both pieces, so widths & draw match
+  const smallPx = Math.round(botPx * INV_SCALE);
+  ctx.font = `${smallPx}px Inter, system-ui, sans-serif`;
+
+    const wTop = measureTokenWithSup(ctx, topLab);
+    const wBot = ctx.measureText(botLab).width;
+    const xTop = x + (widths[i] - wTop) / 2;
+    const xBot = x + (widths[i] - wBot) / 2;
+    // Align the ordinal to the same baseline as other helpers,
+  // and place "inv" on a second line below it.
+  const yTop2 = botY;                  // same baseline as single-line labels
+  const yBot2 = botY + (botPx + 2);    // next line down (+ small gap)
+
+    
+    drawTokenWithSup(ctx, topLab, xTop, yTop2);
+    ctx.fillText(botLab, xBot, yBot2);
+  }
+  // Single-line labels: Romans, ordinals, plain ♭2 or ♯4
+  else {
+    const wLab = measureTokenWithSup(ctx, lab);
+    const xLab = x + (widths[i] - wLab) / 2;
+    drawTokenWithSup(ctx, lab, xLab, botY);
+  }
+}
+    x += widths[i];
+  }
+}
+  
+
   const startCore = useCallback(async () => {
     if (isRunning) return;
     try { (document.activeElement as HTMLElement | null)?.blur(); } catch {}
     await unlockCtx();
+
     // reset visuals
     nodesMajRef.current = []; nodesMinRef.current = [];
     setOverlays([]);
     setIsRunning(true);
-setShowHelper(false);             // hide helper during/after playback
-setShowDegreesStrip(false);       // hide degrees strip during playback
-
-// Build the shortened tick queue for this run
-tickQueueRef.current = buildShortTickQueue(raw, tokens, zeroPolicy);
-tickIndexRef.current = 0;
-setActiveTick(null);
-if (tickClearRef.current) { clearTimeout(tickClearRef.current); tickClearRef.current = null; }
-// Build one shortened tick per TOKEN (index-aligned); auto-repeats every pass
-const ord = (n:number)=> (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
-tickStepsRef.current = tokens.map(tok => {
-  if (tok.kind === "rest")   return [];
-  if (tok.kind === "chroma") {
-    // 0: letter → digit → chroma OR digit → chroma
-    return tok.srcChar ? [tok.srcChar, tok.src, tok.c] : [tok.src, tok.c];
-  }
-  // ToneDial won't emit 'dual', keep fallback
-  if ((tok as any).kind === "dual") {
-    const t:any = tok; return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
-  }
-  if (tok.kind === "deg") {
-    // From a letter? Show letter and digit always (even for 1..7)
-    if (tok.srcChar) {
-      if (tok.up && tok.src === "8") return [tok.srcChar, "8", "loop → 1st"];
-      if (tok.up && tok.src === "9") return [tok.srcChar, "9", "loop → 2nd"];
-      return [tok.srcChar, tok.src, ord(Number(tok.d))];
-    }
-    // From a digit:
-    if (tok.up && tok.src === "8") return ["8", "loop → 1st"];
-    if (tok.up && tok.src === "9") return ["9", "loop → 2nd"];
-    return [`→ ${ord(Number(tok.d))}`];  // 1..7 input digit: arrow + degree only
-  }
-  return [];
-});
-
-if (!hasPlayed) setHasPlayed(true);
+    drawCaptionCanvas(-1, "BbMajor"); // initial paint, no highlight
+    setShowHelper(false);
+    setShowDegreesStrip(false);
+    if (!hasPlayed) setHasPlayed(true);
 
     const ac = getCtx();
     const t0 = ac.currentTime + 0.12;
-    // If input contains '+', we play the intro at the start of every segment (Maj/Min/Maj/Min)
-    const hasIntro = tokens.some(t => (t as any).kind === "intro");
     t0Ref.current = t0;
 
-    // schedule: walk through 4 segments, each plays full token list once
-    let curMode: KeyName = SEGMENTS[0];
-    let modeToggled = false; // reacts to '*' in-stream
-    let writeIdx = 0;
+    // If input contains '+', play intro at the start of every segment
+    const hasIntro = tokens.some(t => (t as any).kind === "intro");
 
-    
+    // Build mapping playableIndex → charIndex and charIndex → playableIndex for highlighting
+const srcChars = (raw || "").toUpperCase().split("");
+const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+const p2c: number[] = [];
+const c2p: number[] = Array(srcChars.length).fill(-1);
+let pi = 0;
+for (let ci = 0; ci < srcChars.length && pi < playable.length; ci++) {
+  const ch = srcChars[ci];
+  if (/[A-Z0-9]/.test(ch)) {
+    p2c.push(ci);
+    c2p[ci] = pi;
+    pi++;
+  }
+}
+playableToCharRef.current = p2c;
+charToPlayableRef.current = c2p;
 
+    // --------- LIVE scheduling loop (letters = melody, digits = chords) ----------
     for (let i = 0; i < STEPS; i++) {
       const segIdx = Math.floor(i / TOK_COUNT) % SEGMENTS.length;
-      curMode = SEGMENTS[segIdx];
+      const curKey: KeyName = SEGMENTS[segIdx];
+      const isMinorPass = (curKey === "Cminor");
       const tok = tokens[i % TOK_COUNT];
-      // New segment → restart ticks so they repeat each pass
 
       const at = t0 + i * (NOTE_MS / 1000);
-      // 🔸 intro at segment start (if '+' present)
-  if (hasIntro && (i % TOK_COUNT) === 0) {
-    const keyForIntro: KeyName = modeToggled
-      ? (curMode === "BbMajor" ? "Cminor" : "BbMajor")
-      : curMode;
-    scheduleIntroChord(ac, at, keyForIntro);
-  }
 
-      // mode toggles and resolve are instantaneous musical marks
-      if (tok?.kind === "toggle") {
-        modeToggled = !modeToggled;
+      // '+' at segment start
+      if (hasIntro && (i % TOK_COUNT) === 0) {
+        scheduleIntroChord(ac, at, curKey);
+      }
+
+      // Controls
+      if (!tok) continue;
+      if (tok.kind === "toggle") { /* '*' = REST (no toggle) */ continue; }
+      if (tok.kind === "intro") { /* handled at segment start */ continue; }
+      if (tok.kind === "resolve") {
+        scheduleResolveCadence(ac, at, curKey);
         continue;
       }
-      if (tok?.kind === "resolve") {
-        const keyForResolve: KeyName = modeToggled
-          ? (curMode === "BbMajor" ? "Cminor" : "BbMajor")
-          : curMode;
-        scheduleResolveCadence(ac, at, keyForResolve);
-        continue;
-      }
-      if (tok?.kind === "intro") {
-        // '+' after start is just ignored musically (intro is at the beginning)
-        continue;
-      }
-      if (tok?.kind === "rest") continue;
-      // At the start of each segment, treat as a fresh pass: play intro if '+' present
+      if (tok.kind === "rest") continue;
 
+      // Letters (melody) vs Digits (chords) detection via srcChar
+      if (tok.kind === "deg" || tok.kind === "chroma") {
+        const isLetter = !!tok.srcChar;
 
-      // pick key considering '*' toggled mode
-      const keyNow: KeyName = modeToggled
-        ? (curMode === "BbMajor" ? "Cminor" : "BbMajor")
-        : curMode;
-
-      // schedule tone
-      let midi: number | null = null;
-      if (tok.kind === "deg") midi = degreeToMidi(tok.d, keyNow, tok.up);
-      else if (tok.kind === "chroma") {
-        const pc = degreeToPcOffset(tok.c as DegLabel, keyNow);
-        midi = snapPcToComfortableMidi(pc);
-      }
-      if (midi != null) {
-        const name = midiToNoteName(midi);
-        loadBuffer(name).then(buf => {
-          const src = ac.createBufferSource(); src.buffer = buf;
-          const g = ac.createGain();
-          g.gain.setValueAtTime(0, at);
-          g.gain.linearRampToValueAtTime(1, at + 0.01);
-          g.gain.setTargetAtTime(0, at + 0.20, 0.05);
-          src.connect(g).connect(ac.destination);
-          try { src.start(at); src.stop(at + 0.25); } catch {}
-        }).catch(()=>{});
-      }
-    }
-
-    
-
-// RAF loop to draw a SINGLE clean string per pass
-if (rafRef.current) cancelAnimationFrame(rafRef.current);
-const stepDurSec = NOTE_MS / 1000;
-let lastDrawnStep = -1;
-
-function loopLive() {
-  const now = getCtx().currentTime;
-  const step = Math.floor((now - t0Ref.current) / stepDurSec);
-
-  if (step > lastDrawnStep) {
-    for (let s = lastDrawnStep + 1; s <= step; s++) {
-      if (s < 0 || s >= STEPS) continue;
-
-      const segIdx = Math.floor(s / TOK_COUNT) % SEGMENTS.length;
-      const nowKey: KeyName = SEGMENTS[segIdx];
-      const tok = tokens[s % TOK_COUNT];
-
-      // Skip non-playables; still let confetti fade if that mode is active
-      if (!tok || tok.kind === "rest" || tok.kind === "intro" || tok.kind === "resolve" || tok.kind === "toggle") {
-        if (trailMode.includes("+confetti")) updateParticles(emberPool);
-        continue;
-      }
-
-      // Start of a new segment → fresh string per pass
-      const segStart = Math.floor(s / TOK_COUNT) * TOK_COUNT;
-      if (s === segStart) {
-        if (nowKey === "BbMajor") nodesMajRef.current = [];
-        else nodesMinRef.current = [];
-      }
-
-      // Compute spoke for playable token
-      let spoke = -1;
-      if (tok.kind === "deg") {
-        spoke = degToIndexForKey(tok.d, nowKey);
-      } else if (tok.kind === "chroma") {
-        spoke = DEGREE_ORDER.indexOf(tok.c as any);
-      }
-
-      if (spoke >= 0) {
-        // trails still update; Pulse mode simply doesn't render the path strokes
-        appendTrail(spoke, nowKey);
-
-        if (trailMode === "pulse") {
-          // ── dot pulse on active node ──
-          const p = nodePosition(spoke, 36);
-          const color = nowKey === "BbMajor" ? T.gold : T.minor;
-          setHotPulse({ x: p.x, y: p.y, color });
-          if (hotPulseClearRef.current) clearTimeout(hotPulseClearRef.current);
-          hotPulseClearRef.current = window.setTimeout(() => {
-            setHotPulse(null);
-            hotPulseClearRef.current = null;
-          }, 220);
-
-          // ── centered tick (shortened) — repeat per pass by index ──
-          const tick = tickStepsRef.current[s % TOK_COUNT] || [];
-          if (tick.length) {
-            setActiveTick(tick);
-            if (tickClearRef.current) clearTimeout(tickClearRef.current);
-            const TICK_MS = Math.max(180, Math.min(NOTE_MS - 40, 220));
-            tickClearRef.current = window.setTimeout(() => {
-              setActiveTick(null);
-              tickClearRef.current = null;
-            }, TICK_MS);
+        // ----- LETTERS: single note, with loop-1/loop-2 behaviors -----
+        if (isLetter) {
+          if (tok.kind === "deg") {
+            // Loop-1 letters (TUV): src==="8" → play 1 + 1↑oct
+            if (tok.up && tok.src === "8") {
+              scheduleNoteLive(ac, at, "1", curKey, false);
+              scheduleNoteLive(ac, at, "1", curKey, true );
+            }
+            // Loop-2 letters (WXYZ): src==="9" → play 1 + 2↑oct
+            else if (tok.up && tok.src === "9") {
+              scheduleNoteLive(ac, at, "1", curKey, false);
+              scheduleNoteLive(ac, at, "2", curKey, true );
+            }
+            // Normal letter: play mapped degree
+            else {
+              scheduleNoteLive(ac, at, tok.d, curKey, tok.up);
+            }
+          } else {
+            // Letter that mapped to chroma (rare, but keep consistent)
+            const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
+            const midi = snapPcToComfortableMidi(pc);
+            const name = midiToNoteName(midi);
+            loadBuffer(name).then(buf => {
+              const src = ac.createBufferSource(); src.buffer = buf;
+              const g = ac.createGain();
+              g.gain.setValueAtTime(0, at);
+              g.gain.linearRampToValueAtTime(1, at + 0.01);
+              g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+              src.connect(g).connect(ac.destination);
+              try { src.start(at); src.stop(at + 0.25); } catch {}
+            }).catch(()=>{});
           }
-        } else if (trailMode.includes("+confetti")) {
-          // non-Pulse modes: confetti only if +confetti
-          const svgEl = svgRef.current;
-          if (svgEl) {
-            const p = nodePosition(spoke, 36);
-            const palette = [T.gold, T.minor, "#FFD36B"];
-            spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
+        }
+        // ----- DIGITS: chords (triads) / inversions / chroma -----
+        else {
+          if (tok.kind === "deg") {
+            // 1–7 → diatonic triads
+            if ("1234567".includes(tok.src)) {
+              scheduleTriadLive(ac, at, tok.d, curKey);
+            }
+            // 8 / 9 → inversions (per pass)
+            else if (tok.src === "8") {
+              scheduleFirstInvTonic(ac, at, curKey, isMinorPass);
+            } else if (tok.src === "9") {
+              scheduleSecondInvSupertonic(ac, at, curKey, isMinorPass);
+            }
+          } else if (tok.kind === "chroma") {
+            // 0 → chromatic color
+            const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
+            const midi = snapPcToComfortableMidi(pc);
+            const name = midiToNoteName(midi);
+            loadBuffer(name).then(buf => {
+              const src = ac.createBufferSource(); src.buffer = buf;
+              const g = ac.createGain();
+              g.gain.setValueAtTime(0, at);
+              g.gain.linearRampToValueAtTime(1, at + 0.01);
+              g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+              src.connect(g).connect(ac.destination);
+              try { src.start(at); src.stop(at + 0.25); } catch {}
+            }).catch(()=>{});
           }
         }
       }
-
-      // Advance/live-fade confetti particles only for +confetti modes
-      if (trailMode.includes("+confetti")) updateParticles(emberPool);
     }
 
-    lastDrawnStep = step;
-  }
+  // ---------- RAF loop: trails node→node (letters & digits equal) + pulse ----------
+  if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  const stepDurSec = NOTE_MS / 1000;
+  let lastDrawnStep = -1;
 
-  // Continue or finish
-  if (step < STEPS) {
-    rafRef.current = requestAnimationFrame(loopLive);
-  } else {
-    // playback finished — clean up tick + pulse + restore degrees strip
-    setIsRunning(false);
-    setActiveTick(null);
-    if (tickClearRef.current) {
-      clearTimeout(tickClearRef.current);
-      tickClearRef.current = null;
-    }
-    if (hotPulseClearRef.current) {
-      clearTimeout(hotPulseClearRef.current);
+  function loopLive() {
+    const now = getCtx().currentTime;
+    const step = Math.floor((now - t0Ref.current) / stepDurSec);
+
+    if (step > lastDrawnStep) {
+          
+      for (let s = lastDrawnStep + 1; s <= step; s++) {
+        if (s < 0 || s >= STEPS) continue;
+
+        const segIdx = Math.floor(s / TOK_COUNT) % SEGMENTS.length;
+        const nowKey: KeyName = SEGMENTS[segIdx];
+        const tok = tokens[s % TOK_COUNT];
+
+        // Skip non-playables; still let confetti fade if that mode is active
+        if (!tok || tok.kind === "rest" || tok.kind === "intro" || tok.kind === "resolve" || tok.kind === "toggle") {
+          if (trailMode.includes("+confetti")) updateParticles(emberPool);
+          continue;
+        }
+
+     // Start of a new segment → fresh string per pass AND reset playable index
+const segStart = Math.floor(s / TOK_COUNT) * TOK_COUNT;
+if (s === segStart) {
+  if (nowKey === "BbMajor") nodesMajRef.current = [];
+  else nodesMinRef.current = [];
+  playedIdxRef.current = 0; // reset at segment start (Maj, Maj, Min, Min)
+}   
+
+    // Compute spoke for trail: treat letters & digits equally as degrees
+let spoke = -1;
+if (tok.kind === "deg") {
+  spoke = degToIndexForKey(tok.d, nowKey);
+} else if (tok.kind === "chroma") {
+  spoke = DEGREE_ORDER.indexOf(tok.c as any);
+}
+
+if (spoke >= 0) {
+  // trails still update
+  appendTrail(spoke, nowKey);
+
+  // ✅ Highlight using a persistent playable index (skips '-' and '*')
+drawCaptionCanvas(playedIdxRef.current, nowKey);
+playedIdxRef.current++; // advance only after a playable token
+
+  // keep your existing pulse/confetti code here unchanged
+  if (trailMode === "pulse") {
+    // dot pulse on active node
+    const p = nodePosition(spoke, 36);
+    const color = nowKey === "BbMajor" ? T.gold : T.minor;
+    setHotPulse({ x: p.x, y: p.y, color });
+    if (hotPulseClearRef.current) clearTimeout(hotPulseClearRef.current);
+    hotPulseClearRef.current = window.setTimeout(() => {
+      setHotPulse(null);
       hotPulseClearRef.current = null;
+    }, 220);
+  } else if (trailMode.includes("+confetti")) {
+    const svgEl = svgRef.current;
+    if (svgEl) {
+      const p = nodePosition(spoke, 36);
+      const palette = [T.gold, T.minor, "#FFD36B"];
+      spawnParticles(emberPool, maxEmbers, svgEl, p.x, p.y, palette, 8);
     }
-    setShowDegreesStrip(true);
   }
 }
-rafRef.current = requestAnimationFrame(loopLive);
-  }, [isRunning, hasPlayed, tokens, NOTE_MS, SEGMENTS, TOK_COUNT, T.gold, T.minor]);
+
+        if (trailMode.includes("+confetti")) updateParticles(emberPool);
+      }
+      lastDrawnStep = step;
+    }
+
+    if (step < STEPS) {
+      rafRef.current = requestAnimationFrame(loopLive);
+    } else {
+      // clean up + restore degrees strip
+      setIsRunning(false);
+      if (hotPulseClearRef.current) { clearTimeout(hotPulseClearRef.current); hotPulseClearRef.current = null; }
+      setShowDegreesStrip(true);
+    }
+  }
+  rafRef.current = requestAnimationFrame(loopLive);
+}, [isRunning, hasPlayed, tokens, NOTE_MS, SEGMENTS, TOK_COUNT, T.gold, T.minor, trailMode]);
 
   /* =========================
      Start wrappers + keyboard
@@ -927,18 +1269,20 @@ rafRef.current = requestAnimationFrame(loopLive);
      Share URL (rebuildable)
   ========================= */
   const buildShareUrl = useCallback(() => {
-  if (typeof window === "undefined") return ""; // SSR guard
-  const params = new URLSearchParams();
-  params.set("bg", bg);
-  params.set("trail", trailMode);
-  params.set("zero", zeroPolicy);
-  params.set("q", raw || "");
-  const url = new URL(window.location.href);
-  url.search = params.toString();
-  return url.toString();
-}, [bg, trailMode, zeroPolicy, raw]);
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams();
+    params.set("bg", bg);
+    params.set("trail", trailMode);
+    params.set("zero", zeroPolicy);
+    params.set("q", raw || "");
+    const url = new URL(window.location.href);
+    url.search = params.toString();
+    return url.toString();
+  }, [bg, trailMode, zeroPolicy, raw]);
 
-// ===== Export (Download): Pulse bubbles + centered ticks (Pulse), or overlays (others) =====
+/* =========================
+   Export (Download): parity with live
+========================= */
 const onDownloadVideo = useCallback(async () => {
   setIsExporting(true);
   try {
@@ -1002,12 +1346,13 @@ const onDownloadVideo = useCallback(async () => {
     const drawW = Math.round(liveW * scaleContent);
     const drawH = Math.round(liveH * scaleContent);
     const drawX = Math.round((FRAME_W - drawW) / 2);
-    const drawY = goldTop;
+    const CAPTION_TO_CIRCLE_GAP = 12; // try 12–20px
+    const drawY = goldTop + CAPTION_TO_CIRCLE_GAP;
 
-    // 4) Schedule: (Major → Minor) × 2
+    // 4) Schedule: Major×2 → Minor×2
     const NOTE_MS_E = 250;
     const TOK_COUNT_E = Math.max(1, tokens.length);
-    const SEGMENTS_E: KeyName[] = ["BbMajor","Cminor","BbMajor","Cminor"];
+    const SEGMENTS_E: KeyName[] = ["BbMajor","BbMajor","Cminor","Cminor"];
     const STEPS_E = TOK_COUNT_E * SEGMENTS_E.length;
     const hasIntro = tokens.some(t => (t as any).kind === "intro");
 
@@ -1026,7 +1371,34 @@ const onDownloadVideo = useCallback(async () => {
       }).catch(()=>{});
     }
 
-    // Export-wrapped '+' and '#' (use scheduleNote → exportDst)
+    // Export chord helpers
+    const wrapDeg = (n: number): Diatonic => (["1","2","3","4","5","6","7"][(n - 1 + 7) % 7] as Diatonic);
+    function triadDegrees(root: Diatonic): [Diatonic, Diatonic, Diatonic] {
+      const r = Number(root);
+      return [wrapDeg(r), wrapDeg(r + 2), wrapDeg(r + 4)];
+    }
+    function scheduleTriad(at: number, rootDeg: Diatonic, key: KeyName, dur = 0.25) {
+      const [r, t3, t5] = triadDegrees(rootDeg);
+      ["","", ""].forEach((_, idx) => {
+        const d = idx === 0 ? r : (idx === 1 ? t3 : t5);
+        const midi = degreeToMidi(d, key, false);
+        scheduleNote(midiToNoteName(midi), at, dur);
+      });
+    }
+    function scheduleFirstInvTonic(at: number, key: KeyName, dur = 0.25) {
+      // I/i: [3,5,1↑]
+      scheduleNote(midiToNoteName(degreeToMidi("3", key, false)), at, dur);
+      scheduleNote(midiToNoteName(degreeToMidi("5", key, false)), at, dur);
+      scheduleNote(midiToNoteName(degreeToMidi("1", key, true )), at, dur);
+    }
+    function scheduleSecondInvSupertonic(at: number, key: KeyName, dur = 0.25) {
+      // II/ii°: [6,2↑,4↑]
+      scheduleNote(midiToNoteName(degreeToMidi("6", key, false)), at, dur);
+      scheduleNote(midiToNoteName(degreeToMidi("2", key, true )), at, dur);
+      scheduleNote(midiToNoteName(degreeToMidi("4", key, true )), at, dur);
+    }
+
+    // Export '+' and '#' helpers routed via scheduleNote
     function scheduleIntroChordE(at: number, key: KeyName) {
       (["1","3","5"] as Diatonic[]).forEach((d, idx) => {
         const midi = degreeToMidi(d, key);
@@ -1034,132 +1406,126 @@ const onDownloadVideo = useCallback(async () => {
       });
     }
     function scheduleResolveCadenceE(at: number, key: KeyName) {
-      ([
-        { d: "5" as Diatonic, t: at },
-        { d: "1" as Diatonic, t: at + 0.12 },
-      ]).forEach(({ d, t }) => {
+      [{d:"5" as Diatonic, t:at},{d:"1" as Diatonic, t:at+0.12}].forEach(({d,t})=>{
         const midi = degreeToMidi(d, key);
         scheduleNote(midiToNoteName(midi), t);
       });
     }
 
-    // Audio schedule + points
+    // Audio schedule + points (root-only spokes)
     type ExpPoint = { k: "maj" | "min"; step: number; spoke: number };
     const exportPoints: ExpPoint[] = [];
 
-    // Optional: if you want '+' only at start (parity with live):
-    if (tokens[0]?.kind === "intro") {
-      scheduleIntroChordE(t0, SEGMENTS_E[0]);
-    }
+    // If you want a single-shot '+', remove this; we want intro each segment:
+    // if (tokens[0]?.kind === "intro") scheduleIntroChordE(t0, SEGMENTS_E[0]);
 
-    let modeToggled = false;
+    let modeToggled = false; // '*' is rest; still keep local toggle var unused to avoid carry-over
     for (let i = 0; i < STEPS_E; i++) {
       const segIdx = Math.floor(i / TOK_COUNT_E) % SEGMENTS_E.length;
-        // Reset '*' toggle at the start of each segment (each Maj/Min pass)
-  if ((i % TOK_COUNT_E) === 0) modeToggled = false;
+      if ((i % TOK_COUNT_E) === 0) modeToggled = false; // reset per segment
       const keyNowBase: KeyName = SEGMENTS_E[segIdx];
-      const keyNow: KeyName = modeToggled
-        ? (keyNowBase === "BbMajor" ? "Cminor" : "BbMajor")
-        : keyNowBase;
+      const keyNow: KeyName = keyNowBase; // '*' is rest; no toggle
       const kTag: "maj" | "min" = SEGMENTS_E[segIdx] === "BbMajor" ? "maj" : "min";
       const tok = tokens[i % TOK_COUNT_E];
       const at = t0 + i * (NOTE_MS_E / 1000);
-        // Treat each segment as a separate pass: if input has '+', play intro at segment start
-  if (hasIntro && (i % TOK_COUNT_E) === 0) {
-    scheduleIntroChordE(at, keyNow);
-  }
 
-      if (tok?.kind === "toggle") { modeToggled = !modeToggled; continue; }
-      if (tok?.kind === "intro") { continue; } // already handled at start (optional parity)
-      if (tok?.kind === "resolve") { scheduleResolveCadenceE(at, keyNow); continue; }
-      if (tok?.kind === "rest") continue;
+      // intro at segment start
+      if (hasIntro && (i % TOK_COUNT_E) === 0) scheduleIntroChordE(at, keyNow);
 
-      
+      // controls
+      if (!tok) continue;
+      if (tok.kind === "toggle") { /* rest */ continue; }
+      if (tok.kind === "intro") { continue; }
+      if (tok.kind === "resolve") { scheduleResolveCadenceE(at, keyNow); continue; }
+      if (tok.kind === "rest") continue;
 
-      let midi: number | null = null;
-      if (tok.kind === "deg") {
-        midi = degreeToMidi(tok.d, keyNow, tok.up);
-      } else if (tok.kind === "chroma") {
-        const pc = degreeToPcOffset(tok.c as any, keyNow);
-        midi = snapPcToComfortableMidi(pc);
-      }
-      if (midi != null) {
-        scheduleNote(midiToNoteName(midi), at);
-        let spoke = -1;
-        if (tok.kind === "deg") {
-          spoke = degToIndexForKey(tok.d, keyNow);
-        } else if (tok.kind === "chroma") {
-          spoke = DEGREE_ORDER.indexOf(tok.c as any);
+      // Letters vs Digits via srcChar
+      if (tok.kind === "deg" || tok.kind === "chroma") {
+        const isLetter = !!tok.srcChar;
+
+        if (isLetter) {
+          if (tok.kind === "deg") {
+            if (tok.up && tok.src === "8") {
+              // Loop-1: 1 + 1↑
+              scheduleNote(midiToNoteName(degreeToMidi("1", keyNow, false)), at);
+              scheduleNote(midiToNoteName(degreeToMidi("1", keyNow, true )), at);
+              const spoke = degToIndexForKey("1", keyNow);
+              if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+            } else if (tok.up && tok.src === "9") {
+              // Loop-2: 1 + 2↑
+              scheduleNote(midiToNoteName(degreeToMidi("1", keyNow, false)), at);
+              scheduleNote(midiToNoteName(degreeToMidi("2", keyNow, true )), at);
+              const spoke = degToIndexForKey("1", keyNow);
+              if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+            } else {
+              // normal letter
+              scheduleNote(midiToNoteName(degreeToMidi(tok.d, keyNow, tok.up)), at);
+              const spoke = degToIndexForKey(tok.d, keyNow);
+              if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+            }
+          } else {
+            // letter→chroma (rare)
+            const pc = degreeToPcOffset(tok.c as DegLabel, keyNow);
+            const midi = snapPcToComfortableMidi(pc);
+            scheduleNote(midiToNoteName(midi), at);
+            const spoke = DEGREE_ORDER.indexOf(tok.c as any);
+            if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+          }
+        } else {
+          // Digits (chords)
+          if (tok.kind === "deg") {
+            if ("1234567".includes(tok.src)) {
+              scheduleTriad(at, tok.d, keyNow);
+              const spoke = degToIndexForKey(tok.d, keyNow);
+              if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+            } else if (tok.src === "8") {
+              scheduleFirstInvTonic(at, keyNow);
+              const spoke = degToIndexForKey("1", keyNow);
+              if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+            } else if (tok.src === "9") {
+              scheduleSecondInvSupertonic(at, keyNow);
+              const spoke = degToIndexForKey("2", keyNow);
+              if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+            }
+          } else if (tok.kind === "chroma") {
+            const pc = degreeToPcOffset(tok.c as DegLabel, keyNow);
+            const midi = snapPcToComfortableMidi(pc);
+            scheduleNote(midiToNoteName(midi), at);
+            const spoke = DEGREE_ORDER.indexOf(tok.c as any);
+            if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+          }
         }
-        if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
       }
     }
 
-    // 4a) Ticks (export) — build per-token and repeat each pass
-    const playableStepFlags = new Array(STEPS_E).fill(false);
-    for (const p of exportPoints) playableStepFlags[p.step] = true;
-
-    const ord = (n:number)=> (n===1?"1st":n===2?"2nd":n===3?"3rd":`${n}th`);
-const tickStepsExport: string[][] = tokens.map(tok => {
-  if (tok.kind === "rest")   return [];
-  if (tok.kind === "chroma") {
-    return tok.srcChar ? [tok.srcChar, tok.src, tok.c] : [tok.src, tok.c];
-  }
-  if ((tok as any).kind === "dual") {
-    const t:any = tok; return [`${ord(Number(t.a))} + ${ord(Number(t.b))}`];
-  }
-  if (tok.kind === "deg") {
-    if (tok.srcChar) {
-      if (tok.up && tok.src === "8") return [tok.srcChar, "8", "loop → 1st"];
-      if (tok.up && tok.src === "9") return [tok.srcChar, "9", "loop → 2nd"];
-      return [tok.srcChar, tok.src, ord(Number(tok.d))];
+    // 5) Overlays (continuous)
+    function overlaySvgForStep(stepIdx: number): string {
+      const majVis = exportPoints.filter(p => p.k === "maj" && p.step <= stepIdx).map(p => p.spoke);
+      const minVis = exportPoints.filter(p => p.k === "min" && p.step <= stepIdx).map(p => p.spoke);
+      const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
+      const pathMin = minVis.length ? pathFromNodes(minVis) : "";
+      const strokeWidth = trailMode.startsWith("glow") ? 1.15 : 1.4;
+      const filterBlock = `
+        <defs>
+          <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
+            <feMerge>
+              <feMergeNode in="b2" />
+              <feMergeNode in="b1" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      `;
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${liveW}" height="${liveH}" shape-rendering="geometricPrecision">
+          ${trailMode.startsWith("glow") ? filterBlock : ""}
+          ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
+          ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
+        </svg>
+      `;
     }
-    if (tok.up && tok.src === "8") return ["8", "loop → 1st"];
-    if (tok.up && tok.src === "9") return ["9", "loop → 2nd"];
-    return [`→ ${ord(Number(tok.d))}`];
-  }
-  return [];
-});
-    let currentTick: string[] | null = null;
-    let tickUntil = 0;
-    const TICK_MS = Math.max(NOTE_MS_E - 16, 180);
-
-    // 5) Overlays (non-Pulse modes) — continuous trails across all segments
-function overlaySvgForStep(stepIdx: number): string {
-  // Use ALL spokes up to stepIdx for each color → continuous paths
-  const majVis = exportPoints
-    .filter(p => p.k === "maj" && p.step <= stepIdx)
-    .map(p => p.spoke);
-  const minVis = exportPoints
-    .filter(p => p.k === "min" && p.step <= stepIdx)
-    .map(p => p.spoke);
-
-  const pathMaj = majVis.length ? pathFromNodes(majVis) : "";
-  const pathMin = minVis.length ? pathFromNodes(minVis) : "";
-
-  const strokeWidth = trailMode.startsWith("glow") ? 1.15 : 1.4;
-  const filterBlock = `
-    <defs>
-      <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
-        <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
-        <feMerge>
-          <feMergeNode in="b2" />
-          <feMergeNode in="b1" />
-          <feMergeNode in="SourceGraphic" />
-        </feMerge>
-      </filter>
-    </defs>
-  `;
-
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${liveW}" height="${liveH}" shape-rendering="geometricPrecision">
-      ${trailMode.startsWith("glow") ? filterBlock : ""}
-      ${pathMaj ? `<path d="${pathMaj}" fill="none" stroke="${T.gold}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
-      ${pathMin ? `<path d="${pathMin}" fill="none" stroke="${T.minor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" ${trailMode.startsWith("glow") ? `filter="url(#vt-glow)"` : ""} />` : ""}
-    </svg>
-  `;
-}
 
     const overlayImgs: HTMLImageElement[] = [];
     if (trailMode !== "pulse") {
@@ -1170,7 +1536,7 @@ function overlaySvgForStep(stepIdx: number): string {
       }
     }
 
-    // 6) Pulses (export) — polar model (Pulse & +confetti)
+    // 6) Pulses (export) — reused bubbles engine
     type CParticle = { ox:number; oy:number; r:number; vr:number; ang:number; vang:number; life:number; size:number; color:string };
     const confetti: CParticle[] = [];
     const confColors = [T.gold, T.minor, "#FFD36B"];
@@ -1251,67 +1617,263 @@ function overlaySvgForStep(stepIdx: number): string {
       ctx.globalCompositeOperation = prevComp;
       ctx.restore();
     }
+    // ===== Export caption (double-line) helpers =====
 
-    // 6a) Draw helpers
-    function drawFrameBase() {
-      c.fillStyle = (bg === "dark" ? themeDark.bg : themeLight.bg);
-      c.fillRect(0, 0, canvas.width, canvas.height);
-      c.save();
-      const inputFontScale = 0.75;
-      c.font = `${datePx * inputFontScale * SCALE}px Inter, system-ui, sans-serif`;
-      c.textAlign = "center"; c.textBaseline = "middle";
-      c.lineWidth = Math.max(2, Math.floor(datePx * 0.12)) * SCALE;
-      c.strokeStyle = bg === "dark" ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.12)";
-      const inputY = dateBaselineY - (20 * SCALE);
-      c.strokeText(dateText, (FRAME_W * SCALE)/2, inputY);
-      c.fillStyle = (bg === "dark" ? themeDark.gold : themeLight.gold);
-      c.fillText(dateText, (FRAME_W * SCALE)/2, inputY);
-      c.restore();
-      c.save();
-      c.strokeStyle = (bg === "dark" ? themeDark.gold : themeLight.gold);
-      c.lineWidth = 2 * SCALE;
-      c.strokeRect((SIDE_PAD / 2) * SCALE, SAFE_TOP * SCALE, (FRAME_W - SIDE_PAD) * SCALE, (drawH + dateBlockH + TOP_GAP) * SCALE);
-      c.restore();
-      c.drawImage(bgImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
+// Measure width like drawTokenWithSupE, without drawing
+function measureTokenWithSupE(ctx: CanvasRenderingContext2D, text: string): number {
+  // inversions: "1st inv" / "2nd inv"
+  let m = text.match(/^(\d+)(st|nd|rd|th)\s+(inv)$/i);
+  if (m) {
+    const [, num, suf, tail] = m;
+    const prev = ctx.font;
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(prev) * 0.65);
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    const wTail = ctx.measureText(" " + tail).width;
+    return wNum + wSup + wTail;
+  }
+  // ordinals
+  m = text.match(/^(\d+)(st|nd|rd|th)$/i);
+  if (m) {
+    const [, num, suf] = m;
+    const prev = ctx.font;
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(prev) * 0.65);
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    return wNum + wSup;
+  }
+  // accidentals + combined "♭2/♯4"
+  if (/^[♭♯]\d+(\/[♭♯]\d+)?$/.test(text)) {
+    const parts = text.split("/");
+    const prev = ctx.font;
+    const supSize = Math.round(parseFloat(prev) * 0.65);
+    const measureAcc = (part: string) => {
+      const mm = part.match(/^([♭♯])(\d+)$/);
+      if (!mm) return ctx.measureText(part).width;
+      const [, acc, num] = mm;
+      const wAcc = ctx.measureText(acc).width;
+      ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+      const wNum = ctx.measureText(num).width;
+      ctx.font = prev;
+      return wAcc + wNum;
+    };
+    let w = measureAcc(parts[0]);
+    if (parts[1]) w += ctx.measureText("/").width + measureAcc(parts[1]);
+    return w;
+  }
+  return ctx.measureText(text).width;
+}
+
+// Draw token with superscripts (export)
+function drawTokenWithSupE(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): number {
+  // inversions
+  let m = text.match(/^(\d+)(st|nd|rd|th)\s+(inv)$/i);
+  if (m) {
+    const [, num, suf, tail] = m;
+    ctx.fillText(num, x, y);
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(ctx.font) * 0.65);
+    const prev = ctx.font;
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    ctx.fillText(suf, x + wNum, y - supSize * 0.35);
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    ctx.fillText(" " + tail, x + wNum + wSup, y);
+    return wNum + wSup + ctx.measureText(" " + tail).width;
+  }
+  // ordinals
+  m = text.match(/^(\d+)(st|nd|rd|th)$/i);
+  if (m) {
+    const [, num, suf] = m;
+    ctx.fillText(num, x, y);
+    const wNum = ctx.measureText(num).width;
+    const supSize = Math.round(parseFloat(ctx.font) * 0.65);
+    const prev = ctx.font;
+    ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+    ctx.fillText(suf, x + wNum, y - supSize * 0.35);
+    const wSup = ctx.measureText(suf).width;
+    ctx.font = prev;
+    return wNum + wSup;
+  }
+  // accidentals and combined
+  if (/^[♭♯]\d+(\/[♭♯]\d+)?$/.test(text)) {
+    const parts = text.split("/");
+    const prev = ctx.font;
+    const supSize = Math.round(parseFloat(prev) * 0.65);
+    const drawAcc = (part: string, x0: number) => {
+      const mm = part.match(/^([♭♯])(\d+)$/);
+      if (!mm) { ctx.fillText(part, x0, y); return ctx.measureText(part).width; }
+      const [, acc, num] = mm;
+      ctx.fillText(acc, x0, y);
+      const wAcc = ctx.measureText(acc).width;
+      ctx.font = `${supSize}px Inter, system-ui, sans-serif`;
+      ctx.fillText(num, x0 + wAcc, y - supSize * 0.35);
+      const wNum = ctx.measureText(num).width;
+      ctx.font = prev;
+      return wAcc + wNum;
+    };
+    let dx = 0;
+    dx += drawAcc(parts[0], x);
+    if (parts[1]) { ctx.fillText("/", x + dx, y); dx += ctx.measureText("/").width; dx += drawAcc(parts[1], x + dx); }
+    return dx;
+  }
+  // default
+  ctx.fillText(text, x, y);
+  return ctx.measureText(text).width;
+}
+
+// Build mapping (playableIndex -> charIndex)
+const srcCharsE = (raw || "").toUpperCase().split("");
+const playableE = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+const p2cE: number[] = [];
+{
+  let piE = 0;
+  for (let ci = 0; ci < srcCharsE.length && piE < playableE.length; ci++) {
+    if (/[A-Z0-9]/.test(srcCharsE[ci])) { p2cE.push(ci); piE++; }
+  }
+}
+
+// Draw the export caption (two lines) with highlight
+function drawExportCaption(ctx: CanvasRenderingContext2D, activePlayable: number, keyNow: KeyName) {
+  const src = (raw || "").toUpperCase().split("");
+  const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
+
+  // labels per char
+  const labels: string[] = new Array(src.length).fill("");
+  {
+    let p = 0;
+    for (let ci = 0; ci < src.length && p < playable.length; ci++) {
+      if (/[A-Z0-9]/.test(src[ci])) { labels[ci] = labelForTokenCanvas(playable[p], keyNow); p++; }
     }
+  }
 
-    function drawTickOverlay(tick: string[]) {
-      const text = tick.join(" \u2192 ");
-      const centerX = (drawX + drawW / 2) * SCALE;
-      const centerY = (drawY + drawH / 2) * SCALE;
-      const MAX_W = drawW * 0.90 * SCALE;
-      let fontPx = 68;
-      c.save();
-      c.textAlign = "center"; c.textBaseline = "middle";
-      c.font = `${fontPx * SCALE}px Inter, system-ui, sans-serif`;
-      let w = c.measureText(text).width;
-      if (w > MAX_W) {
-        const ratio = MAX_W / Math.max(w, 1);
-        fontPx = Math.max(18, Math.floor(fontPx * ratio));
-        c.font = `${fontPx * SCALE}px Inter, system-ui, sans-serif`;
-      }
-      const strokeW = Math.max(2, Math.round(fontPx * 0.18)) * SCALE;
-      c.lineWidth = strokeW;
-      c.strokeStyle = "rgba(0,0,0,0.35)";
-      c.strokeText(text, centerX, centerY);
-      c.fillStyle = T.text;
-      c.fillText(text, centerX, centerY);
-      c.restore();
+  // display array with separators " · "
+  type Disp = { txt: string; isSep: boolean; charIndex: number };
+  const disp: Disp[] = [];
+  for (let ci = 0; ci < src.length; ci++) {
+    disp.push({ txt: src[ci], isSep: false, charIndex: ci });
+    disp.push({ txt: " · ", isSep: true, charIndex: -1 });
+  }
+
+  
+  // geometry (in the gold panel above the circle)
+const topPx = 48, botPx = 39, gap = 10, padX = 48; // enlarged x3 for video readability
+  const topFont = `${topPx * SCALE}px Inter, system-ui, sans-serif`;
+  const botFont = `${botPx * SCALE}px Inter, system-ui, sans-serif`;
+  const capX = (FRAME_W * SCALE - (drawW * SCALE)) / 2 + (padX * SCALE);
+  const capW = (drawW * SCALE) - (padX * 2 * SCALE);
+  // Move caption up a bit to add space from the circle
+const capLift = 70 * SCALE; // tweak 12–24 if you want more/less space
+
+const topY = (goldTop * SCALE) + (topPx * SCALE) + 4 - capLift;
+const botY = topY + (gap * SCALE) + (botPx * SCALE);
+
+  // measure top widths
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = topFont;
+  const widths = disp.map(d => ctx.measureText(d.txt).width);
+  const totalW = widths.reduce((a,b)=>a+b, 0);
+  let x = capX + Math.max(0, (capW - totalW) / 2);
+
+  const activeChar = (activePlayable >= 0 && activePlayable < p2cE.length) ? p2cE[activePlayable] : -1;
+  const activeColor = (keyNow === "BbMajor")
+    ? (bg === "dark" ? themeDark.gold : themeLight.gold)
+    : (bg === "dark" ? themeDark.minor : themeLight.minor);
+
+  // top (input tokens)
+  for (let i = 0; i < disp.length; i++) {
+    const el = disp[i];
+    if (el.isSep) {
+      ctx.fillStyle = (bg === "dark" ? themeDark.muted : themeLight.muted);
+      ctx.fillText(el.txt, x, topY);
+      x += widths[i];
+      continue;
     }
+    const isActive = (el.charIndex === activeChar);
+    ctx.fillStyle = isActive ? activeColor : (bg === "dark" ? themeDark.text : themeLight.text);
+    ctx.fillText(el.txt, x, topY);
+    x += widths[i];
+  }
 
-    
+  // bottom (labels)
+  x = capX + Math.max(0, (capW - totalW) / 2);
+  ctx.font = botFont;
+  const lineGapPx = 2 * SCALE;
+
+  for (let i = 0; i < disp.length; i++) {
+    const el = disp[i];
+    const cellW = widths[i];
+    if (el.isSep) { x += cellW; continue; }
+    const lab = labels[el.charIndex] || "";
+    if (!lab) { x += cellW; continue; }
+
+    const isActive = (el.charIndex === activeChar);
+    ctx.fillStyle = isActive ? activeColor : (bg === "dark" ? themeDark.text : themeLight.text);
+
+    if (lab === "♭2/♯4") {
+  // ♭2 on baseline, ♯4 on a line below (like "inv")
+  const topLab = "♭2";
+  const botLab = "♯4";
+  const wTop = measureTokenWithSupE(ctx, topLab);
+  const wBot = measureTokenWithSupE(ctx, botLab);
+  const xTop = x + (cellW - wTop) / 2;
+  const xBot = x + (cellW - wBot) / 2;
+
+  // top on baseline, bottom one line below
+  drawTokenWithSupE(ctx, topLab, xTop, botY);
+  ctx.fillStyle = ctx.fillStyle; // unchanged color
+  drawTokenWithSupE(ctx, botLab, xBot, botY + (botPx * SCALE) + lineGapPx);
+} else if (/^\d+(st|nd|rd|th)\s+inv$/i.test(lab)) {
+      // inv stacked below baseline
+      const topLab = lab.replace(/\s+inv$/i, "");
+      const botLab = "inv";
+
+      c// Scale factor for inversions (smaller than normal bottom labels)
+  const INV_SCALE = 0.7; // try 0.5 ~ 0.65 to taste
+  const prevFont = ctx.font;
+
+  // Use smaller font to measure/draw both top (1st/2nd) and bottom ("inv")
+  const smallBotPx = botPx * INV_SCALE;
+  ctx.font = `${Math.round(smallBotPx * SCALE)}px Inter, system-ui, sans-serif`;
+
+  const wTop = measureTokenWithSupE(ctx, topLab);
+  const wBot = ctx.measureText(botLab).width;
+  const xTop = x + (cellW - wTop) / 2;
+  const xBot = x + (cellW - wBot) / 2;
+
+  // Top (1st/2nd) on baseline (same as other helpers)
+  drawTokenWithSupE(ctx, topLab, xTop, botY);
+
+  // Bottom ("inv") one line below, using the *smaller* line height
+  const offset = (smallBotPx * SCALE) + lineGapPx;
+  ctx.fillText(botLab, xBot, botY + offset);
+
+  // Restore original label font
+  ctx.font = prevFont;
+} else {
+      // single line
+      const wLab = measureTokenWithSupE(ctx, lab);
+      const xLab = x + (cellW - wLab) / 2;
+      drawTokenWithSupE(ctx, lab, xLab, botY);
+    }
+    x += cellW;
+  }
+}
 
     // 7) Recording loop
     const TOTAL_MS_FIXED = (STEPS_E * NOTE_MS_E) + 300;
     const recStart = performance.now();
     rec.start();
-    // Fallback: ensure recorder stops even if loop aborts (prevents crazy durations)
-const hardStopTimer = window.setTimeout(() => {
-  try { rec.stop(); } catch {}
-}, TOTAL_MS_FIXED + 500);
+    const hardStopTimer = window.setTimeout(() => { try { rec.stop(); } catch {} }, TOTAL_MS_FIXED + 500);
 
     let lastTs = 0;
     let prevStep = -1;
+    let playedIdxE = 0; // export caption highlight: counts only playable tokens within the segment
 
     (function loop() {
       const nowTs = performance.now();
@@ -1320,23 +1882,58 @@ const hardStopTimer = window.setTimeout(() => {
       const dtSec = lastTs ? (nowTs - lastTs) / 1000 : (1 / FPS);
       lastTs = nowTs;
 
-      drawFrameBase();
+      // base frame (NO static input title)
+c.fillStyle = (bg === "dark" ? themeDark.bg : themeLight.bg);
+c.fillRect(0, 0, canvas.width, canvas.height);
 
-      // overlays only for non-Pulse modes
+// gold panel border
+c.save();
+c.strokeStyle = (bg === "dark" ? themeDark.gold : themeLight.gold);
+c.lineWidth = 2 * SCALE;
+c.strokeRect(
+  (SIDE_PAD / 2) * SCALE,
+  SAFE_TOP * SCALE,
+  (FRAME_W - SIDE_PAD) * SCALE,
+  (drawH + dateBlockH + TOP_GAP) * SCALE
+);
+c.restore();
+
+// base circle/labels snapshot (no overlays)
+c.drawImage(
+  bgImg,
+  0, 0, liveW, liveH,
+  drawX * SCALE, drawY * SCALE,
+  drawW * SCALE, drawH * SCALE
+);
+
+      // overlays (non-Pulse)
       if (trailMode !== "pulse") {
         const ovImg = overlayImgs[i];
         if (ovImg) {
           c.drawImage(ovImg, 0, 0, liveW, liveH, drawX * SCALE, drawY * SCALE, drawW * SCALE, drawH * SCALE);
         }
       }
+      // ---- Draw export caption (double-line) with playable-only highlight ----
+const segIdx = Math.floor(i / TOK_COUNT_E) % SEGMENTS_E.length;
+const keyNowE: KeyName = SEGMENTS_E[segIdx];
 
-      // Pulse-only: trigger a tick on each new playable step (repeat per pass)
-      if (trailMode === "pulse" && i > prevStep && playableStepFlags[i]) {
-        currentTick = tickStepsExport[i % TOK_COUNT_E] || null;
-        tickUntil = nowTs + TICK_MS;
-      }
+// Advance the playable counter only for new playable steps since prevStep,
+// and reset it at the start of each segment
+if (i > prevStep) {
+  for (let s = prevStep + 1; s <= i; s++) {
+    if ((s % TOK_COUNT_E) === 0) playedIdxE = 0; // start of a new segment
+    const t = tokens[s % TOK_COUNT_E];
+    if (t && (t.kind === "deg" || t.kind === "chroma")) {
+      playedIdxE++; // count only playable tokens
+    }
+  }
+}
 
-      // Pulses engine (Pulse and +confetti)
+// Highlight the current playable (last one we advanced to)
+const activePlayableIdx = Math.max(0, playedIdxE - 1);
+drawExportCaption(c, activePlayableIdx, keyNowE);
+
+      // pulse engine
       if (trailMode === "pulse" || trailMode.includes("+confetti")) {
         if (i > prevStep) {
           for (let s = prevStep + 1; s <= i; s++) spawnConfettiForStep(s);
@@ -1345,30 +1942,22 @@ const hardStopTimer = window.setTimeout(() => {
         updateAndDrawConfetti(c, dtSec);
       }
 
-      // draw tick last (on top)
-      if (trailMode === "pulse") {
-        if (currentTick && nowTs < tickUntil) drawTickOverlay(currentTick);
-        else currentTick = null;
-      }
-
       if (elapsed < TOTAL_MS_FIXED) requestAnimationFrame(loop);
       else rec.stop();
     })();
 
     const recorded: Blob = await new Promise((res) => {
-  rec.onstop = () => {
-    try {
-      // stop canvas capture tracks and audio tracks to finalize duration cleanly
-      try { stream.getTracks().forEach(t => t.stop()); } catch {}
-      try { exportDst.stream.getTracks().forEach(t => t.stop()); } catch {}
-      try { window.clearTimeout(hardStopTimer); } catch {}
-    } finally {
-      res(new Blob(chunks, { type: mimeType || "video/webm" }));
-    }
-  };
-});
+      rec.onstop = () => {
+        try {
+          try { stream.getTracks().forEach(t => t.stop()); } catch {}
+          try { exportDst.stream.getTracks().forEach(t => t.stop()); } catch {}
+          try { window.clearTimeout(hardStopTimer); } catch {}
+        } finally {
+          res(new Blob(chunks, { type: mimeType || "video/webm" }));
+        }
+      };
+    });
 
-    // Convert to MP4
     const outBlob = await convertToMp4Server(recorded);
     const safe = (raw || "number").replace(/[^A-Za-z0-9\-_.]+/g, "-");
     const a = document.createElement("a");
@@ -1383,346 +1972,260 @@ const hardStopTimer = window.setTimeout(() => {
   }
 }, [raw, bg, trailMode, zeroPolicy, tokens, T.gold, T.minor]);
 
-  /* =========================
-     Render (header + input + circle + actions)
-  ========================= */
-  return (
-    <div style={{ minHeight:"100vh", background: T.bg, color: T.text, overflowX:"hidden" }}>
-      <main className="vt-card" style={{ width:"100%", margin:"0 auto", padding:12, boxSizing:"border-box", maxWidth:520 }} ref={panelRef}>
-        <section
-          className="vt-panel minw0"
-          style={{
-            border: `1px solid ${T.gold}`,
-            borderRadius:14,
-            paddingTop:12,
-            paddingBottom:12,
-            background: T.card,
-            display: "grid",
-            gap: 10,
-          }}
-        >
-          {/* Helper hint */}
-          <div style={{ textAlign:"center", fontSize:13, color:T.muted, paddingInline:6 }}>
-            Type a phone number. Allowed: A–Z, 0–9, <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>+</code>, <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>#</code>, <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>*</code>, and <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>-</code> (rest). Letters use T9 (e.g., 1-800-HELLO).
-          </div>
-
-          {/* Input */}
-          <form
-            className="minw0"
-            onSubmit={(e)=>{ e.preventDefault(); if (raw.trim()) start(); }}
-            style={{ display:"flex", gap:8, alignItems:"center", justifyContent:"center", flexWrap:"wrap", paddingInline: 2 }}
-          >
-            <input
-              value={raw}
-              onChange={e => {
-  setRaw(sanitizePhoneInput(e.target.value));
-  setShowHelper(true);            // re-show helper while typing
-}}
-              placeholder="+49 171-HELLO#*"
-              inputMode="text"
-              enterKeyHint="done"
-              onKeyDown={onKeyDown}
-              style={{
-                boxSizing: "border-box",
-                width: "min(92%, 34ch)",
-                background: bg === "dark" ? "#0F1821" : "#F3F5F8",
-                color: T.gold,
-                border:`1px solid ${T.border}`,
-                borderRadius:8,
-                padding:"10px 12px",
-                fontSize:16,
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace',
-                fontVariantNumeric: "tabular-nums",
-              }}
-              aria-label="Type a phone number"
-            />
-            
-          </form>
-          
-{/* Transform helper (hide during playback) */}
-{showHelper && (
-  <div className="transform-helper" style={{
-    marginTop:6, display:"flex", gap:8, justifyContent:"center", alignItems:"center", flexWrap:"wrap"
-  }}>
-    {currentChain && currentChain.length ? (
-      currentChain.map((step, idx) => (
-        <React.Fragment key={idx}>
-          <span className="chain-node" style={{
-            padding:"1px 6px", borderRadius:6,
-            background: bg==="dark" ? "#0F1821" : "#F3F5F8",
-            border:`1px solid ${T.border}`, color: T.text, whiteSpace:"nowrap", fontSize:13
-          }}>
-            {step}
-          </span>
-          {idx < currentChain.length - 1 ? (
-            <span aria-hidden="true" style={{ opacity:0.6, fontSize:12 }}>→</span>
-          ) : null}
-        </React.Fragment>
-      ))
-    ) : null}
-  </div>
-)}
-{/* Shortened transform tick (hide in Pulse-only mode) */}
-{trailMode !== "pulse" && (
-  <div
-    className="tick-line"
-    style={{
-      height: 18,
-      marginTop: 6,
-      overflow: "hidden",
-      textAlign: "center",
-      opacity: isRunning && activeTick && activeTick.length ? 0.95 : 0,
-      transition: "opacity 120ms ease",
-      pointerEvents: "none",
-      whiteSpace: "nowrap",
-    }}
-  >
-    {activeTick && activeTick.length ? (
-      <span style={{ fontSize: 12, color: T.text }}>
-        {activeTick.map((step, i) => (
-          <React.Fragment key={i}>
-            <span>{step}</span>
-            {i < activeTick.length - 1 ? (
-              <span style={{ opacity: 0.6 }}> → </span>
-            ) : null}
-          </React.Fragment>
-        ))}
-      </span>
-    ) : null}
-  </div>
-)}
-
-{/* Degrees strip (one line, mimics input; plain text, no glow) */}
-        {showDegreesStrip && (
-          <div
-  className="degrees-strip"
-  aria-label="Degrees"
-  style={{
-    marginTop: 6,
-    whiteSpace: "nowrap",        // single line
-    overflowX: "auto",           // scroll if too long
-    textAlign: "center",         // keeps it visually centered under input
-    padding: "2px 4px",
-  }}
->
-  <span
-    style={{
-      fontSize: 16,              // smaller than input
-      fontWeight: 400,
-      letterSpacing: "-0.1px",   // a touch condensed
-      color: T.text,             // plain text
-      fontVariantNumeric: "tabular-nums",
-    }}
-  >
-    {degreesStrip.length
-      ? degreesStrip.join("\u2009")   /* narrow space (non-breaking-like) between tokens */
-      : "Degrees will appear here…"}
-  </span>
-</div> 
-)}
-
-          {/* Circle */}
-          <div className="minw0" style={{ display:"grid", justifyContent:"center", paddingInline: 2 }}>
-            <svg
-              ref={svgRef}
-              viewBox="0 0 100 100"
-              width={360}
-              height={360}
-              style={{ overflow:"visible" }}
-              shapeRendering="geometricPrecision"
-            >
-              {/* Glow filter */}
-              <defs>
-                <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
-                  <feMerge>
-                    <feMergeNode in="b2" />
-                    <feMergeNode in="b1" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-
-              {/* Ring */}
-              <circle cx="50" cy="50" r="36" stroke={bg==="dark" ? "rgba(230,235,242,0.15)" : "rgba(0,0,0,0.12)"} strokeWidth="2" fill="none" />
-              {/* Nodes + labels */}
-              {DEGREE_ORDER.map((lab, i) => {
-                const p = nodePosition(i, 36);
-                const lp = labelPlacement(i, p);
-                return (
-                  <g key={lab}>
-                    <circle cx={p.x} cy={p.y} r="1.6" fill={bg==="dark" ? "rgba(230,235,242,0.5)" : "rgba(0,0,0,0.45)"} />
-                    <text x={lp.x} y={lp.y} textAnchor={lp.anchor} dominantBaseline={lp.baseline} fontSize="4" fill={T.text} style={{ userSelect:"none", pointerEvents:"none" }}>
-                      {lab}
-                    </text>
-                  </g>
-                );
-              })}
-              {/* Live trails */}
-              {trailMode !== "pulse" && overlays.map(ov => (
-                <path
-                  key={ov.id}
-                  d={ov.path}
-                  fill="none"
-                  stroke={ov.color}
-                  strokeWidth={trailMode.startsWith("lines") ? 1.4 : 1.15}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  filter={trailMode.startsWith("glow") ? "url(#vt-glow)" : undefined}
-                />
-              ))}
-              <g id="embers" />
-              {/* Live Pulse-only overlay: centered ticks + node pulse */}
-{trailMode === "pulse" && (
-  <>
-    {/* centered ticks (live) */}
-    {isRunning && activeTick && activeTick.length > 0 && (
-      <text
-        x="50"
-        y="50"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontSize="6.8"          // tweak 6.5–8 as needed
-        fill={T.text}
-        style={{ userSelect: "none", pointerEvents: "none" }}
+/* =========================
+   Render (header + input + circle + actions)
+========================= */
+return (
+  <div style={{ minHeight:"100vh", background: T.bg, color: T.text, overflowX:"hidden" }}>
+    <main className="vt-card" style={{ width:"100%", margin:"0 auto", padding:12, boxSizing:"border-box", maxWidth:520 }} ref={panelRef}>
+      <section
+        className="vt-panel minw0"
+        style={{
+          border: `1px solid ${T.gold}`,
+          borderRadius:14,
+          paddingTop:12,
+          paddingBottom:12,
+          background: T.card,
+          display: "grid",
+          gap: 10,
+        }}
       >
-        {activeTick.join(" \u2192 ")}
-      </text>
-    )}
-
-    {/* dot pulse on the active node (brief pop) */}
-    {hotPulse && (
-      <>
-        {/* bright dot */}
-        <circle
-          cx={hotPulse.x}
-          cy={hotPulse.y}
-          r="2.2"
-          fill={hotPulse.color}
-          opacity="0.95"
-        />
-        {/* soft ring */}
-        <circle
-          cx={hotPulse.x}
-          cy={hotPulse.y}
-          r="4.4"
-          fill="none"
-          stroke={hotPulse.color}
-          strokeWidth="0.6"
-          opacity="0.45"
-        />
-      </>
-    )}
-  </>
-)}
-            </svg>
-          </div>
-                    {/* Actions (Play/Replay + Download + Share) */}
-          <div className="vt-actions minw0" aria-label="Actions">
-            {isExporting && (
-              <div style={{ color: T.muted, fontSize: 12, textAlign: "center", width: "100%", marginTop: 6 }}>
-                ⏺️ Recording…
-              </div>
-            )}
-            <button
-              onClick={() => start()}
-              disabled={isRunning || !raw.trim()}
-              style={{
-                background: isRunning || !raw.trim() ? (bg === "dark" ? "#1a2430" : "#E8ECF2") : T.gold,
-                color:      isRunning || !raw.trim() ? T.muted : (bg === "dark" ? "#081019" : "#FFFFFF"),
-                border: "none",
-                borderRadius: 999,
-                padding: "10px 16px",
-                fontWeight: 700,
-                cursor: isRunning || !raw.trim() ? "not-allowed" : "pointer",
-                fontSize: 16,
-                minHeight: 40,
-              }}
-              title={hasPlayed ? "⟲ Replay" : "▶ Play"}
-            >
-              {hasPlayed ? "⟲ Replay" : "▶ Play"}
-            </button>
-
-            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-              <button onClick={() => onDownloadVideo()} disabled={!raw.trim()} title="Download"
-                style={{ background:"transparent", color: T.gold, border:"none", borderRadius:999, padding:"6px 10px", fontWeight:700, cursor:!raw.trim()?"not-allowed":"pointer", minHeight:32, fontSize:14 }}>
-                💾 <span className="action-text">Download</span>
-              </button>
-              <button onClick={() => setShareOpen(true)} title="Share"
-                style={{ background:"transparent", color: T.gold, border:"none", borderRadius:999, padding:"6px 10px", fontWeight:700, cursor:"pointer", minHeight:32, fontSize:14 }}>
-                📤 <span className="action-text">Share</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div style={{ display:"grid", gap:10, paddingInline:6 }}>
-            <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
-              {/* Trails */}
-              <select value={trailMode} onChange={e=>setTrailMode(e.target.value as TrailMode)}
-                style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
-                <option value="pulse">Trails: Pulse only</option>
-                <option value="glow">Trails: Glow</option>
-                <option value="lines">Trails: Lines</option>
-                <option value="glow+confetti">Trails: Glow & Confetti</option>
-                <option value="lines+confetti">Trails: Lines & Confetti</option>
-              </select>
-
-              {/* Background */}
-              <select value={bg} onChange={e=>setBg(e.target.value as BgMode)}
-                style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
-                <option value="dark">Background: Dark</option>
-                <option value="light">Background: Light</option>
-              </select>
-
-              {/* Zero Policy */}
-              <select value={zeroPolicy} onChange={e=>setZeroPolicy(e.target.value as ZeroPolicy)}
-                style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
-                <option value="chromatic">Zero (0): Chromatic color</option>
-                <option value="rest">Zero (0): Rest</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        {/* Outside the card: Why these numbers CTA */}
-        <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
-          <a
-            href="/learn/why-these-numbers"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              fontWeight: 700,
-              fontSize: 15,
-              color: T.gold,
-              textDecoration: "none",
-              border: `1px solid ${T.border}`,
-              borderRadius: 12,
-              padding: "8px 14px",
-              boxShadow: bg==="dark" ? "0 1px 3px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.06)",
-            }}
-            aria-label="Why these numbers explanation"
-          >
-            Why these numbers →
-          </a>
+        {/* Helper hint */}
+        <div style={{ textAlign:"center", fontSize:13, color:T.muted, paddingInline:6 }}>
+          Type a phone number. Allowed: A–Z, 0–9, <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>+</code>, <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>#</code>, <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>*</code>, and <code style={{background:"#0F1821", padding:"1px 4px", borderRadius:6}}>-</code> (rest). Letters use T9 (e.g., 1-800-HELLO).
         </div>
-        {/* Share Sheet (modal) */}
-<ShareSheet
-  open={shareOpen}
-  onClose={() => setShareOpen(false)}
-  url={typeof window === "undefined" ? "" : buildShareUrl()}
-  themeColors={{
-    gold: T.gold,
-    border: T.border,
-    text: T.text,
-    bg: bg === "dark" ? themeDark.card : themeLight.card,
-  }}
-/>
-      </main>
-    </div>
-  );
+
+        {/* Input */}
+        <form
+          className="minw0"
+          onSubmit={(e)=>{ e.preventDefault(); if (raw.trim()) start(); }}
+          style={{ display:"flex", gap:8, alignItems:"center", justifyContent:"center", flexWrap:"wrap", paddingInline: 2 }}
+        >
+          <input
+            value={raw}
+            onChange={e => { setRaw(sanitizePhoneInput(e.target.value)); setShowHelper(true); }}
+            placeholder="+49 171-HELLO#*"
+            inputMode="text"
+            enterKeyHint="done"
+            onKeyDown={onKeyDown}
+            style={{
+              boxSizing: "border-box",
+              width: "min(92%, 34ch)",
+              background: bg === "dark" ? "#0F1821" : "#F3F5F8",
+              color: T.gold,
+              border:`1px solid ${T.border}`,
+              borderRadius:8,
+              padding:"10px 12px",
+              fontSize:16,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace',
+              fontVariantNumeric: "tabular-nums",
+            }}
+            aria-label="Type a phone number"
+          />
+        </form>
+
+        {/* Transform helper (hide during playback) */}
+        {showHelper && (
+          <div className="transform-helper" style={{ marginTop:6, display:"flex", gap:8, justifyContent:"center", alignItems:"center", flexWrap:"wrap" }}>
+            {currentChain && currentChain.length ? currentChain.map((step, idx) => (
+              <React.Fragment key={idx}>
+                <span className="chain-node" style={{
+                  padding:"1px 6px", borderRadius:6,
+                  background: bg==="dark" ? "#0F1821" : "#F3F5F8",
+                  border:`1px solid ${T.border}`, color: T.text, whiteSpace:"nowrap", fontSize:13
+                }}>
+                  {renderWithSupers(step)}
+                </span>
+                {idx < currentChain.length - 1 ? (<span aria-hidden="true" style={{ opacity:0.6, fontSize:12 }}>→</span>) : null}
+              </React.Fragment>
+            )) : null}
+          </div>
+        )}
+
+        {/* Caption canvas: input tokens with " · " separators + labels under each */}
+        <div className="minw0" style={{ display:"grid", justifyContent:"center", paddingInline: 2 }}>
+          <canvas
+            ref={captionCanvasRef}
+            width={360}
+            height={84}
+            style={{ width: 360, height: 84, display:"block" }}
+            aria-label="Caption"
+          />
+        </div>
+
+        {/* Circle */}
+        <div className="minw0" style={{ display:"grid", justifyContent:"center", paddingInline: 2 }}>
+          <svg
+            ref={svgRef}
+            viewBox="0 0 100 100"
+            width={360}
+            height={360}
+            style={{ overflow:"visible" }}
+            shapeRendering="geometricPrecision"
+          >
+            {/* Glow filter */}
+            <defs>
+              <filter id="vt-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b1" />
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b2" />
+                <feMerge>
+                  <feMergeNode in="b2" />
+                  <feMergeNode in="b1" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* Ring */}
+            <circle cx="50" cy="50" r="36" stroke={bg==="dark" ? "rgba(230,235,242,0.15)" : "rgba(0,0,0,0.12)"} strokeWidth="2" fill="none" />
+
+            {/* Nodes + labels */}
+            {DEGREE_ORDER.map((lab, i) => {
+              const p = nodePosition(i, 36);
+              const lp = labelPlacement(i, p);
+              return (
+                <g key={lab}>
+                  <circle cx={p.x} cy={p.y} r="1.6" fill={bg==="dark" ? "rgba(230,235,242,0.5)" : "rgba(0,0,0,0.45)"} />
+                  <text x={lp.x} y={lp.y} textAnchor={lp.anchor} dominantBaseline={lp.baseline} fontSize="4" fill={T.text} style={{ userSelect:"none", pointerEvents:"none" }}>
+                    {lab}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Live trails */}
+            {trailMode !== "pulse" && overlays.map(ov => (
+              <path
+                key={ov.id}
+                d={ov.path}
+                fill="none"
+                stroke={ov.color}
+                strokeWidth={trailMode.startsWith("lines") ? 1.4 : 1.15}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                filter={trailMode.startsWith("glow") ? "url(#vt-glow)" : undefined}
+              />
+            ))}
+
+            <g id="embers" />
+
+            {/* dot pulse on the active node (brief pop) */}
+            {hotPulse && (
+              <>
+                <circle cx={hotPulse.x} cy={hotPulse.y} r="2.2" fill={hotPulse.color} opacity="0.95" />
+                <circle cx={hotPulse.x} cy={hotPulse.y} r="4.4" fill="none" stroke={hotPulse.color} strokeWidth="0.6" opacity="0.45" />
+              </>
+            )}
+          </svg>
+        </div>
+
+        {/* Actions (Play/Replay + Download + Share) */}
+        <div className="vt-actions minw0" aria-label="Actions">
+          {isExporting && (
+            <div style={{ color: T.muted, fontSize: 12, textAlign: "center", width: "100%", marginTop: 6 }}>
+              ⏺️ Recording…
+            </div>
+          )}
+          <button
+            onClick={() => start()}
+            disabled={isRunning || !raw.trim()}
+            style={{
+              background: isRunning || !raw.trim() ? (bg === "dark" ? "#1a2430" : "#E8ECF2") : T.gold,
+              color:      isRunning || !raw.trim() ? T.muted : (bg === "dark" ? "#081019" : "#FFFFFF"),
+              border: "none",
+              borderRadius: 999,
+              padding: "10px 16px",
+              fontWeight: 700,
+              cursor: isRunning || !raw.trim() ? "not-allowed" : "pointer",
+              fontSize: 16,
+              minHeight: 40,
+            }}
+            title={hasPlayed ? "⟲ Replay" : "▶ Play"}
+          >
+            {hasPlayed ? "⟲ Replay" : "▶ Play"}
+          </button>
+
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <button onClick={() => onDownloadVideo()} disabled={!raw.trim()} title="Download"
+              style={{ background:"transparent", color: T.gold, border:"none", borderRadius:999, padding:"6px 10px", fontWeight:700, cursor:!raw.trim()?"not-allowed":"pointer", minHeight:32, fontSize:14 }}>
+              💾 <span className="action-text">Download</span>
+            </button>
+            <button onClick={() => setShareOpen(true)} title="Share"
+              style={{ background:"transparent", color: T.gold, border:"none", borderRadius:999, padding:"6px 10px", fontWeight:700, cursor:"pointer", minHeight:32, fontSize:14 }}>
+              📤 <span className="action-text">Share</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div style={{ display:"grid", gap:10, paddingInline:6 }}>
+          <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
+            {/* Trails */}
+            <select value={trailMode} onChange={e=>setTrailMode(e.target.value as TrailMode)}
+              style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
+              <option value="pulse">Trails: Pulse only</option>
+              <option value="glow">Trails: Glow</option>
+              <option value="lines">Trails: Lines</option>
+              <option value="glow+confetti">Trails: Glow & Confetti</option>
+              <option value="lines+confetti">Trails: Lines & Confetti</option>
+            </select>
+
+            {/* Background */}
+            <select value={bg} onChange={e=>setBg(e.target.value as BgMode)}
+              style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
+              <option value="dark">Background: Dark</option>
+              <option value="light">Background: Light</option>
+            </select>
+
+            {/* Zero Policy */}
+            <select value={zeroPolicy} onChange={e=>setZeroPolicy(e.target.value as ZeroPolicy)}
+              style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
+              <option value="chromatic">Zero (0): Chromatic color</option>
+              <option value="rest">Zero (0): Rest</option>
+            </select>
+          </div>
+        </div>
+
+      </section>
+
+      {/* Outside the card: Why these numbers CTA */}
+      <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
+        <a
+          href="/learn/why-these-numbers"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            fontWeight: 700,
+            fontSize: 15,
+            color: T.gold,
+            textDecoration: "none",
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            padding: "8px 14px",
+            boxShadow: bg==="dark" ? "0 1px 3px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.06)",
+          }}
+          aria-label="Why these numbers explanation"
+        >
+          Why these numbers →
+        </a>
+      </div>
+
+      {/* Share Sheet (modal) */}
+      <ShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        url={typeof window === "undefined" ? "" : buildShareUrl()}
+        themeColors={{
+          gold: T.gold,
+          border: T.border,
+          text: T.text,
+          bg: bg === "dark" ? themeDark.card : themeLight.card,
+        }}
+      />
+    </main>
+  </div>
+);
 }
 
 /* =========================
@@ -1735,104 +2238,18 @@ function buildTweetIntent(text: string, url: string) {
   u.searchParams.set("url", url);
   return u.toString();
 }
-// You can move this inside the component; kept separate for clarity
 function ShareSheet({
   open, onClose, url, themeColors,
 }: { open: boolean; onClose: () => void; url: string; themeColors: { gold: string; border: string; text: string; bg: string } }) {
   if (!open) return null;
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        zIndex: 9999,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 520,
-          background: themeColors.bg,
-          borderTop: `1px solid ${themeColors.border}`,
-          borderLeft: `1px solid ${themeColors.border}`,
-          borderRight: `1px solid ${themeColors.border}`,
-          borderRadius: "12px 12px 0 0",
-          padding: 12,
-          boxSizing: "border-box",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ textAlign: "center", color: themeColors.text, fontWeight: 800, marginBottom: 8 }}>
-          Share your melody
-        </div>
-
-        {/* Copy Link */}
-        <button
-          onClick={async () => {
-            try { await navigator.clipboard.writeText(url); } catch {}
-            onClose();
-          }}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            marginBottom: 6,
-            background: themeColors.gold,
-            color: "#081019",
-            borderRadius: 8,
-            border: "none",
-            fontWeight: 800,
-          }}
-        >
-          🔗 Copy Link
-        </button>
-
-        {/* X / Twitter */}
-        <a
-          href={buildTweetIntent(`My number sings: ${url}`, url)}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={onClose}
-          style={{
-            display: "block",
-            textAlign: "center",
-            width: "100%",
-            padding: "10px 12px",
-            marginBottom: 6,
-            background: "transparent",
-            color: themeColors.gold,
-            borderRadius: 8,
-            border: `1px solid ${themeColors.border}`,
-            textDecoration: "none",
-            fontWeight: 800,
-          }}
-        >
-          𝕏 Share on X
-        </a>
-
-        <button
-          onClick={onClose}
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            marginTop: 8,
-            background: themeColors.bg,
-            color: themeColors.text,
-            opacity: 0.7,
-            borderRadius: 8,
-            border: `1px solid ${themeColors.border}`,
-            fontWeight: 700,
-          }}
-        >
-          Close
-        </button>
+    <div role="dialog" aria-modal="true" style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:9999 }} onClick={onClose}>
+      <div style={{ width:"100%", maxWidth:520, background: themeColors.bg, borderTop:`1px solid ${themeColors.border}`, borderLeft:`1px solid ${themeColors.border}`, borderRight:`1px solid ${themeColors.border}`, borderRadius:"12px 12px 0 0", padding:12, boxSizing:"border-box" }} onClick={(e)=>e.stopPropagation()}>
+        <div style={{ textAlign:"center", color:themeColors.text, fontWeight:800, marginBottom:8 }}>Share your melody</div>
+        <button onClick={async()=>{ try{ await navigator.clipboard.writeText(url);}catch{}; onClose(); }} style={{ width:"100%", padding:"10px 12px", marginBottom:6, background: themeColors.gold, color:"#081019", borderRadius:8, border:"none", fontWeight:800 }}>🔗 Copy Link</button>
+        <a href={buildTweetIntent(`My number sings: ${url}`, url)} target="_blank" rel="noopener noreferrer" onClick={onClose} style={{ display:"block", textAlign:"center", width:"100%", padding:"10px 12px", marginBottom:6, background:"transparent", color: themeColors.gold, borderRadius:8, border:`1px solid ${themeColors.border}`, textDecoration:"none", fontWeight:800 }}>𝕏 Share on X</a>
+        <button onClick={onClose} style={{ width:"100%", padding:"8px 12px", marginTop:8, background: themeColors.bg, color: themeColors.text, opacity:0.7, borderRadius:8, border:`1px solid ${themeColors.border}`, fontWeight:700 }}>Close</button>
       </div>
     </div>
   );
-}
+}  
