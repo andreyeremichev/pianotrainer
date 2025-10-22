@@ -537,10 +537,9 @@ export default function KeyClockPage() {
   
 // Remove unsupported characters; keep letters, digits, and basic symbols
 function sanitizePhoneInput(s: string): string {
-  // Allow digits, letters, +, #, *, -, comma, period, apostrophe, slash, and parentheses
-  return s.replace(/[^0-9A-Za-z+\#*\- ,.'\/()]/g, "").toUpperCase();
-}
-useEffect(() => {
+  // Allow digits, letters, 0–9, dash, comma, dot, apostrophe, slash, parentheses — but cut + and *
+  return s.replace(/[^0-9A-Za-z\-\s,.'\/()]/g, "").toUpperCase();
+}useEffect(() => {
   drawCaptionCanvas(-1, "BbMajor"); // no highlight, Maj palette
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
@@ -1819,9 +1818,7 @@ return (
         {/* Helper hint */}
         <div style={{ textAlign: "center", fontSize: 13, color: T.muted, paddingInline: 6 }}>
           Type a <b>date or text</b>. Allowed: A–Z, 0–9,{" "}
-          <code style={{ background: "#0F1821", padding: "1px 4px", borderRadius: 6 }}>+</code>,{" "}
-          <code style={{ background: "#0F1821", padding: "1px 4px", borderRadius: 6 }}>#</code>,{" "}
-          <code style={{ background: "#0F1821", padding: "1px 4px", borderRadius: 6 }}>*</code>, and{" "}
+          
           <code style={{ background: "#0F1821", padding: "1px 4px", borderRadius: 6 }}>-</code> (rest). Letters use T9.
         </div>
 
