@@ -188,6 +188,7 @@ function tokenizeKeyClock(raw: string, zeroPolicy: ZeroPolicy): Token[] {
     if (ch === ",") { out.push({ kind:"rest", char:"-" }); continue; } // rest tick
     if (ch === " ") { out.push({ kind:"rest", char:"-" }); continue; } // rest tick
     if (ch === "-") { out.push({ kind:"rest", char:"-" }); continue; }
+    if (ch === ":") { out.push({ kind:"rest", char:"-" }); continue; }
     if (ch === "#") { out.push({ kind:"resolve" }); continue; }
     if (ch === "*") { out.push({ kind:"toggle" }); continue; } // treat as short rest
     if (/[A-Z]/.test(ch)) { pushDigit(out, T9[ch], zeroPolicy, ch); continue; }
@@ -539,9 +540,9 @@ if (z === "chromatic" || z === "rest" || z === "ticks") setZeroPolicy(z as ZeroP
   
 // Remove unsupported characters; keep letters, digits, and basic symbols
 function sanitizePhoneInput(s: string): string {
-  // Allow digits, letters, 0–9, dash, comma, dot, apostrophe, slash, parentheses — but cut + and *
-  return s.replace(/[^0-9A-Za-z\-\s,.'\/()]/g, "").toUpperCase();
-}useEffect(() => {
+  // Allow digits, letters, dash/space, comma, period, apostrophe, slash, parentheses, and colon
+  return s.replace(/[^0-9A-Za-z:\-\s,.'\/()]/g, "").toUpperCase();
+} useEffect(() => {
   drawCaptionCanvas(-1, "BbMajor"); // no highlight, Maj palette
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
