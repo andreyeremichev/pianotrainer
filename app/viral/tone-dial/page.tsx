@@ -138,7 +138,7 @@ const T9: Record<string, string> = {
   T:"8",U:"8",V:"8", W:"9",X:"9",Y:"9",Z:"9",
 };
 
-type ZeroPolicy = "chromatic" | "rest";
+type ZeroPolicy = "chromatic" | "rest" | "ticks";
 type Token =
   | { kind:"rest"; char:"-"}
   | { kind:"deg";    d:Diatonic; up?: boolean; src:string; srcChar?: string }
@@ -276,7 +276,8 @@ export default function ToneDialPage() {
       const q = sp.get("q"); if (q) setRaw(sanitizePhoneInput(q));
       const t = sp.get("trail"); if (t === "pulse" || t === "glow" || t === "lines" || t === "glow+confetti" || t === "lines+confetti") setTrailMode(t as TrailMode);
       const b = sp.get("bg"); if (b === "dark" || b === "light") setBg(b as BgMode);
-      const z = sp.get("zero"); if (z === "chromatic" || z === "rest") setZeroPolicy(z as ZeroPolicy);
+      const z = sp.get("zero");
+if (z === "chromatic" || z === "rest" || z === "ticks") setZeroPolicy(z as ZeroPolicy);
     } catch {}
   }, []);
 
@@ -625,6 +626,7 @@ function buildDegreesLineTokens(raw: string, tokens: Token[], zeroPolicy: ZeroPo
       try { src.start(at); src.stop(at + dur); } catch {}
     }).catch(()=>{});
   }
+  
 
   // Schedule a triad chord (close voicing around C4/C5)
   function scheduleTriadLive(ac: AudioContext, at: number, rootDeg: Diatonic, key: KeyName, dur = 0.25) {
@@ -1137,18 +1139,29 @@ playedIdxRef.current = 0;
             }
           } else {
             // Letter that mapped to chroma (rare, but keep consistent)
-            const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
-            const midi = snapPcToComfortableMidi(pc);
-            const name = midiToNoteName(midi);
-            loadBuffer(name).then(buf => {
-              const src = ac.createBufferSource(); src.buffer = buf;
-              const g = ac.createGain();
-              g.gain.setValueAtTime(0, at);
-              g.gain.linearRampToValueAtTime(1, at + 0.01);
-              g.gain.setTargetAtTime(0, at + 0.20, 0.05);
-              src.connect(g).connect(ac.destination);
-              try { src.start(at); src.stop(at + 0.25); } catch {}
-            }).catch(()=>{});
+          const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
+const midi = snapPcToComfortableMidi(pc);
+const name = midiToNoteName(midi);
+const isZeroChroma = (tok as any).src === "0";
+const useTickEnv = isZeroChroma && (zeroPolicy === "ticks");
+
+loadBuffer(name).then(buf => {
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const g = ac.createGain();
+  if (useTickEnv) {
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.45, at + 0.006);
+    g.gain.setTargetAtTime(0, at + 0.05, 0.05);
+    src.connect(g).connect(ac.destination);
+    try { src.start(at); src.stop(at + 0.10); } catch {}
+  } else {
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(1, at + 0.01);
+    g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+    src.connect(g).connect(ac.destination);
+    try { src.start(at); src.stop(at + 0.25); } catch {}
+  }
+}).catch(()=>{});  
           }
         }
         // ----- DIGITS: chords (triads) / inversions / chroma -----
@@ -1166,18 +1179,29 @@ playedIdxRef.current = 0;
             }
           } else if (tok.kind === "chroma") {
             // 0 → chromatic color
-            const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
-            const midi = snapPcToComfortableMidi(pc);
-            const name = midiToNoteName(midi);
-            loadBuffer(name).then(buf => {
-              const src = ac.createBufferSource(); src.buffer = buf;
-              const g = ac.createGain();
-              g.gain.setValueAtTime(0, at);
-              g.gain.linearRampToValueAtTime(1, at + 0.01);
-              g.gain.setTargetAtTime(0, at + 0.20, 0.05);
-              src.connect(g).connect(ac.destination);
-              try { src.start(at); src.stop(at + 0.25); } catch {}
-            }).catch(()=>{});
+           const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
+const midi = snapPcToComfortableMidi(pc);
+const name = midiToNoteName(midi);
+const isZeroChroma = (tok as any).src === "0";
+const useTickEnv = isZeroChroma && (zeroPolicy === "ticks");
+
+loadBuffer(name).then(buf => {
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const g = ac.createGain();
+  if (useTickEnv) {
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.45, at + 0.006);
+    g.gain.setTargetAtTime(0, at + 0.05, 0.05);
+    src.connect(g).connect(ac.destination);
+    try { src.start(at); src.stop(at + 0.10); } catch {}
+  } else {
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(1, at + 0.01);
+    g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+    src.connect(g).connect(ac.destination);
+    try { src.start(at); src.stop(at + 0.25); } catch {}
+  }
+}).catch(()=>{}); 
           }
         }
       }
@@ -1342,6 +1366,18 @@ const onDownloadVideo = useCallback(async () => {
     const chunks: BlobPart[] = [];
     const rec = new MediaRecorder(mixed, { mimeType });
     rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    // Short tick envelope for zeros in "ticks" mode (EXPORT)
+function scheduleShortNote(name: string, at: number) {
+  loadBuffer(name).then(buf => {
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.45, at + 0.006); // quick pop
+    g.gain.setTargetAtTime(0, at + 0.05, 0.05);       // fast decay
+    src.connect(g); g.connect(exportDst); g.connect(ac.destination);
+    try { src.start(at); src.stop(at + 0.10); } catch {}
+  }).catch(()=>{});
+}
 
     // 3) Layout
     const SAFE_TOP = 160, SAFE_BOTTOM = 120, TOP_GAP = 10, SIDE_PAD = 48;
@@ -1514,12 +1550,22 @@ const onDownloadVideo = useCallback(async () => {
               if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
             }
           } else if (tok.kind === "chroma") {
-            const pc = degreeToPcOffset(tok.c as DegLabel, keyNow);
-            const midi = snapPcToComfortableMidi(pc);
-            scheduleNote(midiToNoteName(midi), at);
-            const spoke = DEGREE_ORDER.indexOf(tok.c as any);
-            if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
-          }
+  const pc = degreeToPcOffset(tok.c as DegLabel, keyNow);
+  const midi = snapPcToComfortableMidi(pc);
+  const name = midiToNoteName(midi);
+
+  const isZeroChroma = (tok as any).src === "0";
+  const useTickEnv = isZeroChroma && (zeroPolicy === "ticks");
+
+  if (useTickEnv) {
+    scheduleShortNote(name, at);      // short tick envelope (EXPORT)
+  } else {
+    scheduleNote(name, at);           // normal chroma
+  }
+
+  const spoke = DEGREE_ORDER.indexOf(tok.c as any);
+  if (spoke >= 0) exportPoints.push({ k: kTag, step: i, spoke });
+}
         }
       }
     }
@@ -1776,7 +1822,12 @@ const p2cE: number[] = [];
 }
 
 // Draw the export caption (two lines) with highlight
-function drawExportCaption(ctx: CanvasRenderingContext2D, activePlayable: number, keyNow: KeyName) {
+function drawExportCaption(
+  ctx: CanvasRenderingContext2D,
+  activePlayable: number,
+  keyNow: KeyName,
+  showBottom: boolean
+) {
   const src = (raw || "").toUpperCase().split("");
   const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
 
@@ -1847,6 +1898,7 @@ const botY = topY + (gap * SCALE) + (botPx * SCALE);
   }
 
   // bottom (labels)
+  if (showBottom) {
   x = capX + Math.max(0, (capW - totalW) / 2);
   ctx.font = botFont;
   const lineGapPx = 2 * SCALE;
@@ -1909,6 +1961,7 @@ const botY = topY + (gap * SCALE) + (botPx * SCALE);
     }
     x += cellW;
   }
+}
 }
 
     // 7) Recording loop
@@ -1977,7 +2030,8 @@ if (i > prevStep) {
 
 // Highlight the current playable (last one we advanced to)
 const activePlayableIdx = Math.max(0, playedIdxE - 1);
-drawExportCaption(c, activePlayableIdx, keyNowE);
+const showBottomThisFrame = (segIdx === 1 && keyNowE === "BbMajor"); // 2nd Major pass only
+drawExportCaption(c, activePlayableIdx, keyNowE, showBottomThisFrame);
 
       // pulse engine
       if (trailMode === "pulse" || trailMode.includes("+confetti")) {
@@ -2227,6 +2281,7 @@ return (
             <select value={zeroPolicy} onChange={e=>setZeroPolicy(e.target.value as ZeroPolicy)}
               style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
               <option value="chromatic">Zero (0): Chromatic color</option>
+                <option value="ticks">Zero (0): Ticks (short ♭2/♯4)</option>
               <option value="rest">Zero (0): Rest</option>
             </select>
           </div>
