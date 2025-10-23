@@ -140,7 +140,7 @@ const T9: Record<string, string> = {
   T:"8",U:"8",V:"8", W:"9",X:"9",Y:"9",Z:"9",
 };
 
-type ZeroPolicy = "chromatic" | "rest";
+type ZeroPolicy = "chromatic" | "rest" | "ticks";
 type Token =
   | { kind:"rest"; char:"-"}            // explicit dash or comma/space rest-tick
   | { kind:"deg";    d:Diatonic; up?: boolean; src:string; srcChar?: string }
@@ -154,13 +154,14 @@ type Token =
 const zeroFlipRef = { current: true };
 
 function pushDigit(tokens: Token[], digit: string, zeroPolicy: ZeroPolicy, originChar?: string) {
-  if (digit === "0") {
-    if (zeroPolicy === "rest") { tokens.push({ kind:"rest", char:"-" }); return; }
-    const next: Chromatic = zeroFlipRef.current ? "♭2" : "♯4";
-    zeroFlipRef.current = !zeroFlipRef.current;
-    tokens.push({ kind:"chroma", c: next, src:"0", srcChar: originChar });
-    return;
-  }
+if (digit === "0") {
+  if (zeroPolicy === "rest") { tokens.push({ kind:"rest", char:"-" }); return; }
+  // chromatic OR ticks → both produce playable chroma (♭2/♯4); ticks will get short audio later
+  const next: Chromatic = zeroFlipRef.current ? "♭2" : "♯4";
+  zeroFlipRef.current = !zeroFlipRef.current;
+  tokens.push({ kind:"chroma", c: next, src:"0", srcChar: originChar });
+  return;
+}
   if ("1234567".includes(digit)) {
     tokens.push({ kind:"deg", d: digit as Diatonic, src: digit, srcChar: originChar });
     return;
@@ -531,7 +532,8 @@ export default function KeyClockPage() {
       const q = sp.get("q"); if (q) setRaw(sanitizeKeyClockInput(q));
       const t = sp.get("trail"); if (t === "pulse" || t === "glow" || t === "lines" || t === "glow+confetti" || t === "lines+confetti") setTrailMode(t as TrailMode);
       const b = sp.get("bg"); if (b === "dark" || b === "light") setBg(b as BgMode);
-      const z = sp.get("zero"); if (z === "chromatic" || z === "rest") setZeroPolicy(z as ZeroPolicy);
+      const z = sp.get("zero");
+if (z === "chromatic" || z === "rest" || z === "ticks") setZeroPolicy(z as ZeroPolicy);
     } catch {}
   }, []);
   
@@ -573,6 +575,7 @@ function sanitizePhoneInput(s: string): string {
   const playedIdxRef = useRef(0);
   const playableToCharRef = useRef<number[]>([]);
   const charToPlayableRef = useRef<number[]>([]);
+
 
   // Trails
   type Overlay = { id: "maj"|"min"; color: string; path: string };
@@ -837,9 +840,9 @@ function drawCaptionCanvas(activePlayableIdx: number, keyNow: KeyName) {
     disp.push({ txt: " · ", isSep: true, charIndex: -1 });
   }
 
-  // Active char index from the persistent playable→char map
-  const p2c = playableToCharRef.current;
-  const activeChar = (activePlayableIdx >= 0 && activePlayableIdx < p2c.length) ? p2c[activePlayableIdx] : -1;
+  // Active char index from the playables-only map
+const p2c = playableToCharRef.current;
+const activeChar = (activePlayableIdx >= 0 && activePlayableIdx < p2c.length) ? p2c[activePlayableIdx] : -1;
 
   // Typography & positions
   const topPx = 16;
@@ -1036,6 +1039,20 @@ const onDownloadVideo = useCallback(async () => {
       scheduleNoteByDeg(at,        "5", key);
       scheduleNoteByDeg(at + 0.12, "1", key);
     }
+    // --- Tiny tick for Zero (rest) policy (EXPORT) ---
+function scheduleTickE(at: number) {
+  const midi = 60; // C4
+  const name = midiToNoteName(midi);
+  loadBuffer(name).then(buf => {
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.45, at + 0.006);
+    g.gain.setTargetAtTime(0, at + 0.05, 0.05);
+    src.connect(g); g.connect(exportDst); g.connect(ac.destination);
+    try { src.start(at); src.stop(at + 0.10); } catch {}
+  }).catch(()=>{});
+}
 
     // Points for overlays
     type ExpPoint = { k:"maj"|"min"; step:number; spoke:number };
@@ -1054,7 +1071,10 @@ let keyNowE: KeyName = SEGMENTS_E[segIdx];
       if (!tok) continue;
       if (tok.kind === "toggle" || tok.kind === "intro") continue;
       if (tok.kind === "resolve") { scheduleResolveCadenceE(at, keyNowE); continue; }
-      if (tok.kind === "rest") continue;
+      if (tok.kind === "rest") {
+  if ((tok as any).char === "0") scheduleTickE(at);
+  continue;
+}
 
       if (tok.kind === "deg" || tok.kind === "chroma") {
         const isLetter = !!(tok as any).srcChar;
@@ -1102,21 +1122,37 @@ let keyNowE: KeyName = SEGMENTS_E[segIdx];
               const spoke = degToIndexForKey("2", keyNowE); if (spoke >= 0) exportPoints.push({ k:kTag, step:i, spoke });
             }
           } else if (tok.kind === "chroma") {
-            const pc = degreeToPcOffset(tok.c as DegLabel, keyNowE);
-            const midi = snapPcToComfortableMidi(pc);
-            const name = midiToNoteName(midi);
-            loadBuffer(name).then(buf => {
-              const src = ac.createBufferSource(); src.buffer = buf;
-              const g = ac.createGain();
-              g.gain.setValueAtTime(0, at);
-              g.gain.linearRampToValueAtTime(1, at + 0.01);
-              g.gain.setTargetAtTime(0, at + 0.20, 0.05);
-              src.connect(g); g.connect(exportDst); g.connect(ac.destination);
-              try { src.start(at); src.stop(at + 0.25); } catch {}
-            }).catch(()=>{});
-            const spoke = DEGREE_ORDER.indexOf(tok.c as any);
-            if (spoke >= 0) exportPoints.push({ k:kTag, step:i, spoke });
-          }
+  const pc = degreeToPcOffset(tok.c as DegLabel, keyNowE);
+  const midi = snapPcToComfortableMidi(pc);
+  const name = midiToNoteName(midi);
+
+  const isZeroChroma = (tok as any).src === "0";
+  const useTickEnv = isZeroChroma && (zeroPolicy === "ticks");
+
+  loadBuffer(name).then(buf => {
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const g = ac.createGain();
+
+    if (useTickEnv) {
+      // Short tick envelope routed to export + speakers
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.45, at + 0.006);
+      g.gain.setTargetAtTime(0, at + 0.05, 0.05);
+      src.connect(g); g.connect(exportDst); g.connect(ac.destination);
+      try { src.start(at); src.stop(at + 0.10); } catch {}
+    } else {
+      // Normal chroma envelope (unchanged behavior)
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(1, at + 0.01);
+      g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+      src.connect(g); g.connect(exportDst); g.connect(ac.destination);
+      try { src.start(at); src.stop(at + 0.25); } catch {}
+    }
+  }).catch(()=>{});
+
+  const spoke = DEGREE_ORDER.indexOf(tok.c as any);
+  if (spoke >= 0) exportPoints.push({ k:kTag, step:i, spoke });
+}
         }
       }
     }
@@ -1616,6 +1652,23 @@ const startCore = useCallback(async () => {
     scheduleNoteLive(ac, at,        "5", key);
     scheduleNoteLive(ac, at + 0.12, "1", key);
   }
+  // --- Tiny tick for Zero (rest) policy ---
+  function scheduleTick(ac: AudioContext, at: number) {
+    // very short neutral piano note (C4)
+    const midi = 60; // Middle C
+    const name = midiToNoteName(midi);
+    loadBuffer(name).then(buf => {
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.35, at + 0.005);
+      g.gain.setTargetAtTime(0, at + 0.04, 0.05);
+      src.connect(g).connect(ac.destination);
+      try { src.start(at); src.stop(at + 0.08); } catch {}
+    }).catch(()=>{});
+  }
+
   function buildPlayableCharMaps(src: string, playableTokens: Token[]) {
     const p2c: number[] = [];
     const c2p: number[] = Array(src.length).fill(-1);
@@ -1653,9 +1706,13 @@ const startCore = useCallback(async () => {
   const srcStr = (raw || "").toUpperCase();
   const playable = tokens.filter(t => t.kind === "deg" || t.kind === "chroma");
   const { p2c, c2p } = buildPlayableCharMaps(srcStr, playable);
+  // Map highlight step -> source char index (deg/chroma + zero-as-rest)
+// Fallback remains playableToCharRef for older paths
+
   playableToCharRef.current = p2c;   // playable idx -> char idx
   charToPlayableRef.current = c2p;   // char idx -> playable idx (optional)
   playedIdxRef.current = 0;
+
 
   const hasIntro = tokens.some(t => (t as any).kind === "intro");
 
@@ -1672,7 +1729,11 @@ const startCore = useCallback(async () => {
     if (tok.kind === "toggle") continue;              // '*': short rest
     if (tok.kind === "intro")  continue;              // '+' handled at segment start
     if (tok.kind === "resolve"){ scheduleResolveCadence(ac, at, curKey); continue; }
-    if (tok.kind === "rest")   continue;
+    if (tok.kind === "rest") {
+  // Only zeros-as-rest get a tick; typed separators stay silent
+  if ((tok as any).char === "0") scheduleTick(ac, at);
+  continue;
+}
 
     const isLetter = !!(tok as any).srcChar;
 
@@ -1693,19 +1754,34 @@ const startCore = useCallback(async () => {
         else if (tok.src === "9")             scheduleSecondInvSupertonic(ac, at, curKey);
       }
     } else if (tok.kind === "chroma") {
-      const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
-      const baseMidi = snapPcToComfortableMidi(pc);
-      const name = midiToNoteName(baseMidi);
-      loadBuffer(name).then(buf => {
-        const src = ac.createBufferSource(); src.buffer = buf;
-        const g = ac.createGain();
-        g.gain.setValueAtTime(0, at);
-        g.gain.linearRampToValueAtTime(1, at + 0.01);
-        g.gain.setTargetAtTime(0, at + 0.20, 0.05);
-        src.connect(g).connect(ac.destination);
-        try { src.start(at); src.stop(at + 0.25); } catch {}
-      }).catch(()=>{});
+  const pc = degreeToPcOffset(tok.c as DegLabel, curKey);
+  const midi = snapPcToComfortableMidi(pc);
+  const name = midiToNoteName(midi);
+
+  const isZeroChroma = (tok as any).src === "0";
+  const useTickEnv   = isZeroChroma && (zeroPolicy === "ticks");
+
+  loadBuffer(name).then(buf => {
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const g = ac.createGain();
+
+    if (useTickEnv) {
+      // short “tick” envelope
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.45, at + 0.006);
+      g.gain.setTargetAtTime(0, at + 0.05, 0.05);
+      src.connect(g).connect(ac.destination);
+      try { src.start(at); src.stop(at + 0.10); } catch {}
+    } else {
+      // normal chroma envelope
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(1, at + 0.01);
+      g.gain.setTargetAtTime(0, at + 0.20, 0.05);
+      src.connect(g).connect(ac.destination);
+      try { src.start(at); src.stop(at + 0.25); } catch {}
     }
+  }).catch(()=>{});
+}
   }
 
   // --- RAF loop: trails + caption highlight + pulse ---
@@ -1738,8 +1814,15 @@ const startCore = useCallback(async () => {
 
         if (spoke >= 0) {
           appendTrail(spoke, nowKey);                 // lines/glow/pulse source
-          drawCaptionCanvas(playedIdxRef.current, nowKey);
-          playedIdxRef.current++;
+         // Advance highlight only for playables (deg/chroma)
+// - Chromatic zeros and Ticks zeros are chroma → increment
+// - Rest zeros are true rests → no increment
+const isPlayable = !!tok && (tok.kind === "deg" || tok.kind === "chroma");
+
+drawCaptionCanvas(playedIdxRef.current, nowKey);
+if (isPlayable) {
+  playedIdxRef.current++;
+}
 
           // pulse dot
           const p = nodePosition(spoke, 36);
@@ -2076,21 +2159,12 @@ return (
             </select>
 
             {/* Zero Policy */}
-            <select
-              value={zeroPolicy}
-              onChange={(e) => setZeroPolicy(e.target.value as any)}
-              style={{
-                background: bg === "dark" ? "#0F1821" : "#F3F5F8",
-                color: T.text,
-                border: `1px solid ${T.border}`,
-                borderRadius: 8,
-                padding: "8px 10px",
-                fontSize: 14,
-              }}
-            >
-              <option value="chromatic">Zero (0): Chromatic color</option>
-              <option value="rest">Zero (0): Rest</option>
-            </select>
+            <select value={zeroPolicy} onChange={e=>setZeroPolicy(e.target.value as ZeroPolicy)}
+  style={{ background: bg==="dark" ? "#0F1821" : "#F3F5F8", color:T.text, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", fontSize:14 }}>
+  <option value="chromatic">Zero (0): Chromatic color</option>
+  <option value="ticks">Zero (0): Ticks (short ♭2/♯4)</option>
+  <option value="rest">Zero (0): Rest (silent)</option>
+</select>
           </div>
         </div>
       </section>
