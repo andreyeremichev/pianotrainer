@@ -39,6 +39,100 @@ function playArpeggio(urls: string[], gapMs = 140) {
 export default function HomePage() {
   return (
     <main style={pageStyles.root}>
+    {/* SEO: JSON-LD for homepage (tailored to current sections/links) */}
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "PianoTrainer",
+      url: "https://pianotrainer.app/"
+    }),
+  }}
+/>
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "PianoTrainer",
+      url: "https://pianotrainer.app/",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://pianotrainer.app/og/pianotrainer.jpg" // ← update if your JPG lives elsewhere
+      }
+      // "sameAs": ["https://twitter.com/...", "https://www.youtube.com/@..."] // add later if you want
+    }),
+  }}
+/>
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: "Featured on Homepage",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          url: "https://pianotrainer.app/trainer/notation/chords-helper",
+          name: "Chords Helper – Play Root / 1st / 2nd Inversion"
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          url: "https://pianotrainer.app/trainer/notation/keys-to-notes",
+          name: "Keys to Notes – See What You Play"
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          url: "https://pianotrainer.app/trainer/ear/degrees",
+          name: "Ear Trainers – Degrees & Intervals"
+        },
+        {
+          "@type": "ListItem",
+          position: 4,
+          url: "https://pianotrainer.app/viral",
+          name: "Musical Toys – Make Birthdays, Names, Numbers Sing"
+        }
+      ]
+    }),
+  }}
+/>
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: "Viral Piano Toys",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          url: "https://pianotrainer.app/viral/key-clock",
+          name: "KeyClock – Dates → Music (Cadences)"
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          url: "https://pianotrainer.app/viral/tone-dial",
+          name: "ToneDial – Phone/Text → Melody"
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          url: "https://pianotrainer.app/viral/text-to-tone",
+          name: "TextToTone – Text → Music"
+        }
+      ]
+    }),
+  }}
+/>  
       {/* HERO */}
       <section style={pageStyles.hero}>
         <h1 style={pageStyles.h1}>Make Notes Come Alive 🎵</h1>

@@ -7,26 +7,26 @@ import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "PianoTrainer • Free Notation & Ear Training",
+  title: "PianoTrainer – Viral Piano Toys & Beginner Trainers",
   description:
-    "Make notes come alive 🎵. Playful, beginner-friendly trainers for reading music, chords, and ear skills — free in your browser.",
+    "Play with viral music toys (KeyClock, ToneDial, TextToTone) and learn faster with simple notation & ear trainers. Free and instant.",
   metadataBase: new URL("https://pianotrainer.app"),
   alternates: { canonical: "/" },
   openGraph: {
-    title: "PianoTrainer • Free Notation & Ear Training",
+    title: "PianoTrainer – Viral Piano Toys & Beginner Trainers",
     description:
-      "Playful, beginner-friendly trainers for reading music, chords, and ear skills — free in your browser.",
-    url: "/",
+      "Try KeyClock, ToneDial, and TextToTone. Fun web toys to turn dates, phone text, and phrases into music.",
+    url: "/", // resolves via metadataBase
     siteName: "PianoTrainer",
-    images: ["/logo.svg"],        // ← static file in /public
+    images: ["/og/pianotrainer.jpg"], // 1200x630 in /public/og/
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PianoTrainer • Free Notation & Ear Training",
+    title: "PianoTrainer – Viral Piano Toys & Beginner Trainers",
     description:
-      "Make notes come alive 🎵. Train your eyes and ears with simple web tools.",
-    images: ["/logo.svg"],        // ← reuse the same static file
+      "KeyClock, ToneDial, TextToTone: turn your dates, phone text, and phrases into music.",
+    images: ["/og/pianotrainer.jpg"],
   },
   robots: { index: true, follow: true },
 };
