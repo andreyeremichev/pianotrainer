@@ -1130,6 +1130,25 @@ rec.ondataavailable = (e) => {
         overflowX: "hidden",
       }}
     >
+      {/* SEO: JSON-LD */}
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": ["SoftwareApplication", "WebApplication"],
+      name: "TextToTone",
+      applicationCategory: "MusicApplication",
+      operatingSystem: "Web",
+      url: "https://pianotrainer.app/viral/text-to-tone",
+      image: "https://pianotrainer.app/og/texttotone.png",
+      description:
+        "Paste text and hear it as melody, instantly. Free and fast.",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      publisher: { "@type": "Organization", name: "PianoTrainer" },
+    }),
+  }}
+/>
       <div
         style={{
           width: "100%",

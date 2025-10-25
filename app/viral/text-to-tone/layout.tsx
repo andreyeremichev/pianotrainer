@@ -2,30 +2,30 @@ import type { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "TextToTone • Type Anything, Hear the Music",
+  title: "TextToTone – Turn Text into Music • PianoTrainer",
   description:
-    "Turn any phrase — words, numbers, memes, even punctuation — into a melody. Type, play, and share your sound with #TextToTone.",
+    "Paste or type any text and hear it as melody. Simple, musical, and fast. Free, no sign-up.",
   alternates: { canonical: "/viral/text-to-tone" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/viral/text-to-tone",
-    title: "TextToTone • Type Anything, Hear the Music",
+    title: "TextToTone – Text → Music",
     description:
-      "Letters, digits, and memes become music. Try #TextToTone — the viral piano toy where your text plays itself.",
+      "Turn any phrase — words, numbers, or memes — into melody. Try the viral piano toy by PianoTrainer.",
     images: [
       {
         url: "https://pianotrainer.app/og/texttotone.png",
         width: 1200,
         height: 630,
-        alt: "TextToTone – Type Anything, Hear the Music",
+        alt: "TextToTone – Turn Text into Music",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "TextToTone • Type Anything, Hear the Music",
+    title: "TextToTone – Text → Music",
     description:
-      "Your text becomes sound. Type, play, and share your melody with #TextToTone #TextToMusic #PianoTrainer",
+      "Paste or type any text and hear the melody hidden inside. Free and instant.",
     images: ["https://pianotrainer.app/og/texttotone.png"],
   },
   robots: { index: true, follow: true },
