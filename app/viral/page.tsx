@@ -58,6 +58,73 @@ export default function ViralHubPage() {
         boxSizing: "border-box",
       }}
     >
+    {/* SEO: JSON-LD for /viral hub */}
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: "TextToTone Family — Viral Musical Toys",
+      url: "https://pianotrainer.app/viral",
+      description:
+        "Three bite-size toys: TextToTone (text → music), KeyClock (dates → Circle of Fifths), and ToneDial (phone → Circle of Fifths).",
+    }),
+  }}
+/>
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: "Viral Musical Toys",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "TextToTone – Text → Music",
+          url: "https://pianotrainer.app/viral/text-to-tone"
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "KeyClock – Dates → Music (Cadences)",
+          url: "https://pianotrainer.app/viral/key-clock"
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: "ToneDial – Phone/Text → Melody",
+          url: "https://pianotrainer.app/viral/tone-dial"
+        }
+      ]
+    }),
+  }}
+/>
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://pianotrainer.app/"
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Viral",
+          item: "https://pianotrainer.app/viral"
+        }
+      ]
+    }),
+  }}
+/>  
       {/* Header */}
       <header style={{ maxWidth: 900, margin: "0 auto 16px", textAlign: "center" }}>
         <h1
