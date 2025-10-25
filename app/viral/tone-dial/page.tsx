@@ -2078,6 +2078,54 @@ drawExportCaption(c, activePlayableIdx, keyNowE, showBottomThisFrame);
 return (
   <div style={{ minHeight:"100vh", background: T.bg, color: T.text, overflowX:"hidden" }}>
     <main className="vt-card" style={{ width:"100%", margin:"0 auto", padding:12, boxSizing:"border-box", maxWidth:520 }} ref={panelRef}>
+     {/* SEO: JSON-LD */}
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": ["SoftwareApplication", "WebApplication"],
+      name: "ToneDial",
+      applicationCategory: "MusicApplication",
+      operatingSystem: "Web",
+      url: "https://pianotrainer.app/viral/tone-dial",
+      image: "https://pianotrainer.app/og/tonedial.png",
+      description:
+        "Map phone text or words (T9) to melody. Three zero modes: Chromatic, Ticks, Rest.",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      publisher: { "@type": "Organization", name: "PianoTrainer" },
+    }),
+  }}
+/>
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "What does ToneDial do?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text:
+              "ToneDial converts phone text and words (T9) into melody with B♭ Major and C minor passes.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "How do zeros behave?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text:
+              "Chromatic (♭2/♯4) and Ticks (short ♭2/♯4) are playable and highlighted; Rest is silent and unhighlighted.",
+          },
+        },
+      ],
+    }),
+  }}
+/> 
       <section
         className="vt-panel minw0"
         style={{

@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "ToneDial • Dial Harmony by Number • PianoTrainer",
+  title: "ToneDial – Phone/Text to Melody • PianoTrainer",
   description:
-    "ToneDial transforms phone numbers into harmonic motion. Each digit turns the Circle of Fifths — dial a number, hear a progression.",
+    "Map words or phone text (T9) to melody instantly. Three zero modes. Free, fast, no sign-up.",
   alternates: { canonical: "/viral/tone-dial" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/viral/tone-dial",
-    title: "ToneDial • Dial Harmony by Number • PianoTrainer",
+    title: "ToneDial – Phone/Text → Melody",
     description:
-      "Dial harmony. Each digit turns the Circle of Fifths — from country codes to personal numbers, everything grooves in key.",
+      "Type phone text or words and hear a melody. T9 mapping, Reels-ready export.",
     images: [
       {
         url: "https://pianotrainer.app/og/tonedial.png",
@@ -22,9 +22,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "ToneDial • Dial Harmony by Number • PianoTrainer",
+    title: "ToneDial – Phone/Text → Melody",
     description:
-      "Dial harmony. Every phone number spins the Circle of Fifths into music. Try ToneDial by PianoTrainer. #ToneDial #CircleOfFifths",
+      "Turn names and numbers into a melody in seconds.",
     images: ["https://pianotrainer.app/og/tonedial.png"],
   },
   keywords: [
