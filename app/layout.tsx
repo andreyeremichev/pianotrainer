@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
         <meta name="color-scheme" content="light" />
+        <meta name="msvalidate.01" content="6B32F30D3DC40A3363DDE19B59463696" />
       </head>
       <body>
         {children}
