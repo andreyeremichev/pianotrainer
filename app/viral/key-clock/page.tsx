@@ -1887,6 +1887,54 @@ return (
       style={{ width: "100%", margin: "0 auto", padding: 12, boxSizing: "border-box", maxWidth: 520 }}
       ref={panelRef}
     >
+      {/* SEO: JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": ["SoftwareApplication", "WebApplication"],
+            name: "KeyClock",
+            applicationCategory: "MusicApplication",
+            operatingSystem: "Web",
+            url: "https://pianotrainer.app/viral/key-clock",
+            image: "https://pianotrainer.app/og/keyclock.png",
+            description:
+              "Turn dates and times into musical cadences. Three zero modes: Chromatic, Ticks, Rest.",
+            offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+            publisher: { "@type": "Organization", name: "PianoTrainer" },
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: [
+              {
+                "@type": "Question",
+                name: "What does KeyClock do?",
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text:
+                    "KeyClock maps dates and times to musical cadences in B♭ Major and C minor across four passes.",
+                },
+              },
+              {
+                "@type": "Question",
+                name: "How do zeros behave?",
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text:
+                    "Choose Chromatic (♭2/♯4), Ticks (short ♭2/♯4), or Rest (silent). Chromatic/Ticks are playable and highlighted; Rest is silent and unhighlighted.",
+                },
+              },
+            ],
+          }),
+        }}
+      />
       <section
         className="vt-panel minw0"
         style={{

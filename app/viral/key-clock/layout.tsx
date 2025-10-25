@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "KeyClock • Dates Through the Circle of Fifths • PianoTrainer",
+  title: "KeyClock – Turn Dates into Music • PianoTrainer",
   description:
-    "Spin your date through the Circle of Fifths. KeyClock turns birthdays, anniversaries, and moments in time into harmonic motion — every date has a key.",
+    "Type a date and hear it as cadences. KeyClock turns birthdays and times into musical progressions. Free, fast, no sign-up.",
   alternates: { canonical: "/viral/key-clock" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/viral/key-clock",
-    title: "KeyClock • Dates Through the Circle of Fifths • PianoTrainer",
+    title: "KeyClock – Dates → Music (Cadences)",
     description:
-      "Spin your date through the Circle of Fifths. Each day finds its own harmonic orbit — moody, bright, or mysterious. Try KeyClock by PianoTrainer.",
+      "Turn any date or time into music. Three zero modes (Chromatic, Ticks, Rest). Perfect for quick Reels.",
     images: [
       {
         url: "https://pianotrainer.app/og/keyclock.png",
@@ -22,9 +22,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "KeyClock • Dates Through the Circle of Fifths • PianoTrainer",
+    title: "KeyClock – Dates → Music",
     description:
-      "Spin your date through the Circle of Fifths. Each day finds its own harmonic orbit. #KeyClock #CircleOfFifths #PianoTrainer",
+      "Type a date/time and hear it as cadences. Free, fast, no sign-up.",
     images: ["https://pianotrainer.app/og/keyclock.png"],
   },
   keywords: [
