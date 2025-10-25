@@ -19,6 +19,44 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="color-scheme" content="light" />
         <meta name="msvalidate.01" content="6B32F30D3DC40A3363DDE19B59463696" />
         <meta name="google-site-verification" content="97JqwoELP-_-A7Nfkk5k2TE6vaCfI5Qtb9ewU1Wgn90" />
+      {/* SEO: site-wide JSON-LD (SSR) */}
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "PianoTrainer",
+      url: "https://pianotrainer.app/"
+      // If you add search later, you can include:
+      // potentialAction: {
+      //   "@type": "SearchAction",
+      //   target: "https://pianotrainer.app/search?q={query}",
+      //   "query-input": "required name=query"
+      // }
+    }),
+  }}
+/>
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "PianoTrainer",
+      url: "https://pianotrainer.app/",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://pianotrainer.app/og/pianotrainer.jpg"
+      }
+      // sameAs: [
+      //   "https://twitter.com/…",
+      //   "https://www.youtube.com/@…",
+      //   "https://www.instagram.com/…"
+      // ]
+    }),
+  }}
+/>
       </head>
       <body>
         {children}
