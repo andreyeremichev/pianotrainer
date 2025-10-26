@@ -340,8 +340,16 @@ function romanForChordAminor(notes: string[]): string {
 // Label for any event step (MELODY → letter; CHORD → roman; REST → middle dot)
 function labelForEventAminor(ev: TextToneEvent): string {
   if (ev.kind === "REST") return "·";
-  if (ev.kind === "MELODY") return (ev.notes[0] || "A")[0].toUpperCase();
-  // CHORD
+
+  // Zero tick (A) → always show 'a' on the helper line
+  if ((ev.label ?? "") === "0") return "a";
+
+  if (ev.kind === "MELODY") {
+    const note = ev.notes[0] || "A";
+    return note[0].toUpperCase();
+  }
+
+  // CHORD (including 100 etc.) → Roman numerals
   return romanForChordAminor(ev.notes || []);
 }
 // Convert trailing/infix figures to condensed Unicode superscripts (no spaces)

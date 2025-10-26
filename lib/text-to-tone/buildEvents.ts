@@ -133,8 +133,11 @@ export function buildEvents(input: string) : { events: TextToneEvent[] } {
 
     // Digits
     if (/[0-9]/.test(ch)){
-      let j=i; while(j<s.length && /[0-9]/.test(s[j])) j++;
-      const run = s.slice(i,j);
+  // Leading '0' should stand alone (zero-note), not merge into the digit run
+  if (ch === "0") { pushZero(); i++; continue; }
+
+  let j=i; while(j<s.length && /[0-9]/.test(s[j])) j++;
+  const run = s.slice(i,j);
       if (run.length>3){ for(const c of run){ const d=+c; d===0?pushZero():pushDigit(d,WEIGHTS.SINGLE); } i=j; continue; }
       if (run==="100"){ // cadence + breath
         const pcs = (cadenceRot++ % 2===0) ? CADENCE_A : CADENCE_B;
@@ -238,9 +241,9 @@ export function buildEvents(input: string) : { events: TextToneEvent[] } {
     if (e.type==="rest") return { kind:"REST", dur:e.d, label:e.label, t:e.t, d:e.d };
 
     if (e.type==="zero"){
-      const notes=["A3"];
-      return { kind:"CHORD", notes, dur:e.d, clef:"bass", label:e.label, t:e.t, d:e.d };
-    }
+  const notes=["A3"];
+  return { kind:"CHORD", notes, dur:e.d, clef:"bass", label:"0", t:e.t, d:e.d };
+}
 
     if (e.type==="melody"){
       const letter = lettersSeq[letterCursor++] || "A";
