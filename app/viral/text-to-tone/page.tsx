@@ -159,14 +159,17 @@ function deriveCaptionTokens(events: TextToneEvent[], src: string): CaptionToken
     let ownerIdx = i;
 
     const nextCh = playText[p] || "";
-    const isSep = /[:\/\- ]/.test(nextCh);
+    const isSep = /[:\/\- %@#\+,=]/.test(nextCh);
 
-    // Try to find a token whose text equals the next typed char (direct match)
-    if (nextCh) {
-      for (let k = i; k < j; k++) {
-        if (tokens[k].text === nextCh) { ownerIdx = k; break; }
-      }
-    }
+   // Try to find a token whose *first char* matches next typed char (case-insensitive)
+// e.g., label "@A4" matches "@", melody "M" matches typed "m"
+if (nextCh) {
+  const nc = nextCh.toLowerCase();
+  for (let k = i; k < j; k++) {
+    const tt = String(tokens[k].text || "");
+    if (tt && tt[0].toLowerCase() === nc) { ownerIdx = k; break; }
+  }
+}
 
     // If not found and next is a separator, still prefer a non-rest for ownership
     if (ownerIdx === i && isSep) {
@@ -186,7 +189,8 @@ function deriveCaptionTokens(events: TextToneEvent[], src: string): CaptionToken
     // 2b) Default per-slice consumption
     // - If next typed char is highlightable (digit/letter/space/-/:/), consume 1 char.
     // - Otherwise (micro breath before symbol etc.), leave empty span here and do not advance p.
-    const HILIGHTABLE = /[0-9A-Za-z:\-\/ ]/;
+    // treat these as visible, one-char steps: digits/letters + separators/symbols
+    const HILIGHTABLE = /[0-9A-Za-z:\-\/ %@#\+=,]/;
     if (p < playText.length && HILIGHTABLE.test(nextCh)) {
       const a = p, b = p + 1;
       tokens[ownerIdx].displaySpan = [a, b];
@@ -201,7 +205,161 @@ function deriveCaptionTokens(events: TextToneEvent[], src: string): CaptionToken
 
   return tokens;
 }
+/* =========================
+   Roman numerals (A natural minor) + inversion figures
+   ========================= */
 
+// Pitch-class map
+const PC_SEMI: Record<string, number> = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+
+// Note name -> pitch class (ignore accidentals beyond #/b, ignore octave when needed)
+function noteToPC(n: string): number {
+  const m = /^([A-Ga-g])([#b]?)(-?\d+)?$/.exec(n) || /^([a-g])([#b]?)\/(-?\d+)$/.exec(n);
+  if (!m) return -1;
+  const L = m[1].toUpperCase();
+  const acc = m[2] || "";
+  let pc = PC_SEMI[L];
+  if (acc === "#") pc = (pc + 1) % 12;
+  else if (acc === "b") pc = (pc + 11) % 12;
+  return pc;
+}
+
+// Lowest (bass) pitch from note names (uses octave when present)
+function lowestPC(notes: string[]): number {
+  let bestIdx = -1, bestMidi = Infinity;
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    const m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(n);
+    if (!m) continue;
+    const L = m[1].toUpperCase();
+    const acc = m[2] || "";
+    const oct = parseInt(m[3], 10);
+    let pc = PC_SEMI[L];
+    if (acc === "#") pc = (pc + 1) % 12;
+    else if (acc === "b") pc = (pc + 11) % 12;
+    const midi = (oct + 1) * 12 + pc;
+    if (midi < bestMidi) { bestMidi = midi; bestIdx = i; }
+  }
+  return bestIdx >= 0 ? noteToPC(notes[bestIdx]) : noteToPC(notes[0] || "A3");
+}
+
+// Normalize set of pitch classes to intervals from a candidate root
+function intervalsFrom(root: number, pcs: number[]): number[] {
+  const s = new Set(pcs.map(p => ((p - root + 12) % 12)));
+  return Array.from(s.values()).sort((a, b) => a - b);
+}
+
+// Try to detect chord quality and root from note set
+type DetectedChord = { rootPC: number; triad: "M"|"m"|"dim"|"aug"|"sus2"|"sus4"|null; seventh: "maj7"|"m7"|"7"|"ø7"|"o7"|null };
+function detectChord(pcs: number[]): DetectedChord | null {
+  // Candidate roots: any pc in the set
+  for (const r of pcs) {
+    const iv = intervalsFrom(r, pcs);
+    const ivStr = iv.join(",");
+    // 7ths first
+    if (ivStr === "0,4,7,11") return { rootPC:r, triad:"M",  seventh:"maj7" };
+    if (ivStr === "0,4,7,10") return { rootPC:r, triad:"M",  seventh:"7"    };
+    if (ivStr === "0,3,7,10") return { rootPC:r, triad:"m",  seventh:"m7"   };
+    if (ivStr === "0,3,6,10") return { rootPC:r, triad:"dim",seventh:"ø7"   };
+    if (ivStr === "0,3,6,9")  return { rootPC:r, triad:"dim",seventh:"o7"   };
+    // Triads
+    if (ivStr === "0,4,7")    return { rootPC:r, triad:"M",  seventh:null   };
+    if (ivStr === "0,3,7")    return { rootPC:r, triad:"m",  seventh:null   };
+    if (ivStr === "0,3,6")    return { rootPC:r, triad:"dim",seventh:null   };
+    if (ivStr === "0,4,8")    return { rootPC:r, triad:"aug",seventh:null   };
+    if (ivStr === "0,2,7")    return { rootPC:r, triad:"sus2",seventh:null  };
+    if (ivStr === "0,5,7")    return { rootPC:r, triad:"sus4",seventh:null  };
+  }
+  return null;
+}
+
+// Roman numerals in A natural minor (Aeolian)
+const DEGREE_FOR_PC_AEOLIAN: Record<number, { rn: string; quality: "M"|"m"|"dim" }> = {
+  [PC_SEMI.A]: { rn: "i",   quality: "m"   },
+  [PC_SEMI.B]: { rn: "ii°", quality: "dim" },
+  [PC_SEMI.C]: { rn: "III", quality: "M"   },
+  [PC_SEMI.D]: { rn: "iv",  quality: "m"   },
+  [PC_SEMI.E]: { rn: "v",   quality: "m"   }, // natural minor (no leading tone)
+  [PC_SEMI.F]: { rn: "VI",  quality: "M"   },
+  [PC_SEMI.G]: { rn: "VII", quality: "M"   },
+};
+
+// Add inversion figures (unicode superscripts)
+const SUP = { "6":"⁶", "64":"⁶⁴", "7":"⁷", "65":"⁶⁵", "43":"⁴³", "42":"⁴²" };
+
+// Build Roman numeral (A minor) + inversion from note list
+function romanForChordAminor(notes: string[]): string {
+  if (!notes.length) return "";
+  const pcs = Array.from(new Set(notes.map(noteToPC).filter(n => n >= 0)));
+  if (!pcs.length) return "";
+  const det = detectChord(pcs);
+  if (!det) {
+    // Fallback: map bass (or first pc) to A-minor degree; no inversion/quality needed
+    const rootPC = lowestPC(notes);
+    const deg = DEGREE_FOR_PC_AEOLIAN[rootPC];
+    return deg ? deg.rn : "i";
+  }
+
+  const { rootPC, triad, seventh } = det;
+  const deg = DEGREE_FOR_PC_AEOLIAN[rootPC];
+  if (!deg) return notes[0][0].toUpperCase();
+
+  // Base numeral (case by quality)
+  let base = deg.rn;
+  if (triad === "dim" && !base.includes("°")) base += "°";
+
+  // Seventh adornment (compact, no extra spaces)
+  if (seventh === "maj7") base += "△" + SUP["7"];  // e.g. III△⁷
+  else if (seventh === "7" || seventh === "m7")    base += SUP["7"];
+  
+
+  // Inversion (compare bass to root / third / fifth / seventh)
+  const bass = lowestPC(notes);
+  const iv = intervalsFrom(rootPC, notes.map(noteToPC));
+  const hasThird = iv.includes(3) || iv.includes(4);
+  const hasFifth = iv.includes(7);
+  const hasSeventh = iv.includes(10) || iv.includes(11) || iv.includes(9);
+
+  // Identify which chord tone the bass is
+  const bassInt = (bass - rootPC + 12) % 12;
+  let inv = "";
+  if (seventh) {
+    if (bassInt === 0) inv = "";          // root position
+    else if (bassInt === 3 || bassInt === 4) inv = SUP["65"];
+    else if (bassInt === 7) inv = SUP["43"];
+    else if (bassInt === 10 || bassInt === 11 || bassInt === 9) inv = SUP["42"];
+  } else {
+    if (bassInt === 0) inv = "";
+    else if (bassInt === 3 || bassInt === 4) inv = SUP["6"];
+    else if (bassInt === 7) inv = SUP["64"];
+  }
+
+  return base + inv;
+}
+
+// Label for any event step (MELODY → letter; CHORD → roman; REST → middle dot)
+function labelForEventAminor(ev: TextToneEvent): string {
+  if (ev.kind === "REST") return "·";
+  if (ev.kind === "MELODY") return (ev.notes[0] || "A")[0].toUpperCase();
+  // CHORD
+  return romanForChordAminor(ev.notes || []);
+}
+// Convert trailing/infix figures to condensed Unicode superscripts (no spaces)
+function toCondensedSuperscripts(label: string): string {
+  // 1) Collapse spaces or hyphens between ASCII digits (e.g., "7 - 4 - 2" → "742")
+  let s = label.replace(/(?<=\d)[\s-]+(?=\d)/g, "");
+
+  // 2) Collapse spaces or hyphens between superscript digits (e.g., "⁷ ⁴ ²" → "⁷⁴²")
+  s = s.replace(/(?<=[⁰¹²³⁴⁵⁶⁷⁸⁹])[\s-]+(?=[⁰¹²³⁴⁵⁶⁷⁸⁹])/g, "");
+
+  // 3) Convert any remaining ASCII digits to superscripts
+  const toSup: Record<string, string> = {
+    "0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹"
+  };
+  s = s.replace(/\d/g, d => toSup[d] || d);
+
+  return s;
+}
 /* =========================
    Component
    ========================= */
@@ -214,6 +372,9 @@ export default function TextToTonePage() {
   // caption (live)
   const [captionTokens, setCaptionTokens] = useState<CaptionToken[]>([]);
   const [captionIdx, setCaptionIdx] = useState(0);
+
+  // helper line under the stave (persistent during playback)
+  const [playedNames, setPlayedNames] = useState<string[]>([]);
 
   // play state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -232,6 +393,20 @@ export default function TextToTonePage() {
     [phrase]
   );
   const overLimit = elementCount > MAX_ELEMENTS;
+
+  // Append one helper label per step as it becomes visible (live)
+useEffect(() => {
+  if (!events.length) return;
+  const i = visibleIdx - 1;
+  if (i < 0 || i >= events.length) return;
+  const ev = events[i];
+  const label = labelForEventAminor(ev);
+  // accumulate, max 20 items (your current cap)
+  setPlayedNames(prev => {
+    const next = prev.concat(label);
+    return next.length > 20 ? next.slice(next.length - 20) : next;
+  });
+}, [visibleIdx, events]);
 
   /* Copy link (for share sheet) */
   const copyLink = useCallback(async () => {
@@ -312,6 +487,7 @@ export default function TextToTonePage() {
     setVisibleIdx(0);
     setCaptionIdx(0);
     setCaptionTokens(deriveCaptionTokens(localEvts, input));
+    setPlayedNames([]); // reset helper line for this run
 
     await Tone.start();
     await ensureSampler(localEvts);
@@ -385,6 +561,7 @@ export default function TextToTonePage() {
     const { events: built } = buildEvents(trimmed);
     setEvents(built);
     setCaptionTokens(deriveCaptionTokens(built, trimmed));
+    setPlayedNames([]); // keep helper line empty until play
     setVisibleIdx(built.length);
     setCaptionIdx(built.length);
     setIsPlaying(false);
@@ -661,7 +838,14 @@ export default function TextToTonePage() {
     const { events: evtsExport } = buildEvents(exportInput);
     if (!evtsExport.length) return;
 
+    let exportPlayedNames: string[] = [];
+    let exportLastIdx = -1;
+
     const captionTokensExport = deriveCaptionTokens(evtsExport as any, exportInput);
+    exportPlayedNames = [];
+    exportLastIdx = -1;
+
+    
 
     // DEBUG mirrors for console inspection (safe globals)
     (window as any).__exportInput = exportInput;
@@ -846,6 +1030,8 @@ rec.ondataavailable = (e) => {
       let currentImg = await svgToImage(serializeFullSvg(liveSvgEl, liveW, liveH));
       let lastSnapshot: HTMLImageElement = currentImg;
 
+      
+
       // caption painter (export)
       function drawCaptionLine(nowSec: number) {
         const RAW_CAPTION: string = exportInput || phrase || "";
@@ -864,6 +1050,7 @@ rec.ondataavailable = (e) => {
           for (let k = Math.max(0, a); k < Math.min(SAFE_CAPTION.length, b); k++)
             charToTok[k] = i;
         }
+        
 
         // current token by time (then pick visible)
         let currentTokIdx = -1;
@@ -978,6 +1165,62 @@ rec.ondataavailable = (e) => {
         }
       }
 
+      // Draw persistent export helper line (accumulate like Live; one row)
+function drawNowPlayingLabel(nowSec: number) {
+  // 1) Find current event index by time
+  let curIdx = -1;
+  for (let i = 0; i < evtsExport.length; i++) {
+    const t0 = evtsExport[i].t ?? 0;
+    const t1 = t0 + (evtsExport[i].d ?? 0.5);
+    if (nowSec >= t0 && nowSec < t1) { curIdx = i; break; }
+    if (nowSec >= t1) curIdx = i;
+  }
+  if (curIdx < 0) return;
+
+  // 2) Append one label when we advance
+  if (curIdx > exportLastIdx) {
+    for (let i = exportLastIdx + 1; i <= curIdx; i++) {
+      const ev = evtsExport[i];
+      let raw = labelForEventAminor(ev);
+      if (ev.kind === "MELODY") raw = raw.toLowerCase();   // download-only: notes in lowercase
+      const pretty = toCondensedSuperscripts(raw);
+      exportPlayedNames.push(pretty);
+    }
+    exportLastIdx = curIdx;
+  }
+
+  // 3) Layout & draw: a single condensed row centered under the stave
+  c.save();
+  c.textAlign = "center";
+  c.textBaseline = "top";
+
+  // 2× previous size: from 14 to 28, still scaled for canvas
+  const FONT_PX = 28;
+  c.font = `${FONT_PX * SCALE}px Inter, system-ui, sans-serif`;
+  c.globalAlpha = 0.92;
+  c.fillStyle = theme.text;
+
+  // Where to place it: just below the gold panel
+  const lineY = Math.round((goldY + drawH + 12) * SCALE);
+  const centerX = Math.round((FRAME_W * SCALE) / 2);
+
+  // Build a single string with spaces between items
+  // (no extra spacing tricks—your condensed superscripts keep it tight)
+  const sep = "  "; // two thin spaces feels balanced; tweak to " " if needed
+  let full = exportPlayedNames.join(sep);
+
+  // 4) Fit-to-width: trim from the left if the row is too long
+  const MAX_W = (FRAME_W * SCALE) * 0.92; // keep 4% padding on sides
+  while (c.measureText(full).width > MAX_W && exportPlayedNames.length > 1) {
+    exportPlayedNames.shift();           // drop the oldest at the left
+    full = exportPlayedNames.join(sep);  // rebuild
+  }
+
+  c.fillText(full, centerX, lineY);
+  c.globalAlpha = 1;
+  c.restore();
+}
+
       // draw frame (caption + stave snapshot)
       function drawFrame(img: HTMLImageElement, nowSec: number) {
         // bg
@@ -1003,6 +1246,8 @@ rec.ondataavailable = (e) => {
           drawW * SCALE,
           drawH * SCALE
         );
+        // export helper label (now playing)
+      drawNowPlayingLabel(nowSec);
       }
 
       // start recording
@@ -1273,6 +1518,36 @@ rec.ondataavailable = (e) => {
                 ref={staveHostRef}
                 style={{ width: "100%", minHeight: 260, display: "block" }}
               />
+              {/* Helper line: notes (letters) & chords (Roman numerals), one row */}
+<div
+  style={{
+    marginTop: 6,
+    padding: "2px 4px",
+    fontSize: 12,            // tuned to fit ~20 items in one row
+    lineHeight: 1.2,
+    color: theme.muted,   // darker gray, same family as your caption’s muted tone
+    opacity: 1,
+    fontWeight: 400,           // explicit normal weight
+    textTransform: "lowercase", // force letters to appear as a b c d e f g
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    letterSpacing: 0.2,
+  }}
+  aria-label="Played helper line"
+>
+  {playedNames.map((t, idx) => {
+    const isRest = t === "·";
+    const shown = toCondensedSuperscripts(t);
+return (
+  <span
+    key={`hlp-${idx}`}
+    style={{ marginRight: 8, opacity: isRest ? 0.4 : 0.95 }}
+    dangerouslySetInnerHTML={{ __html: shown }}
+  />
+);
+  })}
+</div>
             </div>
           </div>
 

@@ -45,9 +45,16 @@ const TEEN_MAP: Record<number, PC[]> = {
   13: ["D","F","A","E"], 14: ["E","G","B","D"], 15: ["F","A","C","E"],
   16: ["G","B","D","E"], 17: ["A","C","E","B"], 18: ["C","E","G","F"], 19: ["E","G","B","F"],
 };
+// Tens mapping (A natural minor) — distinct, teachable colors
 const TENS_MAP: Record<number, PC[]> = {
-  20: ["C","E","A","D"], 30: ["E","A","C"], 40: ["F","A","D"], 50: ["G","B","E"],
-  60: ["C","F","A"], 70: ["D","G","B"], 80: ["G","C","E"], 90: ["B","E","G"],
+  20: ["B","D","F","A"],   // iiø7  (B–D–F–A)  gentle tension
+  30: ["C","E","G","B"],   // III△7 (C–E–G–B) bright daylight
+  40: ["F","A","D"],       // iv⁶   (first inversion)
+  50: ["G","B","E"],       // v⁶    (first inversion)
+  60: ["C","F","A"],       // VI⁶   (first inversion)
+  70: ["D","G","B"],       // VII⁶  (first inversion)
+  80: ["A","C","E","A"],   // i + 8ve A (strong home return)
+  90: ["B","D","F","A"],   // iiø7  (loop closure)
 };
 
 const CADENCE_A: PC[] = ["E","G","B"]; // 100-A
