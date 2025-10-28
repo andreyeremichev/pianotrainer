@@ -35,11 +35,12 @@ const nextConfig: NextConfig = {
       { source: "/viral", destination: "/toys", permanent: true },
       { source: "/viral/:slug*", destination: "/toys/:slug*", permanent: true },
 
-      // (Phase B to be added later)
-      // { source: "/trainer/notation", destination: "/train/notation", permanent: true },
-      // { source: "/trainer/notation/:slug*", destination: "/train/notation/:slug*", permanent: true },
-      // { source: "/trainer/ear", destination: "/train/ear", permanent: true },
-      // { source: "/trainer/ear/:slug*", destination: "/train/ear/:slug*", permanent: true },
+      // Phase B: move /trainer → /train (preserve subpaths)
+{ source: "/trainer", destination: "/train", permanent: true },
+{ source: "/trainer/notation", destination: "/train/notation", permanent: true },
+{ source: "/trainer/notation/:slug*", destination: "/train/notation/:slug*", permanent: true },
+{ source: "/trainer/ear", destination: "/train/ear", permanent: true },
+{ source: "/trainer/ear/:slug*", destination: "/train/ear/:slug*", permanent: true },
     ];
   },
 };
