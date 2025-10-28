@@ -4,10 +4,10 @@ export const metadata: Metadata = {
   title: "KeyClock – Turn Dates into Music • PianoTrainer",
   description:
     "Type a date and hear it as cadences. KeyClock turns birthdays and times into musical progressions. Free, fast, no sign-up.",
-  alternates: { canonical: "/viral/key-clock" },
+  alternates: { canonical: "/toys/key-clock" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/viral/key-clock",
+    url: "https://pianotrainer.app/toys/key-clock",
     title: "KeyClock – Dates → Music (Cadences)",
     description:
       "Turn any date or time into music. Three zero modes (Chromatic, Ticks, Rest). Perfect for quick Reels.",

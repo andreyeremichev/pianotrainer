@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: "TextToTone Family • Viral Musical Toys • PianoTrainer",
   description:
     "Three bite-size toys: TextToTone (text → music), KeyClock (dates → Circle of Fifths), and ToneDial (phone → Circle of Fifths). Type, spin, dial — and make a loop-ready clip.",
-  alternates: { canonical: "/viral" },
+  alternates: { canonical: "/toys" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/viral",
@@ -84,19 +84,19 @@ export default function ViralHubPage() {
           "@type": "ListItem",
           position: 1,
           name: "TextToTone – Text → Music",
-          url: "https://pianotrainer.app/viral/text-to-tone"
+          url: "https://pianotrainer.app/toys/text-to-tone"
         },
         {
           "@type": "ListItem",
           position: 2,
           name: "KeyClock – Dates → Music (Cadences)",
-          url: "https://pianotrainer.app/viral/key-clock"
+          url: "https://pianotrainer.app/toys/key-clock"
         },
         {
           "@type": "ListItem",
           position: 3,
           name: "ToneDial – Phone/Text → Melody",
-          url: "https://pianotrainer.app/viral/tone-dial"
+          url: "https://pianotrainer.app/toys/tone-dial"
         }
       ]
     }),
@@ -203,7 +203,7 @@ export default function ViralHubPage() {
             </p>
             <div>
               <Link
-                href="/viral/text-to-tone"
+                href="/toys/text-to-tone"
                 aria-label="Open TextToTone Viral Toy"
                 style={{
                   display: "inline-flex",
@@ -253,7 +253,7 @@ export default function ViralHubPage() {
             </p>
             <div>
               <Link
-                href="/viral/key-clock"
+                href="/toys/key-clock"
                 aria-label="Open KeyClock Viral Toy"
                 style={{
                   display: "inline-flex",
@@ -303,7 +303,7 @@ export default function ViralHubPage() {
             </p>
             <div>
               <Link
-                href="/viral/tone-dial"
+                href="/toys/tone-dial"
                 aria-label="Open ToneDial Viral Toy"
                 style={{
                   display: "inline-flex",

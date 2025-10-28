@@ -1393,7 +1393,7 @@ function drawNowPlayingLabel(nowSec: number) {
       name: "TextToTone",
       applicationCategory: "MusicApplication",
       operatingSystem: "Web",
-      url: "https://pianotrainer.app/viral/text-to-tone",
+      url: "https://pianotrainer.app/toys/text-to-tone",
       image: "https://pianotrainer.app/og/texttotone.png",
       description:
         "Paste text and hear it as melody, instantly. Free and fast.",

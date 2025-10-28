@@ -5,10 +5,10 @@ export const metadata: Metadata = {
   title: "TextToTone – Turn Text into Music • PianoTrainer",
   description:
     "Paste or type any text and hear it as melody. Simple, musical, and fast. Free, no sign-up.",
-  alternates: { canonical: "/viral/text-to-tone" },
+  alternates: { canonical: "/toys/text-to-tone" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/viral/text-to-tone",
+    url: "https://pianotrainer.app/toys/text-to-tone",
     title: "TextToTone – Text → Music",
     description:
       "Turn any phrase — words, numbers, or memes — into melody. Try the viral piano toy by PianoTrainer.",

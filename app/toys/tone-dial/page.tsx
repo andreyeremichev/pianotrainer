@@ -2088,7 +2088,7 @@ return (
       name: "ToneDial",
       applicationCategory: "MusicApplication",
       operatingSystem: "Web",
-      url: "https://pianotrainer.app/viral/tone-dial",
+      url: "https://pianotrainer.app/toys/tone-dial",
       image: "https://pianotrainer.app/og/tonedial.png",
       description:
         "Map phone text or words (T9) to melody. Three zero modes: Chromatic, Ticks, Rest.",

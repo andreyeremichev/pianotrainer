@@ -1897,7 +1897,7 @@ return (
             name: "KeyClock",
             applicationCategory: "MusicApplication",
             operatingSystem: "Web",
-            url: "https://pianotrainer.app/viral/key-clock",
+            url: "https://pianotrainer.app/toys/key-clock",
             image: "https://pianotrainer.app/og/keyclock.png",
             description:
               "Turn dates and times into musical cadences. Three zero modes: Chromatic, Ticks, Rest.",

@@ -28,6 +28,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  async redirects() {
+    return [
+      // Phase A: move /viral → /toys (preserve all subpaths)
+      { source: "/viral", destination: "/toys", permanent: true },
+      { source: "/viral/:slug*", destination: "/toys/:slug*", permanent: true },
+
+      // (Phase B to be added later)
+      // { source: "/trainer/notation", destination: "/train/notation", permanent: true },
+      // { source: "/trainer/notation/:slug*", destination: "/train/notation/:slug*", permanent: true },
+      // { source: "/trainer/ear", destination: "/train/ear", permanent: true },
+      // { source: "/trainer/ear/:slug*", destination: "/train/ear/:slug*", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

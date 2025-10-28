@@ -9,10 +9,10 @@ export default async function sitemap() {
 
   return [
     // Viral hub + toys (add the hub — you link to it from home)
-    { url: `${base}/viral`, lastModified: nowISO, ...high },
-    { url: `${base}/viral/key-clock`, lastModified: nowISO, ...high },
-    { url: `${base}/viral/tone-dial`, lastModified: nowISO, ...high },
-    { url: `${base}/viral/text-to-tone`, lastModified: nowISO, ...high },
+    { url: `${base}/toys`, lastModified: nowISO, ...high },
+    { url: `${base}/toys/key-clock`, lastModified: nowISO, ...high },
+    { url: `${base}/toys/tone-dial`, lastModified: nowISO, ...high },
+    { url: `${base}/toys/text-to-tone`, lastModified: nowISO, ...high },
 
     // Homepage (important)
     { url: `${base}/`, lastModified: nowISO, ...high },

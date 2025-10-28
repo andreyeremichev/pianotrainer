@@ -4,10 +4,10 @@ export const metadata: Metadata = {
   title: "ToneDial – Phone/Text to Melody • PianoTrainer",
   description:
     "Map words or phone text (T9) to melody instantly. Three zero modes. Free, fast, no sign-up.",
-  alternates: { canonical: "/viral/tone-dial" },
+  alternates: { canonical: "/toys/tone-dial" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/viral/tone-dial",
+    url: "https://pianotrainer.app/toys/tone-dial",
     title: "ToneDial – Phone/Text → Melody",
     description:
       "Type phone text or words and hear a melody. T9 mapping, Reels-ready export.",
