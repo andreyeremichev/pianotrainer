@@ -18,14 +18,15 @@ export default async function sitemap() {
     { url: `${base}/`, lastModified: nowISO, ...high },
 
     // Trainers (match what you actually link)
-    { url: `${base}/trainer/notation/random-notes`, lastModified: nowISO, ...mid },
-    { url: `${base}/trainer/notation/keys-to-notes`, lastModified: nowISO, ...mid },
-    { url: `${base}/trainer/notation/chords`, lastModified: nowISO, ...mid },
-    { url: `${base}/trainer/notation/intervals`, lastModified: nowISO, ...mid },
-    { url: `${base}/trainer/ear/circle-of-fifths`, lastModified: nowISO, ...mid },
-    { url: `${base}/trainer/ear/intervals`, lastModified: nowISO, ...mid },
-    { url: `${base}/trainer/ear/progressions`, lastModified: nowISO, ...mid },
-    { url: `${base}/trainer/ear/degrees`, lastModified: nowISO, ...mid }, // ← you link this in the homepage tile
+    { url: `${base}/train`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/notation/random-notes`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/notation/keys-to-notes`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/notation/chords`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/notation/intervals`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/ear/circle-of-fifths`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/ear/intervals`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/ear/progressions`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/ear/degrees`, lastModified: nowISO, ...mid }, // ← you link this in the homepage tile
 
     // Learn section
     { url: `${base}/learn/how-to-read-music`, lastModified: nowISO, ...low },
