@@ -435,7 +435,7 @@ export default function ChaosTextToTonePage(){
             <button onClick={copyLink} style={{ padding:"10px 14px", borderRadius:8, border:`1px solid ${theme.border}`, background:"transparent", color:theme.text, fontWeight:800 }}>
               Copy Link
             </button>
-            <Link href="/viral/text-to-tone" style={{ marginLeft:"auto", color:theme.gold, textDecoration:"none", fontWeight:800 }}>
+            <Link href="/toys/text-to-tone" style={{ marginLeft:"auto", color:theme.gold, textDecoration:"none", fontWeight:800 }}>
               Compare to Viral →
             </Link>
           </div>

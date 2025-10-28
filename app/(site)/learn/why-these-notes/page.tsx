@@ -251,21 +251,21 @@ export default function WhyTheseNotesPage() {
   </p>
   <div className="cta-row">
     <Link
-      href="/viral/key-clock"
+      href="/toys/key-clock"
       className="cta"
       aria-label="Open KeyClock Viral Toy (Date → Music)"
     >
       KeyClock (Date → Music) →
     </Link>
     <Link
-      href="/viral/tone-dial"
+      href="/toys/tone-dial"
       className="ghost"
       aria-label="Open ToneDial Viral Toy (Phone → Music)"
     >
       ToneDial (Phone → Music) →
     </Link>
     <Link
-      href="/viral/text-to-tone"
+      href="/toys/text-to-tone"
       className="ghost"
       aria-label="Open TextToTone Viral Toy (Text → Music)"
     >
@@ -281,7 +281,7 @@ export default function WhyTheseNotesPage() {
           It’s the fastest way to make someone smile today.
         </p>
         <div className="cta-row">
-          <Link href="/viral/text-to-tone" className="cta" aria-label="Open Viral Toy">
+          <Link href="/toys/text-to-tone" className="cta" aria-label="Open Viral Toy">
             Make a New Clip →
           </Link>
         </div>

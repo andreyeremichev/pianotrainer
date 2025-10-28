@@ -114,19 +114,19 @@ export default function HomePage() {
         {
           "@type": "ListItem",
           position: 1,
-          url: "https://pianotrainer.app/viral/key-clock",
+          url: "https://pianotrainer.app/toys/key-clock",
           name: "KeyClock – Dates → Music (Cadences)"
         },
         {
           "@type": "ListItem",
           position: 2,
-          url: "https://pianotrainer.app/viral/tone-dial",
+          url: "https://pianotrainer.app/toys/tone-dial",
           name: "ToneDial – Phone/Text → Melody"
         },
         {
           "@type": "ListItem",
           position: 3,
-          url: "https://pianotrainer.app/viral/text-to-tone",
+          url: "https://pianotrainer.app/toys/text-to-tone",
           name: "TextToTone – Text → Music"
         }
       ]
@@ -180,7 +180,7 @@ export default function HomePage() {
           <div style={pageStyles.tileIcon}>🎲</div>
           <h3 style={pageStyles.tileTitle}>Play with Toys</h3>
           <p style={pageStyles.tileText}>Make birthdays, names, or numbers sing.</p>
-          <Link href="/viral" style={pageStyles.tileButton} aria-label="Open Musical Toys">
+          <Link href="/toys" style={pageStyles.tileButton} aria-label="Open Musical Toys">
             Musical Toys →
           </Link>
         </div>

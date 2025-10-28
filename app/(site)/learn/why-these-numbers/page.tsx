@@ -190,17 +190,17 @@ export default function WhyTheseNumbersPage() {
         <h2 className="h2">🚀 Try the Musical Toys</h2>
         <p className="lead">Now that you know the mapping, let your dates, phone numbers, and words sing:</p>
         <div className="cta-row">
-          <Link href="/viral/key-clock" className="cta" aria-label="Open KeyClock (Date → Degrees)">
+          <Link href="/toys/key-clock" className="cta" aria-label="Open KeyClock (Date → Degrees)">
             KeyClock (Date → Degrees) →
           </Link>
-          <Link href="/viral/tone-dial" className="ghost" aria-label="Open ToneDial (Phone → Degrees)">
+          <Link href="/toys/tone-dial" className="ghost" aria-label="Open ToneDial (Phone → Degrees)">
             ToneDial (Phone → Degrees) →
           </Link>
-          <Link href="/viral/text-to-tone" className="ghost" aria-label="Open TextToTone (Words → Notes)">
+          <Link href="/toys/text-to-tone" className="ghost" aria-label="Open TextToTone (Words → Notes)">
             TextToTone (Text → Notes) →
           </Link>
           <Link
-            href="/viral/text-to-tone-chaos"
+            href="/toys/text-to-tone-chaos"
             className="ghost"
             aria-label="Open TextToTone-Chaos (2 octaves; A minor / A major)"
           >
