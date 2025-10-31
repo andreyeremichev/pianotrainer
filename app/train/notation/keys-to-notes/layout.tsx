@@ -5,10 +5,10 @@ export const metadata: Metadata = {
   title: "Keys → Notes (Grand Stave) • PianoTrainer",
   description:
     "Play any piano key and instantly see the correct note on the grand staff — with sound and proper ♯/♭ spelling.",
-  alternates: { canonical: "/trainer/notation/keys-to-notes" },
+  alternates: { canonical: "/train/notation/keys-to-notes" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/trainer/notation/keys-to-notes",
+    url: "https://pianotrainer.app/train/notation/keys-to-notes",
     title: "Keys → Notes (Grand Stave) • PianoTrainer",
     description:
       "Map the keyboard to the grand stave. Sharps and flats included, with instant visual feedback.",

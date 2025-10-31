@@ -145,7 +145,7 @@ export default function HomePage() {
           <MiniChordsPreview />
         </div>
 
-        <Link href="/trainer/notation/chords-helper" style={pageStyles.primaryCta} aria-label="Start Playing Chords Helper">
+        <Link href="/train/notation/chords-helper" style={pageStyles.primaryCta} aria-label="Start Playing Chords Helper">
           Start Playing →
         </Link>
       </section>
@@ -159,7 +159,7 @@ export default function HomePage() {
     Every key press paints a note on the stave — connect what you play to what you see.
   </p>
   <Link
-    href="/trainer/notation/keys-to-notes"
+    href="/train/notation/keys-to-notes"
     style={pageStyles.tileButton}
     aria-label="Open Keys to Notes"
   >
@@ -171,7 +171,7 @@ export default function HomePage() {
           <div style={pageStyles.tileIcon}>👂</div>
           <h3 style={pageStyles.tileTitle}>Train Your Ear</h3>
           <p style={pageStyles.tileText}>Guess sounds before they vanish.</p>
-          <Link href="/trainer/ear/degrees" style={pageStyles.tileButton} aria-label="Open Ear Trainers">
+          <Link href="/train/ear/degrees" style={pageStyles.tileButton} aria-label="Open Ear Trainers">
             Degrees & Intervals →
           </Link>
         </div>

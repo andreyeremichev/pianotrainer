@@ -4,10 +4,10 @@ export const metadata: Metadata = {
   title: "Chords on the Stave • PianoTrainer",
   description:
     "See triads and sevenths as stacked shapes on the grand stave. Practice chord reading in treble and bass with clear visuals.",
-  alternates: { canonical: "/trainer/notation/chords" },
+  alternates: { canonical: "/train/notation/chords" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/trainer/notation/chords",
+    url: "https://pianotrainer.app/train/notation/chords",
     title: "Chords on the Stave • PianoTrainer",
     description:
       "Triads & sevenths drawn clearly on the grand stave. Learn chord stacks in treble and bass.",

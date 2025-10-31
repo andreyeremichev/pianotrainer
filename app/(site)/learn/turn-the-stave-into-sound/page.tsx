@@ -295,10 +295,10 @@ export default function HowToReadMusicPage() {
           <li>Play the matching key.</li>
         </ol>
         <div className="actions" style={{ marginTop: 8 }}>
-          <Link href="/trainer/notation/random-notes" className="cta" aria-label="Open Random Notes trainer">
+          <Link href="/train/notation/random-notes" className="cta" aria-label="Open Random Notes trainer">
             🎯 Random Notes (start with Guide Notes) →
           </Link>
-          <Link href="/trainer/notation/keys-to-notes" className="cta" aria-label="Open Keys to Notes trainer">
+          <Link href="/train/notation/keys-to-notes" className="cta" aria-label="Open Keys to Notes trainer">
             🎹 Keys → Notes (sharps & flats too) →
           </Link>
         </div>
@@ -316,7 +316,7 @@ export default function HowToReadMusicPage() {
           left = flat.
         </p>
         <div className="actions">
-          <Link href="/trainer/notation/keys-to-notes" className="cta" aria-label="Open Keys to Notes trainer">
+          <Link href="/train/notation/keys-to-notes" className="cta" aria-label="Open Keys to Notes trainer">
             Practice accidentals →
           </Link>
         </div>

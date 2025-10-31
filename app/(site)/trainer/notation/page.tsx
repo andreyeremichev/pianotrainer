@@ -100,7 +100,7 @@ export default function NotationHubPage() {
           Your treasure map starts here. Find the magic guide notes (C, F, G)
           and the rest of the stave suddenly makes sense.
         </p>
-        <Link href="/trainer/notation/random-notes" style={styles.cta}>
+        <Link href="/train/notation/random-notes" style={styles.cta}>
           Catch Random Notes →
         </Link>
       </article>
@@ -133,7 +133,7 @@ export default function NotationHubPage() {
           Listen with your eyes. Seconds to octaves drawn on the stave — and lit
           up on the keys.
         </p>
-        <Link href="/trainer/notation/intervals" style={styles.cta}>
+        <Link href="/train/notation/intervals" style={styles.cta}>
           Spot Intervals →
         </Link>
       </article>
@@ -146,7 +146,7 @@ export default function NotationHubPage() {
           Stacks of sound! Major and minor triads you can see, hear, and name on
           sight.
         </p>
-        <Link href="/trainer/notation/chords" style={styles.cta}>
+        <Link href="/train/notation/chords" style={styles.cta}>
           Play Chords →
         </Link>
       </article>
@@ -159,7 +159,7 @@ export default function NotationHubPage() {
           Your harmony sandbox. Swipe through all seven chords in any key and
           watch them light up.
         </p>
-        <Link href="/trainer/notation/chords-helper" style={styles.cta}>
+        <Link href="/train/notation/chords-helper" style={styles.cta}>
           Explore Chords →
         </Link>
       </article>
@@ -172,7 +172,7 @@ export default function NotationHubPage() {
           Every key press paints a note on the stave. Your keyboard and the
           staff finally in sync.
         </p>
-        <Link href="/trainer/notation/keys-to-notes" style={styles.cta}>
+        <Link href="/train/notation/keys-to-notes" style={styles.cta}>
           Try Keys to Notes →
         </Link>
       </article>

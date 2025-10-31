@@ -205,7 +205,7 @@ export default function CircleOfFifthsExplainedPage() {
         bite-sized, addictive, and works on phone or desktop — perfect for daily practice.
       </p>
       <div style={{ marginTop: 12 }}>
-        <Link href="/trainer/ear/degrees" className="cta" aria-label="Open Degrees Ear Trainer">
+        <Link href="/train/ear/degrees" className="cta" aria-label="Open Degrees Ear Trainer">
           🎧 Try the Degrees Ear Trainer →
         </Link>
       </div>

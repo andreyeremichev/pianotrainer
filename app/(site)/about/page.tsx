@@ -49,9 +49,9 @@ export default function AboutPage() {
         <h2>Get Started</h2>
         <p>
           Try the{" "}
-          <a href="/trainer/notation/random-notes">Random Notes trainer</a> or{" "}
+          <a href="/train/notation/random-notes">Random Notes trainer</a> or{" "}
           jump into{" "}
-          <a href="/trainer/notation/keys-to-notes">Keys to Notes</a> to see the
+          <a href="/train/notation/keys-to-notes">Keys to Notes</a> to see the
           stave and keyboard work together.
         </p>
       </section>

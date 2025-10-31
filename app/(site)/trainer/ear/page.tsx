@@ -50,7 +50,7 @@ export default function EarHubPage() {
             Tiny numbers, huge payoff — hear scale degrees and match them fast.
             Build your inner compass, one note at a time.
           </p>
-          <Link href="/trainer/ear/degrees" style={styles.cta}>
+          <Link href="/train/ear/degrees" style={styles.cta}>
             Start Degrees →
           </Link>
         </article>
@@ -63,7 +63,7 @@ export default function EarHubPage() {
             Mind the space — from seconds to octaves. Hear the jump, spot the shape,
             and name the distance with confidence.
           </p>
-          <Link href="/trainer/ear/intervals" style={styles.cta}>
+          <Link href="/train/ear/intervals" style={styles.cta}>
             Explore Intervals →
           </Link>
         </article>
@@ -98,7 +98,7 @@ export default function EarHubPage() {
       {/* Footer CTA */}
       <footer style={styles.footer}>
         <p style={styles.footerText}>Just a few minutes a day can rewire your ears.</p>
-        <Link href="/trainer/ear/degrees" style={styles.footerCta}>
+        <Link href="/train/ear/degrees" style={styles.footerCta}>
           Start Training →
         </Link>
       </footer>

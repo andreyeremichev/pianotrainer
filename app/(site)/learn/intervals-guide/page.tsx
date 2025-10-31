@@ -126,7 +126,7 @@ export default function IntervalsGuidePage() {
             flavors — sweet, tense, open, or resolved. Learn to see their shapes on the stave, hear their colors
             by ear, and connect the two into one instinct. <strong>Practice</strong> spotting the spacing and playing them on the keyboard.
           </p>
-          <Link href="/trainer/notation/intervals" className="cta">
+          <Link href="/train/notation/intervals" className="cta">
             Open Notation Trainer →
           </Link>
         </article>
@@ -141,7 +141,7 @@ export default function IntervalsGuidePage() {
             each jump changes the mood of a melody. Hear them, sing them, and type the right answer. <strong>Train</strong> your ear
             to recognize intervals instantly.
           </p>
-          <Link href="/trainer/ear/intervals" className="cta">
+          <Link href="/train/ear/intervals" className="cta">
             Open Ear Trainer →
           </Link>
         </article>
