@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
               "connect-src 'self' https://*.google-analytics.com https://www.googletagmanager.com https://*.vercel-insights.com /_vercel/insights/v1/events",
               // Images: GA/DoubleClick pixels
               "img-src 'self' data: blob: https://*.google-analytics.com https://stats.g.doubleclick.net",
+              // ✅ AudioWorklet / Web Workers for Tone.js
+              "worker-src 'self' blob:",
+
+              // ✅ Allow playing local wav samples (/audio/notes/*.wav)
+              "media-src 'self'",
               // ✅ Google Fonts CSS
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // ✅ Google Fonts files
