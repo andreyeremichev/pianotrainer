@@ -12,7 +12,8 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               // Scripts: GA4, Vercel Analytics
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com /_vercel/insights/script.js https://*.vercel-insights.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://va.vercel-scripts.com /_vercel/insights/script.js https://*.vercel-insights.com",
+              "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://va.vercel-scripts.com /_vercel/insights/script.js https://*.vercel-insights.com",
               // XHR/beacons: GA regional, GTM, Vercel Analytics
               "connect-src 'self' https://*.google-analytics.com https://www.googletagmanager.com https://*.vercel-insights.com /_vercel/insights/v1/events",
               // Images: GA/DoubleClick pixels
