@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
@@ -386,7 +386,7 @@ function toCondensedSuperscripts(label: string): string {
 /* =========================
    Component
    ========================= */
-export default function TextToTonePage() {
+function TextToTonePageInner() {
   // input & state
   const [phrase, setPhrase] = useState("");
   const [events, setEvents] = useState<TextToneEvent[]>([]);
@@ -1518,7 +1518,6 @@ function drawNowPlayingLabel(nowSec: number) {
      Render
      ========================= */
   return (
-    <Suspense fallback={null}>
     <main
       style={{
         minHeight: "100vh",
@@ -1834,6 +1833,13 @@ return (
         </div>
       </div>
     </main>
-  </Suspense> 
+  );
+}
+import { Suspense } from "react";
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <TextToTonePageInner />
+    </Suspense>
   );
 }
