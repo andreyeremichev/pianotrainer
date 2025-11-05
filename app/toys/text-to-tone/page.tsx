@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
 import { Renderer, Stave, StaveNote, Formatter, Voice, StaveConnector } from "vexflow";
@@ -9,6 +11,7 @@ import { buildEvents, type TextToneEvent } from "@/lib/text-to-tone/buildEvents"
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { tokenizeToIPA } from "@/lib/text-to-tone/phonemeTokenizer";
 import { buildPhonemeEvents } from "@/lib/text-to-tone/buildPhonemeEvents";
+
 
 /* =========================
    Theme / constants
@@ -1515,6 +1518,7 @@ function drawNowPlayingLabel(nowSec: number) {
      Render
      ========================= */
   return (
+    <Suspense fallback={null}>
     <main
       style={{
         minHeight: "100vh",
@@ -1830,5 +1834,6 @@ return (
         </div>
       </div>
     </main>
+  </Suspense> 
   );
 }
