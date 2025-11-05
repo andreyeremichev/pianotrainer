@@ -5,14 +5,14 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Why These Notes? • PianoTrainer",
   description:
-    "TextToTone maps text to sound in A minor: letters sing a one-octave A-minor melody (A3–A4), numbers become diatonic chords (1–9, 10–19, 20–90, 100 as cadence), 0 is a short A tick, and symbols like %, /, +, =, #, @ add musical punctuation. A compact helper line shows notes (letters) and chords (Roman numerals with condensed superscripts).",
+    "TextToTone maps text to sound in A minor. Letters mode: simple A-minor melody (A3–A4) plus number/symbol chords. Phonemes mode: vowels and consonants mapped to the seven notes of A minor, with speech-like rhythm archetypes. A compact helper line shows note letters and Roman-numeral chords.",
   alternates: { canonical: "/learn/why-these-notes" },
   openGraph: {
     type: "article",
     url: "https://pianotrainer.app/learn/why-these-notes",
     title: "Why These Notes? • PianoTrainer",
     description:
-      "Letters → A-minor melody (A3–A4). Numbers → diatonic chords (1–9, teens, tens, 100 cadence). 0 = short A tick. Symbols add musical punctuation. A helper line shows letters and Roman chords with condensed superscripts.",
+      "Letters → A-minor melody and number chords. Phonemes (IPA) → vowels/consonants mapped across A minor with speech-like rhythm. Helper line shows note letters + Roman chords.",
     images: [
       {
         url: "https://pianotrainer.app/og/texttotone-chaos.jpg",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Why These Notes? • PianoTrainer",
     description:
-      "TextToTone maps text to A-minor: letters sing, numbers form diatonic chords, 0 is a short A tick, and symbols add musical punctuation. The helper line shows notes + Roman numerals (condensed superscripts).",
+      "Letters mode: A-minor melody + diatonic chords. Phonemes mode: the vowel/consonant palette of A minor with rhythm archetypes. Helper line shows letters + Roman chords.",
     images: ["https://pianotrainer.app/og/texttotone-chaos.jpg"],
   },
   robots: { index: true, follow: true },
@@ -79,8 +79,8 @@ export default function WhyTheseNotesPage() {
           justify-content: center;
           text-decoration: none;
           font-weight: 800;
-          color: #111;                /* dark text on gold */
-          background: #EBCF7A;        /* gold */
+          color: #111;
+          background: #EBCF7A;
           border-radius: 10px;
           padding: 10px 14px;
           border: none;
@@ -120,6 +120,12 @@ export default function WhyTheseNotesPage() {
         }
         th { text-align: left; font-weight: 800; }
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        blockquote {
+          margin: 8px 0 0;
+          padding: 0 0 0 12px;
+          border-left: 3px solid #EBCF7A;
+          color: #333;
+        }
       `}</style>
 
       <h1 className="h1">🌟 You’re One of the Curious Ones</h1>
@@ -130,30 +136,91 @@ export default function WhyTheseNotesPage() {
         the explorers, the secret-keepers, the melody-hackers. 🕵️‍♀️🎶
       </p>
 
-      {/* Letters logic */}
+      {/* Why These Notes — narrative */}
       <section className="card">
-        <h2 className="h2">🅰️ Letters Become Notes (A minor, A3–A4)</h2>
+        <h2 className="h2">🎵 Why These Notes</h2>
         <p className="lead">
-          Every letter maps to a step of the <strong>A natural minor</strong> scale (A–B–C–D–E–F–G) and
-          plays as a simple, singable melody. To keep it clear:
-        </p>
-        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
-          <li><strong>Range:</strong> A3–A4 only (compact, phone-friendly).</li>
-          <li><strong>A on bass, everything else on treble:</strong> the letter A shows on <em>A3 (bass)</em>; B–G render on the treble staff.</li>
-          <li><strong>Spaces:</strong> become short rests in notation (and silence in audio).</li>
-        </ul>
-        <p className="lead" style={{ marginTop: 6 }}>
-          That’s why names feel hummable: it’s always a tidy A-minor lane with readable stems and no wild jumps.
+          Human speech already <em>is</em> music — we just never printed the staff lines for it.
+          When we talk, our tongue and breath travel through shapes that mirror a melody:
+          bright vowels open high in the mouth, dark vowels fall back and low,
+          consonants strike like percussion between them. TextToTone simply listens to that hidden
+          tune and writes it onto the piano.
         </p>
       </section>
 
-      {/* Readability */}
+      {/* Two modes */}
       <section className="card">
-        <h2 className="h2">👀 Readable by Design</h2>
+        <h2 className="h2">🧭 Two Modes: Letters &amp; Phonemes (IPA)</h2>
         <p className="lead">
-          Notes sit where you expect on the grand staff. Stems follow engraving rules:
-          below the middle line → stems up; above → stems down; middle line leans down for consistency.
-          The result: a clean, classroom-friendly look that still pops in Reels.
+          TextToTone offers <strong>two complementary modes</strong>:
+        </p>
+        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
+          <li>
+            <strong>Letters mode</strong> — a simple, singable A-minor melody (A3–A4) for letters,
+            plus diatonic chords for numbers and symbols. Great for names, dates, and quick memes.
+          </li>
+          <li>
+            <strong>Phonemes mode (IPA)</strong> — vowels and consonants mapped across the seven notes of A minor
+            (A–B–C–D–E–F–G), so speech sounds “sing” where they live in the mouth. We also add
+            speech-like <em>rhythm archetypes</em> (Even, Swing, Legato, Stomp, Bounce) to make phrases breathe.
+          </li>
+        </ul>
+        <p className="lead" style={{ marginTop: 6 }}>
+          Use the toggle on the TextToTone page to switch modes — each input instantly re-renders
+          in the selected mapping.
+        </p>
+      </section>
+
+      {/* The key of human voice: A minor */}
+      <section className="card">
+        <h2 className="h2">🎼 The Key of Human Voice: A Minor</h2>
+        <p className="lead">
+          We mapped every sound of English onto the seven natural notes of <strong>A minor</strong> —
+          a key that sits close to speech formants. Front vowels like <em>ee</em> or <em>ih</em> rise to the bright middle (E–F).
+          Central vowels like <em>uh</em> and <em>er</em> balance near D. Back vowels like <em>ah</em> and <em>oh</em> drop toward G and A —
+          warm, open tones that feel grounded. Rounded <em>oo</em> sounds reach upward to B, giving language its closing shimmer.
+        </p>
+        <p className="lead">
+          Consonants become rhythm and texture:
+        </p>
+        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
+          <li><strong>Plosives</strong> (<em>p, t, k</em>) strike the root <strong>A</strong>, setting the beat.</li>
+          <li><strong>Nasals</strong> (<em>m, n</em>) hum softly on <strong>C</strong>.</li>
+          <li><strong>Fricatives</strong> (<em>s, f, sh</em>) hiss at <strong>E</strong>, adding air.</li>
+          <li><strong>Liquids &amp; glides</strong> (<em>l, r, w, y</em>) move across <strong>F–G–B</strong>, carrying motion between vowels.</li>
+        </ul>
+        <p className="lead" style={{ marginTop: 6 }}>
+          Each word, then, walks a tiny melody inside that scale — a three-step dance of
+          consonant → vowel → consonant, rising, resolving, and breathing like a phrase of music.
+        </p>
+      </section>
+
+      {/* Letters mode specifics (kept succinct) */}
+      <section className="card">
+        <h2 className="h2">🅰️ Letters Become Notes (A minor, A3–A4)</h2>
+        <p className="lead">
+          In <strong>Letters mode</strong>, every letter maps to a step of the A-minor scale and plays in a compact range.
+          A sits on bass (A3); B–G render on treble. Spaces become short rests. The result is a tidy, readable line —
+          ideal for names and clean captions.
+        </p>
+      </section>
+
+      {/* Rhythm archetypes */}
+      <section className="card">
+        <h2 className="h2">🥁 Rhythm Follows Speech</h2>
+        <p className="lead">
+          Not every word keeps the same beat. Some swing forward (<em>toy</em>), some linger (<em>great</em>), some stomp (<em>stop!</em>).
+          We borrowed these patterns — <strong>archetypes</strong> — from how people actually talk:
+        </p>
+        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
+          <li><strong>Even</strong> for neutral tone</li>
+          <li><strong>Swing</strong> for movement</li>
+          <li><strong>Legato</strong> for warmth</li>
+          <li><strong>Stomp</strong> for emphasis</li>
+          <li><strong>Bounce</strong> for playfulness</li>
+        </ul>
+        <p className="lead" style={{ marginTop: 6 }}>
+          Each archetype simply changes the spacing between sounds — like shifting a drum groove.
         </p>
       </section>
 
@@ -188,10 +255,10 @@ export default function WhyTheseNotesPage() {
           and use condensed superscripts for inversions — a compact version of figured bass:
         </p>
         <ul className="lead" style={{ margin: "0 0 0 18px" }}>
-          <li><strong>Lowercase throughout</strong> (we stay in Aeolian): <code>i</code>, <code>ii°</code>, <code>iii</code>, <code>iv</code>, <code>v</code>, <code>vi</code>, <code>vii</code>.</li>
+          <li><strong>Lowercase throughout</strong> (Aeolian): <code>i</code>, <code>ii°</code>, <code>iii</code>, <code>iv</code>, <code>v</code>, <code>vi</code>, <code>vii</code>.</li>
           <li><strong>Triads:</strong> root → <code>i</code>, 1st inv → <code>i⁶</code>, 2nd inv → <code>i⁶⁴</code>.</li>
           <li><strong>Sevenths:</strong> root → <code>v⁷</code>, 1st inv → <code>v⁶⁵</code>, 2nd → <code>v⁴³</code>, 3rd → <code>v⁴²</code>.</li>
-          <li><strong>Quality marks:</strong> <code>°</code> diminished triad (<code>ii°</code>), <code>ø</code> half-diminished seventh (<code>iiø⁷</code>), <code>△</code> major-7 color (<code>iii△⁷</code>).</li>
+          <li><strong>Quality marks:</strong> <code>°</code> diminished (<code>ii°</code>), <code>ø</code> half-dim 7th (<code>iiø⁷</code>), <code>△</code> major-7 (<code>iii△⁷</code>).</li>
         </ul>
         <p className="lead" style={{ marginTop: 6 }}>
           You can read <code>i⁶</code>/<code>i⁶⁴</code> as “i, 1st/2nd inversion.” We keep superscripts to fit everything on one clean line in the helper.
@@ -221,6 +288,37 @@ export default function WhyTheseNotesPage() {
         </table>
       </section>
 
+      {/* Timing model */}
+      <section className="card">
+        <h2 className="h2">⏱️ Timing that Feels Musical</h2>
+        <p className="lead">
+          After tokenizing, we schedule each step at a simple musical pace:
+          <strong> ~250 ms</strong> per note/chord, <strong>~125 ms</strong> for spaces/dashes (short rests),
+          and soft ticks remain short (e.g., <code>.</code> and <code>:</code> on A3).
+          The total clip length reflects your input — short texts finish sooner; longer ones sing longer.
+        </p>
+        <p className="lead" style={{ marginTop: 6 }}>
+          For videos, the helper line under the stave shows <em>letters</em> for notes and <em>Roman numerals</em> for chords
+          (with condensed superscripts) so you can read the harmony at a glance.
+        </p>
+      </section>
+
+      {/* Sound of thought / short */}
+      <section className="card">
+        <h2 className="h2">🧠 The Sound of Thought</h2>
+        <p className="lead">
+          Put together, these rules form a tiny orchestra of articulation. Your text doesn’t just look like
+          a sentence anymore — it breathes. Short vowels step, long vowels glide, and every comma becomes a rest.
+          Language turns into a living A-minor etude: part linguistics, part poetry, part rhythm game.
+        </p>
+        <div className="sep" />
+        <p className="lead"><strong>In short</strong></p>
+        <blockquote>
+          TextToTone plays speech itself. Each vowel finds its note; each consonant keeps time.
+          The human voice already speaks in A minor — we just let you hear it.
+        </blockquote>
+      </section>
+
       {/* Symbols */}
       <section className="card">
         <h2 className="h2">#TextToTone Beyond Words</h2>
@@ -235,49 +333,31 @@ export default function WhyTheseNotesPage() {
           <li><strong>#</strong> adds a tag chord (<em>G–B–D</em>), <strong>@</strong> gives a quick high tick (<em>A4</em>), <strong>$</strong> colors with <em>F△7</em>.</li>
           <li><strong>’</strong> apostrophe becomes a tiny breath (contractions feel natural: <code>let’s</code>).</li>
         </ul>
-        <div className="sep" />
-        <p className="lead"><strong>How a meme sounds now</strong> (try these):</p>
-        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
-          <li><code>24/7 Practice</code> → numbers (20+4), a link chord for <code>/</code>, then melody for the word.</li>
-          <li><code>9 + 10 = 21</code> → <em>9</em> chord, <em>+</em> lift, <em>10</em> teen chord, <em>=</em> settle, then <em>20 + 1</em>.</li>
-          <li><code>Y2K Midnight (1999-12-31)</code> → letters, digits (with 0 as ticks), hyphens as rests — readable and musical.</li>
-          <li><code>100%</code> → cadence on <em>100</em>, tiny breath, then <em>Em/G → Am/C</em> (“per-cent”).</li>
-          <li><code>#piano @teacher $100</code> → tag chord, high ping, warm value chord, then the <em>100</em> cadence.</li>
-        </ul>
       </section>
 
-      {/* Timing model (updated from 8s to step-based) */}
+      {/* Shareable summary */}
       <section className="card">
-        <h2 className="h2">⏱️ Timing that Feels Musical</h2>
+        <h2 className="h2">✨ Shareable Summary</h2>
+        <p className="lead"><strong>Why A minor?</strong> Because it’s the shape of a mouth.</p>
         <p className="lead">
-          After tokenizing, we schedule each step at a simple musical pace:
-          <strong> ~250 ms</strong> per note/chord, <strong>~125 ms</strong> for spaces/dashes (short rests),
-          and soft ticks remain short (e.g., <code>.</code> and <code>:</code> on A3).
-          The total clip length now reflects your input — short texts finish sooner; longer ones sing longer.
-        </p>
-        <p className="lead" style={{ marginTop: 6 }}>
-          For videos, the helper line under the stave shows <em>letters</em> for notes and <em>Roman numerals</em> for chords
-          (with condensed superscripts) so you can read the harmony at a glance.
+          Front vowels sparkle on E–F, back vowels open on A–G–B, and consonants keep the beat.
+          TextToTone turns every word into a melody that follows how you actually speak.
         </p>
       </section>
 
-      {/* CTA to Chaos */}
+      {/* CTA to Chaos + feedback */}
       <section className="card">
         <h2 className="h2">⏱️ Why Stop at 20 Elements?</h2>
         <p className="lead">
           This viral toy is designed for quick, punchy clips — long enough to make a tune,
-          short enough to share in a few seconds (perfect for TikTok, Insta, Reels).
+          short enough to share (perfect for TikTok, Insta, Reels).
         </p>
         <div className="sep" />
         <p className="lead">But what if you want more? 👀</p>
         <p className="lead">
-          Try <strong>TextToTone: Chaos Mode</strong> to:
+          Try <strong>TextToTone: Chaos Mode</strong> (we’re gathering feedback before a big update).
+          Tell us what you’d love to see: <a href="mailto:hello@pianotrainer.app">hello@pianotrainer.app</a>
         </p>
-        <ul className="lead" style={{ margin: "0 0 0 18px" }}>
-          <li>Flip your letters into <strong>A major</strong> for a brighter, happier vibe.</li>
-          <li><strong>Expand to 40 text elements</strong> (epic sentences welcome).</li>
-          <li>Hear a <strong>two-octave spread</strong> across <strong>A2–A4</strong> for a vivid texture.</li>
-        </ul>
         <div className="cta-row">
           <Link
             href="/learn/text-to-tone-chaos"
@@ -287,15 +367,6 @@ export default function WhyTheseNotesPage() {
             Try TextToTone: Chaos Mode →
           </Link>
         </div>
-      </section>
-
-      {/* Secret Sauce */}
-      <section className="card">
-        <h2 className="h2">🎩 The Secret Sauce</h2>
-        <p className="lead">
-          There’s nothing to memorize. No boring rules. Just this:
-          <strong> your words are already music</strong>. We simply nudged the piano to agree.
-        </p>
       </section>
 
       {/* App CTAs */}
