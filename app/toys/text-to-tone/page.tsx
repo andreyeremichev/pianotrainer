@@ -6,6 +6,10 @@ import { Renderer, Stave, StaveNote, Formatter, Voice, StaveConnector } from "ve
 import Link from "next/link";
 import { buildEvents, type TextToneEvent } from "@/lib/text-to-tone/buildEvents";
 
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { tokenizeToIPA } from "@/lib/text-to-tone/phonemeTokenizer";
+import { buildPhonemeEvents } from "@/lib/text-to-tone/buildPhonemeEvents";
+
 /* =========================
    Theme / constants
    ========================= */
@@ -19,6 +23,7 @@ const theme = {
   warn: "#F87171",
 };
 const MAX_ELEMENTS = 20;
+
 
 // Time tolerances
 const EPS_TIME  = 1e-4;  // compare token/event times (t) within one slice
@@ -80,6 +85,8 @@ function noteToVFKey(n: string) {
   const m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(n)!;
   return `${(m[1] + (m[2] || "")).toLowerCase()}/${m[3]}`;
 }
+
+
 
 /* =========================
    Caption model (tokens in sync with events)
@@ -341,17 +348,22 @@ function romanForChordAminor(notes: string[]): string {
 function labelForEventAminor(ev: TextToneEvent): string {
   if (ev.kind === "REST") return "·";
 
-  // Zero tick (A) → always show 'a' on the helper line
-  if ((ev.label ?? "") === "0") return "a";
+  // Treat zero ticks *and* consonant ticks as 'a' on the helper line
+  const lbl = (ev.label ?? "");
+  if (lbl === "0" || lbl === "@cons") return "a";
 
   if (ev.kind === "MELODY") {
-    const note = ev.notes[0] || "A";
-    return note[0].toUpperCase();
+    // Show just the letter for notes (not "C4")
+    const n = Array.isArray(ev.notes) && ev.notes.length ? ev.notes[0] : "A";
+    const letter = typeof n === "string" && n.length ? n[0] : "A";
+    return letter.toUpperCase(); // your helper line CSS already lowercases
   }
 
-  // CHORD (including 100 etc.) → Roman numerals
+  // CHORD → Roman numerals (with condensed superscripts later in render)
   return romanForChordAminor(ev.notes || []);
 }
+
+
 // Convert trailing/infix figures to condensed Unicode superscripts (no spaces)
 function toCondensedSuperscripts(label: string): string {
   // 1) Collapse spaces or hyphens between ASCII digits (e.g., "7 - 4 - 2" → "742")
@@ -401,6 +413,34 @@ export default function TextToTonePage() {
     [phrase]
   );
   const overLimit = elementCount > MAX_ELEMENTS;
+
+  // --- Mode: "letters" | "ipa" (reacts to ?mode=ipa)
+const searchParams = useSearchParams();
+const router = useRouter();
+const pathname = usePathname();
+
+const modeParam = (searchParams?.get("mode") || "letters") as "letters" | "ipa";
+const [mode, setMode] = useState<"letters" | "ipa">(modeParam);
+
+// keep mode in sync with the URL if it changes (Back/Forward etc.)
+useEffect(() => {
+  setMode(modeParam);
+}, [modeParam]);
+
+// helper to update ?mode=… while preserving other query params
+const setModeInUrl = (next: "letters" | "ipa") => {
+  if (typeof window === "undefined") return;
+
+  // 1) kill any live timers from the previous mode
+  stopAllLiveTimers();
+
+  // 2) update URL + state
+  const sp = new URLSearchParams(window.location.search);
+  sp.set("mode", next);
+  router.replace(`${pathname}?${sp.toString()}`);
+  setMode(next);
+};
+  
 
   // Append one helper label per step as it becomes visible (live)
 useEffect(() => {
@@ -459,23 +499,44 @@ useEffect(() => {
   }, []);
 
   /* Audio helpers */
-  async function ensureSampler(evts: TextToneEvent[]) {
-    if (samplerRef.current) {
-      try {
-        samplerRef.current.dispose();
-      } catch {}
-      samplerRef.current = null;
-    }
-    const urls: Record<string, string> = {};
-    for (const e of evts)
-      if (e.kind !== "REST")
-        for (const n of e.notes) urls[n] = `${n.replace("#", "%23")}.wav`;
-    samplerRef.current = new Tone.Sampler({
-      urls,
-      baseUrl: "/audio/notes/",
-    }).toDestination();
-    await Tone.loaded();
+  async function ensureSampler(_evts: TextToneEvent[]) {
+  // If we already have a sampler, reuse it
+  if (samplerRef.current) return;
+
+  // The only palette phoneme mode ever needs:
+  const PREWARM = ["A3","B4","C4","D4","E4","F4","G4"];
+
+  // Build URL map for these 7 notes
+  const urls: Record<string, string> = {};
+  for (const n of PREWARM) {
+    urls[n] = `${n.replace("#", "%23")}.wav`;
   }
+
+  // Create and route the sampler; wait for THIS instance to load
+  const sampler = new Tone.Sampler({
+    urls,
+    baseUrl: "/audio/notes/",
+    onerror: (err) => {
+      
+    },
+  }).toDestination();
+
+  try {
+    // Tone.Sampler exposes a .loaded promise in Tone 14+
+    await (sampler as any).loaded;
+  } catch (e) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[Sampler] .loaded promise rejected:", e);
+    }
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[Sampler] Ready with keys:", PREWARM.join(", "));
+  }
+
+  samplerRef.current = sampler;
+}
+
   function triggerNow(notes: string[], seconds: number) {
     const s = samplerRef.current;
     if (!s || !notes.length) return;
@@ -485,71 +546,110 @@ useEffect(() => {
   }
 
   /* Play (live) — caption + stave + audio in unison */
-  const start = useCallback(async () => {
-    if (isPlaying || overLimit) return;
+const start = useCallback(async () => {
+  
+  // kill any stray live timers from a previous run (e.g., after mode toggle)
+timeoutsRef.current.forEach(clearTimeout);
+timeoutsRef.current = [];
 
-    const input = sanitizePhraseInput(phrase);
-    const { events: localEvts } = buildEvents(input); // local snapshot
+// single-run guard: if a run is in progress, don't start another
+if (isPlayingRef.current) return;
+if (isPlaying || overLimit) return;
 
-    setEvents(localEvts);
-    setVisibleIdx(0);
-    setCaptionIdx(0);
-    setCaptionTokens(deriveCaptionTokens(localEvts, input));
-    setPlayedNames([]); // reset helper line for this run
+  const input = sanitizePhraseInput(phrase);
+  let localEvts: TextToneEvent[] = [];
 
-    await Tone.start();
-    await ensureSampler(localEvts);
+  if (mode === "ipa") {
+    const tokens = tokenizeToIPA(input); // PhonemeToken[]
+  
+    localEvts = buildPhonemeEvents(tokens, { phrase: input }).events;
+  } else {
+  
+    localEvts = buildEvents(input).events;
+  }
 
-    setIsPlaying(true);
-    isPlayingRef.current = true;
-    clearAllTimers();
+  
 
-    const timers: number[] = [];
-    const lastEnd = localEvts.reduce(
-      (mx, e) => Math.max(mx, (e.t ?? 0) + (e.d ?? 0)),
-      0
-    );
+  // nothing to play
+  if (!localEvts.length) {
+  setEvents([]);
+  setVisibleIdx(0);
+  setCaptionIdx(0);
+  return;
+}
 
-    for (let i = 0; i < localEvts.length; i++) {
-      const ev = localEvts[i];
-      const startMs = Math.max(0, Math.round((ev.t ?? 0) * 1000));
+// --- we have playable events, prime UI and audio ---
+  setEvents(localEvts);
+  setVisibleIdx(0);
+  setCaptionIdx(0);
+  setPlayedNames([]);            // ← clear helper for this fresh run
+  isPlayingRef.current = true;
+  setIsPlaying(true);
 
-      timers.push(
-        window.setTimeout(() => {
-          if (!isPlayingRef.current) return;
-          setCaptionIdx(i + 1);
-        }, startMs)
-      );
-      timers.push(
-        window.setTimeout(() => {
-          if (!isPlayingRef.current) return;
-          setVisibleIdx(i + 1);
-        }, startMs)
-      );
 
-      if (ev.kind !== "REST" && ev.notes.length) {
-        timers.push(
-          window.setTimeout(() => {
-            if (!isPlayingRef.current) return;
-            triggerNow(ev.notes, ev.d ?? 0.55);
-          }, startMs)
-        );
-      }
-    }
+  // make sure audio is ready (singleton prewarmed sampler)
+  await Tone.start();
+  await ensureSampler(localEvts);
+  
 
+// --- schedule caption, stave and audio for each live event ---
+const timers: number[] = [];
+const lastEnd = localEvts.reduce(
+  (mx, e) => Math.max(mx, (e?.t ?? 0) + (e?.d ?? 0)),
+  0
+);
+
+for (let i = 0; i < localEvts.length; i++) {
+  const ev = localEvts[i];                        // ✅ ev is defined here
+  const startMs = Math.max(0, Math.round((ev.t ?? 0) * 1000));
+
+  // update caption
+  timers.push(
+    window.setTimeout(() => {
+      if (!isPlayingRef.current) return;
+      setCaptionIdx(i + 1);
+    }, startMs)
+  );
+
+  // update stave
+  timers.push(
+    window.setTimeout(() => {
+      if (!isPlayingRef.current) return;
+      setVisibleIdx(i + 1);
+    }, startMs)
+  );
+
+  // play audio notes
+  if (ev.kind !== "REST" && Array.isArray(ev.notes) && ev.notes.length) {
     timers.push(
       window.setTimeout(() => {
-        if (!isPlayingRef.current) return;
-        clearAllTimers();
-        setVisibleIdx(localEvts.length);
-        setCaptionIdx(localEvts.length);
-        setIsPlaying(false);
-        isPlayingRef.current = false;
-      }, Math.round((lastEnd + 0.2) * 1000))
+        
+        try {
+          triggerNow(ev.notes, ev.d ?? 0.55);
+        } catch (e) {
+          console.warn("[play] trigger error", e);
+        }
+      }, startMs)
     );
+  }
+}
 
-    timeoutsRef.current.push(...timers);
-  }, [phrase, isPlaying, overLimit]);
+// stop after last event
+timers.push(
+  window.setTimeout(() => {
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    setCaptionIdx(localEvts.length);
+    setVisibleIdx(localEvts.length);
+  }, Math.max(0, Math.round(lastEnd * 1000) + 50))
+);
+
+// track timers so stop() can clear them
+timeoutsRef.current.forEach(clearTimeout);
+timeoutsRef.current = [];
+timeoutsRef.current.push(...timers);
+
+}, [phrase, isPlaying, overLimit, mode]);
 
   const stop = useCallback(() => {
     clearAllTimers();
@@ -557,6 +657,20 @@ useEffect(() => {
     isPlayingRef.current = false;
     setCaptionIdx(captionTokens.length);
   }, [captionTokens.length]);
+  // Hard stop (LIVE): cancel all timeouts and reset UI immediately
+const stopAllLiveTimers = useCallback(() => {
+  // clear any pending live timers
+  timeoutsRef.current.forEach(clearTimeout);
+  timeoutsRef.current = [];
+  // drop playing flags
+  isPlayingRef.current = false;
+  setIsPlaying(false);
+  // reset UI so no ghost frame remains
+  setVisibleIdx(0);
+  setCaptionIdx(0);
+  setPlayedNames([]);          // ← clear helper labels
+
+}, []);
 
   /* Restore from URL once */
   useEffect(() => {
@@ -577,6 +691,23 @@ useEffect(() => {
     clearAllTimers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+// ------------------------------------------------------------------
+// Auto-restart on mode change (after toggle or back/forward nav)
+// ------------------------------------------------------------------
+const mountedRef = useRef(false);
+useEffect(() => {
+  if (!mountedRef.current) {
+    mountedRef.current = true;
+    return;
+  }
+  if (!phrase.trim() || overLimit) return;
+setPlayedNames([]);            // extra safety; not required if Step 1 is in place
+  // cancel any leftover live timers from the previous mode
+  stopAllLiveTimers();
+
+  // start fresh in the new mode
+  start();
+}, [mode]);
 
   /* =========================
      Floating caption (live)
@@ -855,10 +986,7 @@ useEffect(() => {
 
     
 
-    // DEBUG mirrors for console inspection (safe globals)
-    (window as any).__exportInput = exportInput;
-    (window as any).__exportEvents = evtsExport;
-    (window as any).__exportTokens = captionTokensExport;
+    
 
     // push snapshot into state so SVG reflects it while recording
     setEvents(evtsExport);
@@ -949,34 +1077,46 @@ useEffect(() => {
       silentOsc.connect(silentGain).connect(audioDst);
       silentOsc.start();
 
-      const allNoteNames = Array.from(
-        new Set(evtsExport.flatMap((ev) => (ev as any).notes || []))
-      );
-      if (samplerRef.current) {
-        try {
-          samplerRef.current.dispose();
-        } catch {}
-        samplerRef.current = null;
-      }
-      {
-        const urls: Record<string, string> = {};
-        for (const n of allNoteNames) urls[n] = `${n.replace("#", "%23")}.wav`;
-        samplerRef.current = new Tone.Sampler({
-          urls,
-          baseUrl: "/audio/notes/",
-        });
-        await Tone.loaded();
-      }
+      // --- build a fresh sampler for *export* from the notes actually used ---
+const allNoteNames = Array.from(new Set(evtsExport.flatMap((ev) => (ev as any).notes || [])));
 
-      const recordBus = rawCtx.createGain();
-      recordBus.gain.value = 1;
-      try {
-        (samplerRef.current as any).connect(recordBus);
-      } catch {}
-      try {
-        (Tone as any).Destination.connect(recordBus);
-      } catch {}
-      recordBus.connect(audioDst);
+// clear any previous sampler
+if (samplerRef.current) {
+  try { samplerRef.current.dispose(); } catch {}
+  samplerRef.current = null;
+}
+
+// build and load the sample map
+const exportUrls: Record<string, string> = {};
+for (const n of allNoteNames) {
+  // encode '#' as %23 so the fetch works
+  exportUrls[n] = `${n.replace("#", "%23")}.wav`;
+}
+samuelRef.current = new Tone.Sampler({
+  urls: exportUrls,
+  baseUrl: "/audio/notes/",
+});
+await Tone.loaded();
+
+// create a bus to mix sampler + UI sounds to the MediaRecorder
+const recordBus = (rawCtx.createGain() as GainNode);
+recordBus.gain.value = 1;
+
+// route sampler into the record bus
+try { (samplerRef.current as any).connect(recordBus); } catch (e) {
+  console.warn("sampler connect -> recordBus failed", e);
+}
+
+// optionally also route Tone.js master output to the record bus (for UI ticks, etc.)
+try { (Tone as any).Destination.connect(recordBus); } catch (e) {
+  console.warn("Destination->recordBus connect failed", e);
+}
+
+// feed the recorder’s destination
+recordBus.connect(audioDst);
+
+// if you want to monitor export audio locally during recording, you can also do:
+try { (samplerRef.current as any).toDestination(); } catch { /* optional */ }
 
       const stream = (canvas as any).captureStream(30) as MediaStream;
       const mixed = new MediaStream([
@@ -1559,6 +1699,48 @@ return (
             </div>
           </div>
 
+          {/* Mode toggle */}
+<div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 8 }}>
+  <button
+    onClick={() => setModeInUrl("letters")}
+    aria-pressed={mode === "letters"}
+    style={{
+      padding: "6px 10px",
+      borderRadius: 8,
+      border:
+        mode === "letters"
+          ? `2px solid ${theme.gold}`
+          : `1px solid ${theme.border}`,
+      background: mode === "letters" ? "#0F1821" : "transparent",
+      color: theme.text,
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    As Letters
+  </button>
+  <button
+    onClick={() => setModeInUrl("ipa")}
+    aria-pressed={mode === "ipa"}
+    style={{
+      padding: "6px 10px",
+      borderRadius: 8,
+      border:
+        mode === "ipa"
+          ? `2px solid ${theme.gold}`
+          : `1px solid ${theme.border}`,
+      background: mode === "ipa" ? "#0F1821" : "transparent",
+      color: theme.text,
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    As Phonemes
+  </button>
+</div>
+
+
+
           {/* Actions */}
           <div
             style={{
@@ -1568,24 +1750,25 @@ return (
               flexWrap: "wrap",
             }}
           >
-            <button
-              onClick={() => !isPlaying && !overLimit && start()}
-              disabled={overLimit}
-              title={overLimit ? "Reduce to 20 elements to play" : "Play"}
-              style={{
-                background: overLimit ? "#2A3442" : theme.gold,
-                color: overLimit ? "#6B7280" : "#081019",
-                border: "none",
-                borderRadius: 999,
-                padding: "10px 16px",
-                fontWeight: 700,
-                cursor: overLimit ? "not-allowed" : "pointer",
-                fontSize: 16,
-                minHeight: 40,
-              }}
-            >
-              ▶ Play
-            </button>
+           <button
+  type="button"
+  onClick={() => !isPlaying && !overLimit && start()}
+  disabled={overLimit || isPlaying}
+  title={overLimit ? "Reduce to 20 elements to play" : "Play"}
+  style={{
+    background: overLimit ? "#2A3442" : theme.gold,
+    color: overLimit ? "#6B7280" : "#081019",
+    border: "none",
+    borderRadius: 999,
+    padding: "10px 16px",
+    fontWeight: 700,
+    cursor: overLimit || isPlaying ? "not-allowed" : "pointer",
+    fontSize: 16,
+    minHeight: 40,
+  }}
+>
+  ▶ Play
+</button>
 
             <button
               onClick={onDownloadVideo}
