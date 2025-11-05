@@ -976,19 +976,29 @@ setPlayedNames([]);            // extra safety; not required if Step 1 is in pla
     isPlayingRef.current = false;
     setVisibleIdx(0);
 
-    const exportInput = sanitizePhraseInput(phrase || "");
-    const { events: evtsExport } = buildEvents(exportInput);
-    if (!evtsExport.length) return;
+    // 1) sanitize input (keep)
+const exportInput = sanitizePhraseInput(phrase || "");
 
-    let exportPlayedNames: string[] = [];
-    let exportLastIdx = -1;
+// 2) build events by mode (NEW)
+let evtsExport: TextToneEvent[] = [];
+if (mode === "ipa") {
+  const tokens = tokenizeToIPA(exportInput);
+  evtsExport = buildPhonemeEvents(tokens, { phrase: exportInput }).events;
+} else {
+  ({ events: evtsExport } = buildEvents(exportInput));
+}
+if (!evtsExport.length) return;
 
-    const captionTokensExport = deriveCaptionTokens(evtsExport as any, exportInput);
-    exportPlayedNames = [];
-    exportLastIdx = -1;
+// 3) export helper state (keep/reset)
+let exportPlayedNames: string[] = [];
+let exportLastIdx = -1;
+exportPlayedNames = [];
+exportLastIdx = -1;
 
-    
+// 4) caption tokens (keep; no `as any`)
+const captionTokensExport = deriveCaptionTokens(evtsExport, exportInput);
 
+  
     
 
     // push snapshot into state so SVG reflects it while recording
@@ -1506,7 +1516,7 @@ function drawNowPlayingLabel(nowSec: number) {
         alert("Could not prepare video. Please try again.");
       } catch {}
     }
-  }, [phrase]);
+  }, [phrase, mode]);
 
   /* =========================
      Share modal state
