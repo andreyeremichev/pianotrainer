@@ -1092,7 +1092,7 @@ for (const n of allNoteNames) {
   // encode '#' as %23 so the fetch works
   exportUrls[n] = `${n.replace("#", "%23")}.wav`;
 }
-samuelRef.current = new Tone.Sampler({
+samplerRef.current = new Tone.Sampler({
   urls: exportUrls,
   baseUrl: "/audio/notes/",
 });
