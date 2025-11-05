@@ -24,6 +24,9 @@ const theme = {
   muted: "#8B94A7",
   gold: "#EBCF7A",
   warn: "#F87171",
+  // new accent for phonemes
+  phonemeBg: "#3B5BDB",   // indigo blue
+  phonemeBorder: "#4C6EF5"
 };
 const MAX_ELEMENTS = 20;
 
@@ -1391,8 +1394,9 @@ function drawNowPlayingLabel(nowSec: number) {
         // caption
         drawCaptionLine(nowSec);
 
-        // golden panel
-        c.fillStyle = theme.gold;
+        // panel color based on mode
+        const panelColor = mode === "ipa" ? theme.phonemeBg : theme.gold;
+        c.fillStyle = panelColor;
         c.fillRect(goldX * SCALE, goldY * SCALE, drawW * SCALE, drawH * SCALE);
 
         // live stave snapshot
@@ -1667,7 +1671,8 @@ function drawNowPlayingLabel(nowSec: number) {
             <div
               style={{
                 position: "relative",
-                background: theme.gold,
+                background: mode === "ipa" ? theme.phonemeBg : theme.gold,
+                border: `1px solid ${mode === "ipa" ? theme.phonemeBorder : theme.border}`,
                 borderRadius: 10,
                 padding: 10,
                 marginTop: 8,
@@ -1686,7 +1691,7 @@ function drawNowPlayingLabel(nowSec: number) {
     padding: "2px 4px",
     fontSize: 12,            // tuned to fit ~20 items in one row
     lineHeight: 1.2,
-    color: theme.muted,   // darker gray, same family as your caption’s muted tone
+    color: mode === "ipa" ? "#DCE6FF" : theme.muted,
     opacity: 1,
     fontWeight: 400,           // explicit normal weight
     textTransform: "lowercase", // force letters to appear as a b c d e f g
