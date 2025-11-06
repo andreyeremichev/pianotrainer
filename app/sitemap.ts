@@ -8,25 +8,27 @@ export default async function sitemap() {
   const low  = { changeFrequency: "yearly" as const, priority: 0.4 };
 
   return [
-    // Viral hub + toys (add the hub — you link to it from home)
+    // Toys hub and pages
     { url: `${base}/toys`, lastModified: nowISO, ...high },
     { url: `${base}/toys/key-clock`, lastModified: nowISO, ...high },
     { url: `${base}/toys/tone-dial`, lastModified: nowISO, ...high },
     { url: `${base}/toys/text-to-tone`, lastModified: nowISO, ...high },
 
-    // Homepage (important)
+    // Homepage
     { url: `${base}/`, lastModified: nowISO, ...high },
 
-    // Trainers (match what you actually link)
+    // Trainers (Train)
     { url: `${base}/train`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/notation`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/random-notes`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/keys-to-notes`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/chords`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/intervals`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/ear`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear/circle-of-fifths`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear/intervals`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear/progressions`, lastModified: nowISO, ...mid },
-    { url: `${base}/train/ear/degrees`, lastModified: nowISO, ...mid }, // ← you link this in the homepage tile
+    { url: `${base}/train/ear/degrees`, lastModified: nowISO, ...mid },
 
     // Learn section
     { url: `${base}/learn/how-to-read-music`, lastModified: nowISO, ...low },
