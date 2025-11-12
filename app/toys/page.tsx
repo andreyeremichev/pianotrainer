@@ -5,16 +5,16 @@ import type { Metadata } from "next";
    Metadata
    ========================= */
 export const metadata: Metadata = {
-  title: "TextToTone Family • Viral Musical Toys • PianoTrainer",
+  title: "Music Playground • PianoTrainer",
   description:
-    "Three bite-size toys: TextToTone (text → music), KeyClock (dates → Circle of Fifths), and ToneDial (phone → Circle of Fifths). Type, spin, dial — and make a loop-ready clip.",
+    "Make musical moments from whatever you type, dial, or play. Four pocket-sized tools perfect for creativity, fun, and shareable clips.",
   alternates: { canonical: "/toys" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/viral",
-    title: "TextToTone Family • Viral Musical Toys • PianoTrainer",
+    url: "https://pianotrainer.app/toys",
+    title: "Music Playground • PianoTrainer",
     description:
-      "Try TextToTone (text → music), KeyClock (dates spin through the Circle of Fifths), and ToneDial (numbers dial harmony). Letters sing, digits form chords, symbols add musical punctuation.",
+      "Try TextToTone (text → music), KeyClock (dates spin through the Circle of Fifths), ToneDial (numbers dial harmony), and Shape of Harmony (chord progressions become shapes). Four pocket-sized tools for creativity, fun, and shareable clips.",
     siteName: "PianoTrainer",
     images: [
       {
@@ -27,9 +27,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "TextToTone Family • Viral Musical Toys • PianoTrainer",
+    title: "Music Playground • PianoTrainer",
     description:
-      "TextToTone (text → music), KeyClock (dates → Circle of Fifths), ToneDial (phone → Circle of Fifths). Type, spin, dial — share the loop.",
+      "Make musical moments from whatever you type, dial, or play. Four pocket-sized tools perfect for creativity, fun, and shareable clips.",
     images: ["https://pianotrainer.app/og/texttotone.jpg"],
   },
   robots: { index: true, follow: true },
@@ -47,7 +47,7 @@ const theme = {
   gold: "#EBCF7A",
 };
 
-export default function ViralHubPage() {
+export default function ToysHubPage() {
   return (
     <main
       style={{
@@ -58,75 +58,88 @@ export default function ViralHubPage() {
         boxSizing: "border-box",
       }}
     >
-    {/* SEO: JSON-LD for /viral hub */}
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "WebPage",
-      name: "TextToTone Family — Viral Musical Toys",
-      url: "https://pianotrainer.app/viral",
-      description:
-        "Three bite-size toys: TextToTone (text → music), KeyClock (dates → Circle of Fifths), and ToneDial (phone → Circle of Fifths).",
-    }),
-  }}
-/>
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      name: "Viral Musical Toys",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "TextToTone – Text → Music",
-          url: "https://pianotrainer.app/toys/text-to-tone"
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: "KeyClock – Dates → Music (Cadences)",
-          url: "https://pianotrainer.app/toys/key-clock"
-        },
-        {
-          "@type": "ListItem",
-          position: 3,
-          name: "ToneDial – Phone/Text → Melody",
-          url: "https://pianotrainer.app/toys/tone-dial"
-        }
-      ]
-    }),
-  }}
-/>
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "Home",
-          item: "https://pianotrainer.app/"
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: "Viral",
-          item: "https://pianotrainer.app/viral"
-        }
-      ]
-    }),
-  }}
-/>  
+      {/* SEO: JSON-LD for /toys hub */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebPage",
+            name: "Music Playground — PianoTrainer",
+            url: "https://pianotrainer.app/toys",
+            description:
+              "Four musical toys: TextToTone (text → music), KeyClock (dates → Circle of Fifths), ToneDial (phone → Circle of Fifths), and Shape of Harmony (chord progressions → shapes).",
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "Music Playground — Musical Toys",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "TextToTone – Text → Music",
+                url: "https://pianotrainer.app/toys/text-to-tone",
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "KeyClock – Dates → Music (Cadences)",
+                url: "https://pianotrainer.app/toys/key-clock",
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: "ToneDial – Phone/Text → Melody",
+                url: "https://pianotrainer.app/toys/tone-dial",
+              },
+              {
+                "@type": "ListItem",
+                position: 4,
+                name: "Shape of Harmony – Chords → Shapes",
+                url: "https://pianotrainer.app/toys/shape-of-harmony",
+              },
+            ],
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: "https://pianotrainer.app/",
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Toys",
+                item: "https://pianotrainer.app/toys",
+              },
+            ],
+          }),
+        }}
+      />
+
       {/* Header */}
-      <header style={{ maxWidth: 900, margin: "0 auto 16px", textAlign: "center" }}>
+      <header
+        style={{
+          maxWidth: 900,
+          margin: "0 auto 16px",
+          textAlign: "center",
+        }}
+      >
         <h1
           style={{
             margin: 0,
@@ -135,7 +148,7 @@ export default function ViralHubPage() {
             letterSpacing: 0.2,
           }}
         >
-          TextToTone Family — Viral Musical Toys
+          Music Playground
         </h1>
         <p
           style={{
@@ -145,8 +158,8 @@ export default function ViralHubPage() {
             lineHeight: 1.6,
           }}
         >
-          Three tiny experiments that turn everyday things into music. Pick one, tap play, and you’ve
-          got a loop-ready clip for Shorts or Reels.
+          Four creative gadgets for making little musical moments — perfect for inspiration or short
+          clips.
         </p>
       </header>
 
@@ -204,7 +217,7 @@ export default function ViralHubPage() {
             <div>
               <Link
                 href="/toys/text-to-tone"
-                aria-label="Open TextToTone Viral Toy"
+                aria-label="Open TextToTone Musical Toy"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -254,7 +267,7 @@ export default function ViralHubPage() {
             <div>
               <Link
                 href="/toys/key-clock"
-                aria-label="Open KeyClock Viral Toy"
+                aria-label="Open KeyClock Musical Toy"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -304,7 +317,7 @@ export default function ViralHubPage() {
             <div>
               <Link
                 href="/toys/tone-dial"
-                aria-label="Open ToneDial Viral Toy"
+                aria-label="Open ToneDial Musical Toy"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -319,6 +332,56 @@ export default function ViralHubPage() {
                 }}
               >
                 Try ToneDial →
+              </Link>
+            </div>
+          </article>
+
+          {/* Shape of Harmony (Chords → Shapes) */}
+          <article
+            className="toy-card"
+            style={{
+              background: theme.card,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 16,
+              padding: 14,
+              display: "grid",
+              gap: 10,
+              transition: "box-shadow .2s ease, transform .2s ease",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 20,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              🔺 Shape of Harmony (Chords → Shapes)
+            </div>
+            <p style={{ margin: 0, color: theme.muted, lineHeight: 1.6 }}>
+              Turn chords into motion: bright shapes bloom and shift as your progression plays. A
+              little harmonic magic in visual form.
+            </p>
+            <div>
+              <Link
+                href="/toys/shape-of-harmony"
+                aria-label="Open Shape of Harmony Musical Toy"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 800,
+                  color: "#081019",
+                  background: theme.gold,
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  textDecoration: "none",
+                  border: "none",
+                }}
+              >
+                Try Shape of Harmony →
               </Link>
             </div>
           </article>
