@@ -13,6 +13,7 @@ export default async function sitemap() {
     { url: `${base}/toys/key-clock`, lastModified: nowISO, ...high },
     { url: `${base}/toys/tone-dial`, lastModified: nowISO, ...high },
     { url: `${base}/toys/text-to-tone`, lastModified: nowISO, ...high },
+    { url: `${base}/toys/shape-of-harmony`, lastModified: nowISO, ...high },
 
     // Homepage
     { url: `${base}/`, lastModified: nowISO, ...high },
