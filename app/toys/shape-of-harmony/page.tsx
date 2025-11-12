@@ -677,6 +677,10 @@ const svgRef = useRef<SVGSVGElement | null>(null);
       });
 
       const outBlob = await convertToMp4Server(recorded);
+
+      console.log("[SoH export] recorded:", recorded.type, recorded.size);
+console.log("[SoH export] outBlob:", outBlob.type, outBlob.size);
+
       const safe =
         (input || "shape-of-harmony").replace(/[^A-Za-z0-9\-_.]+/g, "-") ||
         "shape-of-harmony";
