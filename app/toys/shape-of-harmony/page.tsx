@@ -567,25 +567,32 @@ drawExportCaptionLine(
       }
     }
 
-    await new Promise<void>(resolve => {
-      rec.onstop = () => resolve();
-      loop();
-    });
+   // ---- finalize recording & save file ----
+const recorded: Blob = await new Promise((res) => {
+  rec.onstop = () => {
+    try {
+      // stop video & audio tracks
+      try { stream.getTracks().forEach((t) => t.stop()); } catch {}
+      try { dst.stream.getTracks().forEach((t) => t.stop()); } catch {}
+    } finally {
+      // build clean WebM blob, same as other toys
+      res(new Blob(chunks, { type: mimeType || "video/webm" }));
+    }
+  };
 
-    // Convert recorded WebM → MP4 via local server helper
-const webmBlob = new Blob(chunks, { type: mimeType || "video/webm" });
-const mp4Blob = await convertToMp4Server(webmBlob);
+  // ✅ start the frame loop so rec.stop() is eventually called
+  loop();
+});
+
+// Convert recorded WebM → MP4 via server helper
+const outBlob = await convertToMp4Server(recorded);
 
 // Build a safe filename from the input progression
-const safeName = (input || "shape-of-harmony")
-  .replace(/[^A-Za-z0-9]+/g, "-")      // replace non-alphanumerics with dashes
-  .replace(/-+/g, "-")                  // collapse multiple dashes
-  .replace(/^-|-$/g, "")                // trim leading/trailing dashes
-  .toLowerCase();
+const safe = (input || "shape-of-harmony").replace(/[^A-Za-z0-9\-_.]+/g, "-");
 
 const a = document.createElement("a");
-a.download = `${safeName || "shape-of-harmony"}.mp4`;
-a.href = URL.createObjectURL(mp4Blob);
+a.download = `${safe}.mp4`;
+a.href = URL.createObjectURL(outBlob);
 document.body.appendChild(a);
 a.click();
 a.remove();
