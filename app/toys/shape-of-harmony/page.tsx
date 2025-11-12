@@ -482,6 +482,35 @@ const captionLabels = chords.map(c => c.label || "");
       ctx.translate(drawX * SCALE, drawY * SCALE);
       ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
 
+          // Draw the full progression constellation (all chords) for export final frame
+    function drawConstellationFrame() {
+      ctx.save();
+      ctx.translate(drawX * SCALE, drawY * SCALE);
+      ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
+
+      chords.forEach((c) => {
+        const { stroke } = getChordColor(c, bg);
+        const pcs = c.pcs.slice().sort((a, b) => a - b);
+        const pts = pcs.map((i) => nodePosition(i, 36));
+
+        ctx.beginPath();
+        if (pts.length > 0) {
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let k = 1; k < pts.length; k++) {
+            ctx.lineTo(pts[k].x, pts[k].y);
+          }
+          ctx.closePath();
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = 1.4;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.stroke();
+        }
+      });
+
+      ctx.restore();
+    }
+
       // stroke/fill per chord quality
       const { stroke, fill } = getChordColor(chord, bg);
       // get indices sorted
@@ -510,62 +539,109 @@ const captionLabels = chords.map(c => c.label || "");
 
       ctx.restore();
     }
+        // Draw the full progression constellation (all chords) for export
+    function drawConstellationFrame() {
+      ctx.save();
+      ctx.translate(drawX * SCALE, drawY * SCALE);
+      ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
 
-    function loop() {
+      chords.forEach((c) => {
+        const { stroke } = getChordColor(c, bg);
+        const pcs = c.pcs.slice().sort((a, b) => a - b);
+        const pts = pcs.map((i) => nodePosition(i, 36));
+
+        if (!pts.length) return;
+
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let k = 1; k < pts.length; k++) {
+          ctx.lineTo(pts[k].x, pts[k].y);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.4;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
+
+          function loop() {
       const elapsed = toMs();                   // ms
-      const total = totalMs;
-      const prog   = Math.min(1, elapsed / total);
-      // which chord
-      const idx    = Math.min(totalChords-1, Math.floor(elapsed / (chordDur*1000)));
-      const inChordMs = elapsed - idx * chordDur*1000;
-      const phase = Math.max(0, Math.min(1, inChordMs / (chordDur*1000)));
+      const clamped = Math.min(elapsed, totalMs);
 
-      // background
+      // which chord slot (0..totalChords-1)
+      const idx    = Math.min(totalChords - 1, Math.floor(clamped / (chordDur * 1000)));
+      const inChordMs = clamped - idx * chordDur * 1000;
+      const phase  = Math.max(0, Math.min(1, inChordMs / (chordDur * 1000)));
+
+      // clear background
       ctx.fillStyle = (bg === "dark" ? themeDark.bg : themeLight.bg);
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      
-// Caption (highlight active chord index)
-const activeChordIdx = idx % chords.length; // 0..chords.length-1 within each pass
-drawExportCaptionLine(
-  ctx,
-  captionLabels,
-  activeChordIdx,
-  (FRAME_W * SCALE) / 2,   // center X
-  (SAFE_TOP + 60) * SCALE, // Y position under the title (tweak +60 if needed)
-  SCALE,
-  {
-    gold:  (bg === "dark" ? themeDark.gold  : themeLight.gold),
-    muted: (bg === "dark" ? themeDark.muted : themeLight.muted),
-    text:  (bg === "dark" ? themeDark.text  : themeLight.text),
-  }
-);
-      // circle background
-      ctx.drawImage(bgImg, 0, 0, liveW, liveH, drawX*SCALE, drawY*SCALE, drawW*SCALE, drawH*SCALE);
+      // Caption (highlight active chord index)
+      const activeChordIdx = idx % chords.length;
+      const captionActive = clamped >= totalMs ? -1 : activeChordIdx;
+      drawExportCaptionLine(
+        ctx,
+        captionLabels,
+        captionActive,
+        (FRAME_W * SCALE) / 2,
+        (SAFE_TOP + 100) * SCALE,
+        SCALE,
+        {
+          gold:  (bg === "dark" ? themeDark.gold  : themeLight.gold),
+          muted: (bg === "dark" ? themeDark.muted : themeLight.muted),
+          text:  (bg === "dark" ? themeDark.text  : themeLight.text),
+        }
+      );
 
-      // current chord polygon (discrete in chords mode; tween in arpeggio)
-      const pass = Math.floor(idx / chords.length);
-      const j    = idx % chords.length;
-      const A    = chords[j];
-      const B    = chords[(j + 1) % chords.length];
+      // circle background (static ring + labels)
+      ctx.drawImage(
+        bgImg,
+        0, 0, liveW, liveH,
+        drawX * SCALE,
+        drawY * SCALE,
+        drawW * SCALE,
+        drawH * SCALE
+      );
+
+      // FINAL WINDOW: last 60 ms → draw full constellation and stop
+      const FINAL_WINDOW_MS = 60;
+      if (clamped >= totalMs - FINAL_WINDOW_MS) {
+        drawConstellationFrame();
+        if (elapsed >= totalMs) {
+          rec.stop();
+          return;
+        }
+        requestAnimationFrame(loop);
+        return;
+      }
+
+      // Otherwise: draw current chord polygon
+      const A = chords[activeChordIdx];
+      const B = chords[(activeChordIdx + 1) % chords.length];
 
       if (playMode === "chords") {
         drawPolygonForChord(A, 0);
       } else {
-        // arpeggio tween (same as live)
-        // simple: linearly lerp between A and B via tweenBetween mapping
         const mapping = buildMinimalMotionMapping(A.pcs, B.pcs);
         const pcsTween = tweenBetween(A.pcs, B.pcs, mapping, phase);
         const fakeChord: ParsedChord = { label: A.label, pcs: pcsTween };
         drawPolygonForChord(fakeChord, phase);
       }
 
-      if (elapsed < total) {
+      // Continue until totalMs reached
+      if (elapsed < totalMs) {
         requestAnimationFrame(loop);
       } else {
         rec.stop();
       }
-    }
+    } 
+
+      
 
    // ---- finalize recording & save file ----
 const recorded: Blob = await new Promise((res) => {
@@ -580,18 +656,21 @@ const recorded: Blob = await new Promise((res) => {
     }
   };
 
-  // ✅ start the frame loop so rec.stop() is eventually called
+  // start the frame loop so rec.stop() is eventually called
   loop();
 });
 
-// Convert recorded WebM → MP4 via server helper
+// Ask server to convert WebM → MP4 (it may still fall back to WebM)
 const outBlob = await convertToMp4Server(recorded);
 
+// Decide extension based on returned type
+const isMp4 = outBlob.type.includes("mp4");
+
 // Build a safe filename from the input progression
-const safe = (input || "shape-of-harmony").replace(/[^A-Za-z0-9\-_.]+/g, "-");
+const safe = (input || "shape-of-harmony").replace(/[^A-Za-z0-9\-_.]+/g, "-") || "shape-of-harmony";
 
 const a = document.createElement("a");
-a.download = `${safe}.mp4`;
+a.download = `${safe}.${isMp4 ? "mp4" : "webm"}`;
 a.href = URL.createObjectURL(outBlob);
 document.body.appendChild(a);
 a.click();
