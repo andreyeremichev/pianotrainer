@@ -248,20 +248,26 @@ async function loadNoteBuffer(note: string) {
 ========================= */
 async function convertToMp4Server(inputBlob: Blob): Promise<Blob> {
   if (inputBlob.type.includes("mp4")) return inputBlob;
-  try {
-    const resp = await fetch("/api/convert-webm-to-mp4", {
-      method: "POST",
-      headers: { "Content-Type": inputBlob.type || "application/octet-stream" },
-      body: inputBlob,
-    });
-    if (!resp.ok) throw new Error(`server convert failed: ${resp.status}`);
-    const out = await resp.blob();
-    if (out.size === 0) throw new Error("server returned empty blob");
-    return out;
-  } catch {
-    // fallback: return original .webm blob
-    return inputBlob;
+
+  const resp = await fetch("/api/convert-webm-to-mp4-qt", {
+    method: "POST",
+    headers: { "Content-Type": inputBlob.type || "application/octet-stream" },
+    body: inputBlob,
+  });
+
+  if (!resp.ok) {
+    const msg = await resp.text().catch(() => "");
+    console.error("[SoH convert-webm-to-mp4-qt] server error:", resp.status, msg);
+    throw new Error(`server convert failed: ${resp.status}`);
   }
+
+  const out = await resp.blob();
+  if (out.size === 0) {
+    console.error("[SoH convert-webm-to-mp4-qt] server returned empty blob");
+    throw new Error("server returned empty blob");
+  }
+
+  return out;
 }
 /* =========================
    EXPORT: caption line painter (centered, with highlight)
@@ -661,35 +667,50 @@ const svgRef = useRef<SVGSVGElement | null>(null);
 
     // 8) Finalize recording & save as MP4
     const recorded: Blob = await new Promise((res) => {
-      rec.onstop = () => {
-        try {
-          try {
-            stream.getTracks().forEach((t) => t.stop());
-          } catch {}
-          try {
-            exportDst.stream.getTracks().forEach((t) => t.stop());
-          } catch {}
-          try {
-            window.clearTimeout(hardStopTimer);
-          } catch {}
-        } finally {
-          res(new Blob(chunks, { type: mimeType || "video/webm" }));
-        }
-      };
-    });
+  rec.onstop = () => {
+    try {
+      try { stream.getTracks().forEach((t) => t.stop()); } catch {}
+      try { exportDst.stream.getTracks().forEach((t) => t.stop()); } catch {}
+      try { window.clearTimeout(hardStopTimer); } catch {}
+    } finally {
+      res(new Blob(chunks, { type: mimeType || "video/webm" }));
+    }
+  };
+});
 
-    const outBlob = await convertToMp4Server(recorded);
+// Decide whether we really have MP4 or fall back to WebM
+let outBlob: Blob = recorded;
+let ext = "webm";
 
-    const safe =
-      (input || "shape-of-harmony")
-        .replace(/[^A-Za-z0-9\-_.]+/g, "-") || "shape-of-harmony";
+try {
+  const converted = await convertToMp4Server(recorded);
 
-    const a = document.createElement("a");
-    a.download = `${safe}.mp4`;
-    a.href = URL.createObjectURL(outBlob);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  if ((converted.type || "").includes("mp4")) {
+    outBlob = converted;
+    ext = "mp4";
+  } else {
+    console.warn(
+      "[SoH export] Conversion succeeded but output is not MP4 type:",
+      converted.type
+    );
+    // keep WebM, but keep ext="webm"
+  }
+} catch (err) {
+  console.error("[SoH export] MP4 conversion failed, using WebM:", err);
+  // outBlob stays as original recorded WebM, ext stays "webm"
+}
+
+// Safe filename
+const safe =
+  (input || "shape-of-harmony").replace(/[^A-Za-z0-9\-_.]+/g, "-") ||
+  "shape-of-harmony";
+
+const a = document.createElement("a");
+a.download = `${safe}.${ext}`;
+a.href = URL.createObjectURL(outBlob);
+document.body.appendChild(a);
+a.click();
+a.remove();
   } catch (e) {
     console.error("[SoH export] error", e);
     try {
