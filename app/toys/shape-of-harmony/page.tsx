@@ -391,313 +391,314 @@ const svgRef = useRef<SVGSVGElement | null>(null);
       if (ctx) drawCaptionCanvas(ctx, chords, -1, T);
     }
   }
-     const onDownloadVideo = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    try {
-      const svgEl = svgRef.current;
-      if (!svgEl || !chords.length) {
-        setIsExporting(false);
-        return;
-      }
+  const onDownloadVideo = async () => {
+  if (isExporting) return;
+  setIsExporting(true);
+  try {
+    const svgEl = svgRef.current;
+    if (!svgEl || !chords.length) {
+      setIsExporting(false);
+      return;
+    }
 
-      // 1) Background snapshot (ring + labels only)
-      const rect = svgEl.getBoundingClientRect();
-      const liveW = Math.max(2, Math.floor(rect.width));
-      const liveH = Math.max(2, Math.floor(rect.height));
-      const css = await buildEmbeddedFontStyle();
-      const rawBg = serializeFullSvg(svgEl, liveW, liveH, css);
-      const bgImg = await svgToImage(rawBg);
+    // 1) Snapshot background (ring + labels only)
+    const rect = svgEl.getBoundingClientRect();
+    const liveW = Math.max(2, Math.floor(rect.width));
+    const liveH = Math.max(2, Math.floor(rect.height));
 
-      // 2) Recorder setup
-      const FRAME_W = 1080,
-        FRAME_H = 1920,
-        FPS = 30,
-        SCALE = 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = FRAME_W * SCALE;
-      canvas.height = FRAME_H * SCALE;
-      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+    // Clone + strip all <path> so we keep only ring/nodes/labels
+    const clone = svgEl.cloneNode(true) as SVGSVGElement;
+    clone.querySelectorAll("path").forEach((p) => p.remove());
 
-      const ac = await getAC();
-      const exportDst = ac.createMediaStreamDestination();
-      const stream = (canvas as any).captureStream(FPS) as MediaStream;
-      const mixed = new MediaStream([
-        ...stream.getVideoTracks(),
-        ...exportDst.stream.getAudioTracks(),
-      ]);
-      const mimeType = pickRecorderMime();
-      const chunks: BlobPart[] = [];
-      const rec = new MediaRecorder(mixed, { mimeType });
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
+    const css = await buildEmbeddedFontStyle();
+    const rawBg = serializeFullSvg(clone, liveW, liveH, css);
+    const bgImg = await svgToImage(rawBg);
 
-      // 3) Layout (center the circle)
-      const SIDE = 48,
-        SAFE_TOP = 140,
-        SAFE_BOTTOM = 120;
-      ctx.font = `${28 * SCALE}px Inter, system-ui, sans-serif`;
-      const titleH = 34 * SCALE;
+    // 2) Canvas + recorder (ToneDial-style)
+    const FRAME_W = 1080;
+    const FRAME_H = 1920;
+    const FPS = 30;
+    const SCALE = 2;
 
-      const goldTop = SAFE_TOP + titleH + 12 * SCALE;
-      const availW = FRAME_W - SIDE * 2;
-      const availH = FRAME_H - goldTop - SAFE_BOTTOM;
-      const scaleContent = Math.min(availW / liveW, availH / liveH);
-      const drawW = Math.round(liveW * scaleContent);
-      const drawH = Math.round(liveH * scaleContent);
-      const drawX = Math.round((FRAME_W - drawW) / 2);
-      const drawY = Math.round(goldTop);
+    const canvas = document.createElement("canvas");
+    canvas.width = FRAME_W * SCALE;
+    canvas.height = FRAME_H * SCALE;
+    const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
-      // 4) Two-pass schedule
-      const chordDur = DURATION_PER_CHORD; // seconds
-      const totalChords = chords.length * 2; // two passes
-      const totalMs = totalChords * chordDur * 1000;
+    const ac = await getAC();
+    const exportDst = ac.createMediaStreamDestination();
+    const stream = (canvas as any).captureStream(FPS) as MediaStream;
+    const mixed = new MediaStream([
+      ...stream.getVideoTracks(),
+      ...exportDst.stream.getAudioTracks(),
+    ]);
 
-      // caption labels once
-      const captionLabels = chords.map((c) => c.label || "");
+    const mimeType = pickRecorderMime();
+    const chunks: BlobPart[] = [];
+    const rec = new MediaRecorder(mixed, { mimeType });
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
 
-      // 5) AUDIO (export graph goes to dst + speakers)
-      const baseOct = 4;
-      const startAt = ac.currentTime + 0.25;
-      let tAudio = startAt;
-      for (let pass = 0; pass < 2; pass++) {
-        for (const c of chords) {
-          const names = c.pcs.map((pc) => `${sharpName(pc)}${baseOct}`);
-          const bufs = await Promise.all(names.map(loadNoteBuffer));
-          bufs.forEach((buf) => {
-            const src = ac.createBufferSource();
-            src.buffer = buf;
-            const g = ac.createGain();
-            g.gain.value = 0.95;
-            src.connect(g);
-            g.connect(ac.destination);
-            g.connect(exportDst);
+    // 3) Layout (center the circle)
+    const SIDE = 48;
+    const SAFE_TOP = 140;
+    const SAFE_BOTTOM = 120;
+    const titleH = 34 * SCALE;
+
+    const goldTop = SAFE_TOP + titleH + 12 * SCALE;
+    const availW = FRAME_W - SIDE * 2;
+    const availH = FRAME_H - SAFE_TOP - SAFE_BOTTOM - titleH - 12 * SCALE;
+    const scaleContent = Math.min(availW / liveW, availH / liveH);
+    const drawW = Math.round(liveW * scaleContent);
+    const drawH = Math.round(liveH * scaleContent);
+    const drawX = Math.round((FRAME_W - drawW) / 2);
+    const drawY = Math.round(goldTop);
+
+    // 4) Timeline: 2 passes + constellation hold (deterministic)
+    const chordDur = DURATION_PER_CHORD; // seconds per chord
+    const passes = 2;
+    const totalChords = chords.length * passes;
+    const NOTE_MS = chordDur * 1000;
+    const chordsMs = totalChords * NOTE_MS;
+    const holdMs = 900;
+    const totalMs = chordsMs + holdMs;
+
+    const captionLabels = chords.map((c) => c.label || "");
+
+    // 5) AUDIO schedule (export graph → dst + speakers)
+    const baseOct = 4;
+    const startAt = ac.currentTime + 0.25;
+    let tAudio = startAt;
+
+    for (let pass = 0; pass < passes; pass++) {
+      for (const c of chords) {
+        const names = c.pcs.map((pc) => `${sharpName(pc)}${baseOct}`);
+        const bufs = await Promise.all(names.map(loadNoteBuffer));
+        bufs.forEach((buf) => {
+          const src = ac.createBufferSource();
+          src.buffer = buf;
+          const g = ac.createGain();
+          g.gain.value = 0.95;
+          src.connect(g);
+          g.connect(ac.destination);
+          g.connect(exportDst);
+          try {
             src.start(tAudio);
             src.stop(tAudio + chordDur);
-          });
-          tAudio += chordDur;
-        }
+          } catch {}
+        });
+        tAudio += chordDur;
       }
+    }
 
-      // 6) Start recorder
-      rec.start();
+    // 6) Drawing helpers
+    function drawBaseCircle() {
+      ctx.drawImage(
+        bgImg,
+        0,
+        0,
+        liveW,
+        liveH,
+        drawX * SCALE,
+        drawY * SCALE,
+        drawW * SCALE,
+        drawH * SCALE
+      );
+    }
 
-      // 7) Drawing helpers
-      function drawPolygonForChord(chord: ParsedChord) {
-        ctx.save();
-        ctx.translate(drawX * SCALE, drawY * SCALE);
-        ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
+    function drawPolygonForChord(chord: ParsedChord) {
+      ctx.save();
+      ctx.translate(drawX * SCALE, drawY * SCALE);
+      ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
 
-        const { stroke, fill } = getChordColor(chord, bg);
-        const pcs = chord.pcs.slice().sort((a, b) => a - b);
-        const pts = pcs.map((i) => nodePosition(i, 36));
+      const { stroke, fill } = getChordColor(chord, bg);
+      const pcs = chord.pcs.slice().sort((a, b) => a - b);
+      const pts = pcs.map((i) => nodePosition(i, 36));
 
-        if (vizMode !== "constellation") {
-          ctx.beginPath();
-          if (pts.length > 0) {
-            ctx.moveTo(pts[0].x, pts[0].y);
-            for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
-            ctx.closePath();
-            ctx.fillStyle = fill;
-            ctx.fill();
-          }
-        }
-
+      if (vizMode !== "constellation") {
         ctx.beginPath();
         if (pts.length > 0) {
           ctx.moveTo(pts[0].x, pts[0].y);
           for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
           ctx.closePath();
-          ctx.strokeStyle = stroke;
-          ctx.lineWidth = 1.8;
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          ctx.stroke();
+          ctx.fillStyle = fill;
+          ctx.fill();
         }
-
-        ctx.restore();
       }
 
-      function drawConstellationFrame() {
-        ctx.save();
-        ctx.translate(drawX * SCALE, drawY * SCALE);
-        ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
-
-        chords.forEach((c) => {
-          const { stroke } = getChordColor(c, bg);
-          const pcs = c.pcs.slice().sort((a, b) => a - b);
-          const pts = pcs.map((i) => nodePosition(i, 36));
-          if (!pts.length) return;
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x, pts[0].y);
-          for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
-          ctx.closePath();
-          ctx.strokeStyle = stroke;
-          ctx.lineWidth = 1.4;
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          ctx.stroke();
-        });
-
-        ctx.restore();
+      ctx.beginPath();
+      if (pts.length > 0) {
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+        ctx.closePath();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.8;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
       }
 
-      
+      ctx.restore();
+    }
 
-            // 8) Frame loop — two passes of chords, then a short constellation hold
-      const t0 = performance.now();
-      const toMs = () => performance.now() - t0;
+    function drawConstellationFrame() {
+      ctx.save();
+      ctx.translate(drawX * SCALE, drawY * SCALE);
+      ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
 
-      // length of chord passes (2 passes) and an extra hold for constellation
-      const chordsMs = totalMs;            // time spent animating chords
-      const holdMs   = 800;               // 0.8s hold for constellation
-      const totalMsWithHold = chordsMs + holdMs;
+      chords.forEach((c) => {
+        const { stroke } = getChordColor(c, bg);
+        const pcs = c.pcs.slice().sort((a, b) => a - b);
+        const pts = pcs.map((i) => nodePosition(i, 36));
+        if (!pts.length) return;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+        ctx.closePath();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.4;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+      });
 
-      function drawBaseFrame() {
-        // circle (static ring + labels)
-        ctx.drawImage(
-          bgImg,
-          0, 0, liveW, liveH,
-          drawX * SCALE,
-          drawY * SCALE,
-          drawW * SCALE,
-          drawH * SCALE
-        );
-      }
+      ctx.restore();
+    }
 
-      function loop() {
-        const elapsed = toMs();
+    // 7) Start recorder + deterministic frame loop
+    const t0 = performance.now();
+    let lastTs = 0;
 
-        // -------------------------
-        // 1) CONSTELLATION HOLD
-        // -------------------------
-        if (elapsed >= chordsMs) {
-          // clear background
-          ctx.fillStyle = bg === "dark" ? themeDark.bg : themeLight.bg;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+    rec.start();
+    const hardStopTimer = window.setTimeout(() => {
+      try {
+        rec.stop();
+      } catch {}
+    }, totalMs + 1000);
 
-          // caption with NO highlight
-          drawExportCaptionLine(
-            ctx,
-            captionLabels,
-            -1,
-            (FRAME_W * SCALE) / 2,
-            (SAFE_TOP + 100) * SCALE,
-            SCALE,
-            {
-              gold:  bg === "dark" ? themeDark.gold  : themeLight.gold,
-              muted: bg === "dark" ? themeDark.muted : themeLight.muted,
-              text:  bg === "dark" ? themeDark.text  : themeLight.text,
-            }
-          );
+    function loop() {
+      const nowTs = performance.now();
+      const elapsed = nowTs - t0;
+      const _dtSec = lastTs ? (nowTs - lastTs) / 1000 : 1 / FPS;
+      lastTs = nowTs;
 
-          // circle + full progression constellation
-          drawBaseFrame();
-          drawConstellationFrame();
+      // Base background
+      ctx.fillStyle = bg === "dark" ? themeDark.bg : themeLight.bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-          // stop after hold duration
-          if (elapsed >= totalMsWithHold) {
-            rec.stop();
-            return;
-          }
-
-          requestAnimationFrame(loop);
-          return;
-        }
-
-        // -------------------------
-        // 2) NORMAL CHORD FRAMES
-        // -------------------------
-        const idx = Math.min(
-          totalChords - 1,
-          Math.floor(elapsed / (chordDur * 1000))
-        );
-        const inChordMs = elapsed - idx * chordDur * 1000;
-        const phase = Math.max(
-          0,
-          Math.min(1, inChordMs / (chordDur * 1000))
-        );
-        const chordIdx = idx % chords.length;
-
-        // background
-        ctx.fillStyle = bg === "dark" ? themeDark.bg : themeLight.bg;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // caption with current chord highlight
+      // FINAL WINDOW: constellation-only + no highlight
+      if (elapsed >= chordsMs) {
         drawExportCaptionLine(
           ctx,
           captionLabels,
-          chordIdx,
+          -1,
           (FRAME_W * SCALE) / 2,
           (SAFE_TOP + 100) * SCALE,
           SCALE,
           {
-            gold:  bg === "dark" ? themeDark.gold  : themeLight.gold,
+            gold: bg === "dark" ? themeDark.gold : themeLight.gold,
             muted: bg === "dark" ? themeDark.muted : themeLight.muted,
-            text:  bg === "dark" ? themeDark.text  : themeLight.text,
+            text: bg === "dark" ? themeDark.text : themeLight.text,
           }
         );
 
-        // circle background
-        drawBaseFrame();
+        drawBaseCircle();
+        drawConstellationFrame();
 
-        // current chord polygon
-        const A = chords[chordIdx];
-        if (playMode === "chords") {
-          drawPolygonForChord(A);
-        } else {
-          const B = chords[(chordIdx + 1) % chords.length];
-          const mapping = buildMinimalMotionMapping(A.pcs, B.pcs);
-          const pcsTween = tweenBetween(A.pcs, B.pcs, mapping, phase);
-          const fakeChord: ParsedChord = { label: A.label, pcs: pcsTween };
-          drawPolygonForChord(fakeChord);
+        if (elapsed >= totalMs) {
+          rec.stop();
+          return;
         }
-
         requestAnimationFrame(loop);
+        return;
       }
 
-      // ---- finalize recording & save file ----
-      const recorded: Blob = await new Promise((res) => {
-        rec.onstop = () => {
-          try {
-            try {
-              stream.getTracks().forEach((t) => t.stop());
-            } catch {}
-            try {
-              exportDst.stream.getTracks().forEach((t) => t.stop());
-            } catch {}
-          } finally {
-            res(new Blob(chunks, { type: mimeType || "video/webm" }));
-          }
-        };
+      // NORMAL WINDOW: animated chords (2 passes)
+      const idx = Math.min(
+        totalChords - 1,
+        Math.floor(elapsed / NOTE_MS)
+      );
+      const inChordMs = elapsed - idx * NOTE_MS;
+      const phase = Math.max(0, Math.min(1, inChordMs / NOTE_MS));
+      const chordIdx = idx % chords.length;
 
-        // start the frame loop so rec.stop() is eventually called
-        loop();
-      });
+      drawExportCaptionLine(
+        ctx,
+        captionLabels,
+        chordIdx,
+        (FRAME_W * SCALE) / 2,
+        (SAFE_TOP + 100) * SCALE,
+        SCALE,
+        {
+          gold: bg === "dark" ? themeDark.gold : themeLight.gold,
+          muted: bg === "dark" ? themeDark.muted : themeLight.muted,
+          text: bg === "dark" ? themeDark.text : themeLight.text,
+        }
+      );
 
-      const outBlob = await convertToMp4Server(recorded);
+      drawBaseCircle();
 
-      console.log("[SoH export] recorded:", recorded.type, recorded.size);
-console.log("[SoH export] outBlob:", outBlob.type, outBlob.size);
+      const A = chords[chordIdx];
+      if (playMode === "chords") {
+        drawPolygonForChord(A);
+      } else {
+        const B = chords[(chordIdx + 1) % chords.length];
+        const mapping = buildMinimalMotionMapping(A.pcs, B.pcs);
+        const pcsTween = tweenBetween(A.pcs, B.pcs, mapping, phase);
+        const fakeChord: ParsedChord = { label: A.label, pcs: pcsTween };
+        drawPolygonForChord(fakeChord);
+      }
 
-      const safe =
-        (input || "shape-of-harmony").replace(/[^A-Za-z0-9\-_.]+/g, "-") ||
-        "shape-of-harmony";
-
-      const a = document.createElement("a");
-      a.download = `${safe}.mp4`;
-      a.href = URL.createObjectURL(outBlob);
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (e) {
-      console.error("[SoH export] error", e);
-      alert("Could not export video. Please try again.");
-    } finally {
-      setIsExporting(false);
+      if (elapsed < totalMs) {
+        requestAnimationFrame(loop);
+      } else {
+        rec.stop();
+      }
     }
-  };
+
+    loop();
+
+    // 8) Finalize recording & save as MP4
+    const recorded: Blob = await new Promise((res) => {
+      rec.onstop = () => {
+        try {
+          try {
+            stream.getTracks().forEach((t) => t.stop());
+          } catch {}
+          try {
+            exportDst.stream.getTracks().forEach((t) => t.stop());
+          } catch {}
+          try {
+            window.clearTimeout(hardStopTimer);
+          } catch {}
+        } finally {
+          res(new Blob(chunks, { type: mimeType || "video/webm" }));
+        }
+      };
+    });
+
+    const outBlob = await convertToMp4Server(recorded);
+
+    const safe =
+      (input || "shape-of-harmony")
+        .replace(/[^A-Za-z0-9\-_.]+/g, "-") || "shape-of-harmony";
+
+    const a = document.createElement("a");
+    a.download = `${safe}.mp4`;
+    a.href = URL.createObjectURL(outBlob);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (e) {
+    console.error("[SoH export] error", e);
+    try {
+      alert("Could not export video. Please try again.");
+    } catch {}
+  } finally {
+    setIsExporting(false);
+  }
+};
 
   useEffect(() => () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -852,7 +853,11 @@ console.log("[SoH export] outBlob:", outBlob.type, outBlob.size);
 
           {/* Caption canvas */}
           <div
-            style={{ display: "grid", justifyContent: "center", paddingTop: 6 }}
+            style={{
+              display: "grid",
+              justifyContent: "center",
+              paddingTop: 6,
+            }}
           >
             <canvas
               ref={captionCanvasRef}
@@ -923,7 +928,7 @@ console.log("[SoH export] outBlob:", outBlob.type, outBlob.size);
                 />
               )}
 
-              {/* Final constellation — only when stopped (LIVE MODE) */}
+              {/* Final constellation — only when stopped (LIVE) */}
               {!playing &&
                 finalPaths.length > 0 &&
                 finalPaths.map((d, i) => {
@@ -988,10 +993,7 @@ console.log("[SoH export] outBlob:", outBlob.type, outBlob.size);
                         dominantBaseline={lp.baseline}
                         fontSize="4"
                         fill={T.text}
-                        style={{
-                          userSelect: "none",
-                          pointerEvents: "none",
-                        }}
+                        style={{ userSelect: "none", pointerEvents: "none" }}
                       >
                         {noteNameForPc(i)}
                       </text>
@@ -1029,7 +1031,9 @@ console.log("[SoH export] outBlob:", outBlob.type, outBlob.size);
               </button>
 
               <button
-                onClick={() => setBg((m) => (m === "dark" ? "light" : "dark"))}
+                onClick={() => setBg((m) => (m === "dark"
+                  ? "light"
+                  : "dark"))}
                 style={{
                   background: "transparent",
                   color: T.text,
@@ -1145,4 +1149,4 @@ console.log("[SoH export] outBlob:", outBlob.type, outBlob.size);
       </main>
     </div>
   );
-} 
+}    
