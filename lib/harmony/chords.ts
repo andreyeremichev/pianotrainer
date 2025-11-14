@@ -27,18 +27,31 @@ export function noteNameForPc(pc: number) {
 
 // Basic chord templates as intervals from root (pcs)
 const TEMPLATES: Record<string, number[]> = {
-  "":     [0, 4, 7],      // maj
-  "m":    [0, 3, 7],      // min
-  "maj7": [0, 4, 7, 11],
-  "7":    [0, 4, 7, 10],
-  "m7":   [0, 3, 7, 10],
-  "dim":  [0, 3, 6],
-  "°":    [0, 3, 6],
-  "+":    [0, 4, 8],
-  "aug":  [0, 4, 8],
-  "sus2": [0, 2, 7],
-  "sus4": [0, 5, 7],
-  "add9": [0, 4, 7, 14],
+  "":      [0, 4, 7],       // maj triad
+  "m":     [0, 3, 7],       // min triad
+
+  // 7ths (4-note)
+  "maj7":  [0, 4, 7, 11],
+  "7":     [0, 4, 7, 10],   // dominant 7
+  "m7":    [0, 3, 7, 10],
+
+  // 6ths (4-note)
+  "maj6":  [0, 4, 7, 9],    // major 6
+  "6":     [0, 4, 7, 9],    // C6 alias → maj6
+  "m6":    [0, 3, 7, 9],    // minor 6
+
+  // Other triads
+  "dim":   [0, 3, 6],
+  "°":     [0, 3, 6],
+  "+":     [0, 4, 8],
+  "aug":   [0, 4, 8],
+
+  // Suspensions
+  "sus2":  [0, 2, 7],
+  "sus4":  [0, 5, 7],
+
+  // Add chords (4-note)
+  "add9":  [0, 4, 7, 14],
 };
 
 function uniqSorted(arr: number[]) {
@@ -62,7 +75,9 @@ export function parseChordSymbol(token: string): ParsedChord | null {
   // Old pattern (with named groups) was:
   // /^(?<root>[A-G](#|b)?)(?<qual>maj7|m7|maj9|add9|sus2|sus4|dim|aug|°|\+|m|7|)(?<rest>.*)$/i
   // We rewrite without named groups for ES < 2018:
-  const m = left.match(/^([A-G](#|b)?)(maj7|m7|maj9|add9|sus2|sus4|dim|aug|°|\+|m|7|)?(.*)$/i);
+  const m = left.match(
+  /^([A-G](#|b)?)(maj7|maj6|m7|m6|maj9|add9|6|sus2|sus4|dim|aug|°|\+|m|7|)?(.*)$/i
+);
   if (!m) return null;
 
   const rootName = m[1]
@@ -72,12 +87,15 @@ export function parseChordSymbol(token: string): ParsedChord | null {
   if (rootPc === undefined) return null;
 
   let qual = (m[3] || "").toLowerCase();
-  if (qual === "maj9") qual = "maj7"; // simple fallback
 
-  const template = TEMPLATES[qual];
-  const pcs = uniqSorted(
-    (template ?? [0, 4, 7]).map(iv => (rootPc + iv) % 12)
-  );
+// Normalize some aliases so extended chords stay 4-note:
+if (qual === "maj9") qual = "maj7";     // treat maj9 as maj7 (4 pcs)
+if (qual === "6") qual = "maj6";        // C6 → maj6 template
+
+const template = TEMPLATES[qual];
+const pcs = uniqSorted(
+  (template ?? [0, 4, 7]).map(iv => (rootPc + iv) % 12)
+);
 
   return { label: token, pcs, root: rootPc };
 }
