@@ -67,6 +67,23 @@ function pathFromIndices(indices: number[]): string {
   const rest = pts.slice(1).map(p => `L ${p.x} ${p.y}`).join(" ");
   return `${move} ${rest} Z`;
 }
+/* =========================
+   Enharmonic labels for chromatic circle
+========================= */
+const CHROMA_LABELS: string[] = [
+  "C",
+  "C♯/D♭",
+  "D",
+  "E♭/D♯",
+  "E",
+  "F",
+  "F♯/G♭",
+  "G",
+  "A♭/G♯",
+  "A",
+  "B♭/A♯",
+  "B",
+];
 
 /* =========================
    Chord color mapping
@@ -76,37 +93,72 @@ function getChordColor(
   bg: "dark" | "light"
 ): { stroke: string; fill: string } {
   const label = (chord?.label || "").toLowerCase();
+
+  // Quality detection
   const isMaj7  = /maj7/.test(label);
   const isMin7  = /(^|[^a-z])m7([^a-z]|$)/.test(label) && !isMaj7;
-  const isDom7  = /(^|\s|\|)[a-g](#|b)?7($|\s|\/)/.test(label) && !isMaj7 && !isMin7;
+
+  // More precise dom7: root + "7", but not maj7 / m7
+  const isDom7  =
+    /(^|\s|\|)[a-g](#|b)?7($|\s|\/)/.test(label) && !isMaj7 && !isMin7;
+
   const isMinor = /(^|\s|\|)[a-g](#|b)?m([^a-z0-9]|$)/.test(label);
   const isDim   = /(dim|°)/.test(label);
   const isAug   = /(\+|aug)/.test(label);
   const isSus   = /(sus2|sus4)/.test(label);
   const isAdd   = /add/.test(label);
 
+  // 6th chords
+  const isMin6 = /m6/.test(label) && !/maj6/.test(label);
+  const isMaj6 =
+    /maj6/.test(label) ||
+    ( /(^|\s|\|)[a-g](#|b)?6($|\s|\/)/.test(label) && !isMin6 ); // "C6", "F#6" etc.
+
   const dark = {
-    major:"#EBCF7A", minor:"#69D58C", dom7:"#F2994A", maj7:"#7FD1FF",
-    min7:"#8FD1B0", dim:"#FF5A5A", aug:"#3BE7E1", sus:"#C6B7FF",
-    add:"#B9E6FF", other:"#EDEDED",
+    major: "#EBCF7A",
+    minor: "#69D58C",
+    dom7:  "#FF8C42", // new, a bit punchier orange
+    maj7:  "#7FD1FF",
+    min7:  "#8FD1B0",
+    maj6:  "#FFB86B", // new – warm peach
+    min6:  "#32B49A", // new – teal / greenish
+    dim:   "#FF5A5A",
+    aug:   "#3BE7E1",
+    sus:   "#C6B7FF",
+    add:   "#B9E6FF",
+    other: "#EDEDED",
   };
+
   const light = {
-    major:"#B08900", minor:"#1E7B45", dom7:"#8C4A0E", maj7:"#1B84B8",
-    min7:"#1E6B4C", dim:"#9E1B1B", aug:"#0B8C86", sus:"#5848B5",
-    add:"#2F89B9", other:"#333333",
+    major: "#B08900",
+    minor: "#1E7B45",
+    dom7:  "#C05621", // deeper orange-brown
+    maj7:  "#1B84B8",
+    min7:  "#1E6B4C",
+    maj6:  "#CC7A29", // warm amber
+    min6:  "#1C8C73", // teal-ish
+    dim:   "#9E1B1B",
+    aug:   "#0B8C86",
+    sus:   "#5848B5",
+    add:   "#2F89B9",
+    other: "#333333",
   };
+
   const P = bg === "dark" ? dark : light;
 
   let stroke = P.other;
-  if (isMaj7) stroke = P.maj7;
+
+  if (isMaj7)      stroke = P.maj7;
   else if (isMin7) stroke = P.min7;
   else if (isDom7) stroke = P.dom7;
+  else if (isMaj6) stroke = P.maj6;
+  else if (isMin6) stroke = P.min6;
   else if (isMinor) stroke = P.minor;
-  else if (isDim) stroke = P.dim;
-  else if (isAug) stroke = P.aug;
-  else if (isSus) stroke = P.sus;
-  else if (isAdd) stroke = P.add;
-  else stroke = P.major;
+  else if (isDim)   stroke = P.dim;
+  else if (isAug)   stroke = P.aug;
+  else if (isSus)   stroke = P.sus;
+  else if (isAdd)   stroke = P.add;
+  else              stroke = P.major; // default major triad
 
   const fill = stroke + "20"; // ~12% alpha
   return { stroke, fill };
@@ -157,8 +209,8 @@ function drawCaptionCanvas(
 type VizMode = "circle" | "constellation";
 type PlayMode = "chords" | "arpeggio";
 
-const DEFAULT_PROG = "C | Am | F | G7";
-const DURATION_PER_CHORD = 1.1;
+const DEFAULT_PROG = "C Am | F G7";
+const BASE_DURATION_PER_CHORD = 0.9;
 /* =========================
    EXPORT HELPERS (SVG → image, MediaRecorder, Audio, etc.)
 ========================= */
@@ -312,10 +364,12 @@ export default function ShapeOfHarmonyPage() {
   const [vizMode, setVizMode] = useState<VizMode>("circle");
   const [playMode, setPlayMode] = useState<PlayMode>("chords");
   const [playing, setPlaying] = useState(false);
+  const [tempoMode, setTempoMode] = useState<"epic" | "dynamic">("epic");
   const [finalPaths, setFinalPaths] = useState<string[]>([]);
 
   const [stepIdx, setStepIdx] = useState(0);
   const [phase, setPhase] = useState(0);
+  const [highlightRoot, setHighlightRoot] = useState<number | null>(null);
 
   const rafRef = useRef<number | null>(null);
   const runEndRef = useRef<number>(0);
@@ -337,66 +391,80 @@ const svgRef = useRef<SVGSVGElement | null>(null);
     setStepIdx(0);
     setPhase(0);
 
-    // Two passes
-    const PASSES = 2;
-    totalStepsRef.current = chords.length * PASSES;
-    startRef.current = performance.now();
-    runEndRef.current = startRef.current + totalStepsRef.current * DURATION_PER_CHORD * 1000;
+   // Single pass, tempo-aware
+const chordDur =
+  tempoMode === "epic"
+    ? BASE_DURATION_PER_CHORD
+    : BASE_DURATION_PER_CHORD / 1.4; // "Dynamic" ≈ 1.4x faster
 
-    // Audio: two passes
-    playProgression(chords, { playMode, chordDur: DURATION_PER_CHORD }).catch(()=>{});
-    const passDurMs = Math.round(chords.length * DURATION_PER_CHORD * 1000);
-    setTimeout(() => {
-      playProgression(chords, { playMode, chordDur: DURATION_PER_CHORD }).catch(()=>{});
-    }, passDurMs);
+const PASSES = 1;
+totalStepsRef.current = chords.length * PASSES;
+startRef.current = performance.now();
+runEndRef.current =
+  startRef.current + totalStepsRef.current * chordDur * 1000;
 
-    // Visuals: RAF loop
-    const loopFn = () => {
-      const now = performance.now();
-      const tSec = (now - startRef.current) / 1000;
-      const per = DURATION_PER_CHORD;
+// Audio: single pass (live + export share timing)
+playProgression(chords, { playMode, chordDur }).catch(() => {});
 
-      const globalStep = Math.floor(tSec / per);
-      if (globalStep >= totalStepsRef.current || now >= runEndRef.current) {
-        // Final constellation after pass #2
-        const finals = chords.map(c => {
-          const idxs = c.pcs.slice().sort((a,b)=>a-b);
-          return pathFromIndices(idxs);
-        });
-        setFinalPaths(finals);
-        setPlaying(false);
-        // Clear caption highlight
-        if (captionCanvasRef.current) {
-          const ctx = captionCanvasRef.current.getContext("2d");
-          if (ctx) drawCaptionCanvas(ctx, chords, -1, T);
-        }
-        return;
-      }
+// Visuals: RAF loop
+const loopFn = () => {
+  const now = performance.now();
+  const tSec = (now - startRef.current) / 1000;
+  const per = chordDur;
 
-      const idxInPass = globalStep % chords.length;
-      const localPhase = Math.min(1, (tSec - globalStep * per) / per);
-      setStepIdx(idxInPass);
-      setPhase(localPhase);
-
-      // Draw caption
-      if (captionCanvasRef.current) {
-        const ctx = captionCanvasRef.current.getContext("2d");
-        if (ctx) drawCaptionCanvas(ctx, chords, idxInPass, T);
-      }
-
-      rafRef.current = requestAnimationFrame(loopFn);
-    };
-    rafRef.current = requestAnimationFrame(loopFn);
-  }
-
-  function onStop() {
+  const globalStep = Math.floor(tSec / per);
+  if (globalStep >= totalStepsRef.current || now >= runEndRef.current) {
+    // Final constellation after pass
+    const finals = chords.map((c) => {
+      const idxs = c.pcs.slice().sort((a, b) => a - b);
+      return pathFromIndices(idxs);
+    });
+    setFinalPaths(finals);
     setPlaying(false);
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    // Clear caption highlight
     if (captionCanvasRef.current) {
       const ctx = captionCanvasRef.current.getContext("2d");
       if (ctx) drawCaptionCanvas(ctx, chords, -1, T);
     }
+    return;
   }
+
+  const idxInPass = Math.min(globalStep, chords.length - 1);
+  const localPhase = Math.min(1, (tSec - globalStep * per) / per);
+  setStepIdx(idxInPass);
+  setPhase(localPhase);
+  const activeRoot = chords[idxInPass]?.root ?? null;
+setHighlightRoot(activeRoot);
+
+  // Draw caption
+  if (captionCanvasRef.current) {
+    const ctx = captionCanvasRef.current.getContext("2d");
+    if (ctx) drawCaptionCanvas(ctx, chords, idxInPass, T);
+  }
+
+  rafRef.current = requestAnimationFrame(loopFn);
+};
+rafRef.current = requestAnimationFrame(loopFn); 
+  }
+
+  function onStop() {
+  // Build final constellation paths (same logic as RAF ending)
+  const finals = chords.map((c) => {
+    const idxs = c.pcs.slice().sort((a, b) => a - b);
+    return pathFromIndices(idxs);
+  });
+
+  setFinalPaths(finals);
+  setPlaying(false);
+  setHighlightRoot(null);
+
+  if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+  if (captionCanvasRef.current) {
+    const ctx = captionCanvasRef.current.getContext("2d");
+    if (ctx) drawCaptionCanvas(ctx, chords, -1, T);
+  }
+}
   const onDownloadVideo = async () => {
   if (isExporting) return;
   setIsExporting(true);
@@ -407,14 +475,24 @@ const svgRef = useRef<SVGSVGElement | null>(null);
       return;
     }
 
-    // 1) Snapshot background (ring + labels only)
-    const rect = svgEl.getBoundingClientRect();
-    const liveW = Math.max(2, Math.floor(rect.width));
-    const liveH = Math.max(2, Math.floor(rect.height));
+    // 1) Snapshot background (outer ring only)
+const rect = svgEl.getBoundingClientRect();
+const liveW = Math.max(2, Math.floor(rect.width));
+const liveH = Math.max(2, Math.floor(rect.height));
 
-    // Clone + strip all <path> so we keep only ring/nodes/labels
-    const clone = svgEl.cloneNode(true) as SVGSVGElement;
-    clone.querySelectorAll("path").forEach((p) => p.remove());
+// Clone + strip polygons, nodes and labels so we keep only the outer ring
+const clone = svgEl.cloneNode(true) as SVGSVGElement;
+clone.querySelectorAll("path").forEach((p) => p.remove());
+// Remove all small node circles and labels; keep only main ring circle
+clone.querySelectorAll("circle").forEach((c) => {
+  const cx = c.getAttribute("cx");
+  const cy = c.getAttribute("cy");
+  const r = c.getAttribute("r");
+  if (!(cx === "50" && cy === "50" && r === "36")) {
+    c.remove();
+  }
+});
+clone.querySelectorAll("text").forEach((t) => t.remove());
 
     const css = await buildEmbeddedFontStyle();
     const rawBg = serializeFullSvg(clone, liveW, liveH, css);
@@ -462,8 +540,11 @@ const svgRef = useRef<SVGSVGElement | null>(null);
     const drawY = Math.round(goldTop);
 
     // 4) Timeline: 2 passes + constellation hold (deterministic)
-    const chordDur = DURATION_PER_CHORD; // seconds per chord
-    const passes = 2;
+    const chordDur =
+  tempoMode === "epic"
+    ? BASE_DURATION_PER_CHORD
+    : BASE_DURATION_PER_CHORD / 1.4;
+    const passes = 1;
     const totalChords = chords.length * passes;
     const NOTE_MS = chordDur * 1000;
     const chordsMs = totalChords * NOTE_MS;
@@ -473,30 +554,43 @@ const svgRef = useRef<SVGSVGElement | null>(null);
     const captionLabels = chords.map((c) => c.label || "");
 
     // 5) AUDIO schedule (export graph → dst + speakers)
-    const baseOct = 4;
-    const startAt = ac.currentTime + 0.25;
-    let tAudio = startAt;
+const baseOct = 4;
+const startAt = ac.currentTime + 0.25;
+let tAudio = startAt;
 
-    for (let pass = 0; pass < passes; pass++) {
-      for (const c of chords) {
-        const names = c.pcs.map((pc) => `${sharpName(pc)}${baseOct}`);
-        const bufs = await Promise.all(names.map(loadNoteBuffer));
-        bufs.forEach((buf) => {
-          const src = ac.createBufferSource();
-          src.buffer = buf;
-          const g = ac.createGain();
-          g.gain.value = 0.95;
-          src.connect(g);
-          g.connect(ac.destination);
-          g.connect(exportDst);
-          try {
-            src.start(tAudio);
-            src.stop(tAudio + chordDur);
-          } catch {}
-        });
-        tAudio += chordDur;
-      }
-    }
+for (const c of chords) {
+  const isBarPause = c.label === "|" && (!c.pcs || c.pcs.length === 0);
+
+  if (isBarPause) {
+    // Bar '|' → silent pause, 1.5x longer than a normal chord
+    tAudio += chordDur * 1.5;
+    continue;
+  }
+
+  const names = c.pcs.map((pc) => `${sharpName(pc)}${baseOct}`);
+  if (!names.length) {
+    // Just in case: empty chord but not tagged as bar
+    tAudio += chordDur;
+    continue;
+  }
+
+  const bufs = await Promise.all(names.map(loadNoteBuffer));
+  bufs.forEach((buf) => {
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const g = ac.createGain();
+    g.gain.value = 0.95;
+    src.connect(g);
+    g.connect(ac.destination);
+    g.connect(exportDst);
+    try {
+      src.start(tAudio);
+      src.stop(tAudio + chordDur);
+    } catch {}
+  });
+
+  tAudio += chordDur;
+}
 
     // 6) Drawing helpers
     function drawBaseCircle() {
@@ -512,65 +606,189 @@ const svgRef = useRef<SVGSVGElement | null>(null);
         drawH * SCALE
       );
     }
-
-    function drawPolygonForChord(chord: ParsedChord) {
+        function drawCircleOverlayForChord(
+      activeChord: ParsedChord | null,
+      phase: number,
+      isPlaying: boolean
+    ) {
       ctx.save();
       ctx.translate(drawX * SCALE, drawY * SCALE);
       ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
 
-      const { stroke, fill } = getChordColor(chord, bg);
-      const pcs = chord.pcs.slice().sort((a, b) => a - b);
-      const pts = pcs.map((i) => nodePosition(i, 36));
+      const theme = bg === "dark" ? themeDark : themeLight;
+      const activeRoot = activeChord?.root ?? null;
+      const activeColor = activeChord
+        ? getChordColor(activeChord, bg).stroke
+        : theme.text;
 
-      if (vizMode !== "constellation") {
-        ctx.beginPath();
-        if (pts.length > 0) {
-          ctx.moveTo(pts[0].x, pts[0].y);
-          for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
-          ctx.closePath();
-          ctx.fillStyle = fill;
-          ctx.fill();
+      // Nodes (with strong pulsing root in chord color)
+      for (let i = 0; i < 12; i++) {
+        const p = nodePosition(i, 36);
+        const isRoot = isPlaying && activeRoot != null && i === activeRoot;
+
+        const baseR = 1.6;
+        const pulse =
+          isRoot && !Number.isNaN(phase)
+            ? baseR + 2.4 * Math.pow(Math.sin(phase * Math.PI), 2)
+            : baseR;
+
+        ctx.save();
+        if (isRoot) {
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = activeColor;
         }
-      }
-
-      ctx.beginPath();
-      if (pts.length > 0) {
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
-        ctx.closePath();
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 1.8;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.stroke();
-      }
-
-      ctx.restore();
-    }
-
-    function drawConstellationFrame() {
-      ctx.save();
-      ctx.translate(drawX * SCALE, drawY * SCALE);
-      ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
-
-      chords.forEach((c) => {
-        const { stroke } = getChordColor(c, bg);
-        const pcs = c.pcs.slice().sort((a, b) => a - b);
-        const pts = pcs.map((i) => nodePosition(i, 36));
-        if (!pts.length) return;
         ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
-        ctx.closePath();
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 1.4;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.stroke();
-      });
+        ctx.arc(p.x, p.y, pulse, 0, Math.PI * 2);
+        ctx.fillStyle = isRoot ? activeColor : theme.text;
+        ctx.globalAlpha = isRoot ? 1 : 0.25;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+
+      // Labels: all when idle, root-only when chord is playing
+      for (let i = 0; i < 12; i++) {
+        const p = nodePosition(i, 36);
+        const lp = labelPlacement(i, p);
+
+        const isRoot = activeRoot != null && i === activeRoot;
+        const showThisLabel =
+          !isPlaying || activeRoot == null || isRoot;
+
+        if (!showThisLabel) continue;
+
+        // Map anchor/baseline to canvas textAlign/textBaseline
+        const align =
+          lp.anchor === "start"
+            ? "left"
+            : lp.anchor === "end"
+            ? "right"
+            : "center";
+        const baseline =
+          lp.baseline === "hanging"
+            ? "hanging"
+            : lp.baseline === "middle"
+            ? "middle"
+            : "alphabetic";
+
+        ctx.font = "4px system-ui";
+        ctx.textAlign = align as CanvasTextAlign;
+        ctx.textBaseline = baseline as CanvasTextBaseline;
+        ctx.fillStyle = theme.text;
+        ctx.fillText(CHROMA_LABELS[i], lp.x, lp.y);
+      }
 
       ctx.restore();
     }
+
+   function drawPolygonForChord(chord: ParsedChord) {
+  ctx.save();
+  ctx.translate(drawX * SCALE, drawY * SCALE);
+  ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
+
+  const { stroke, fill } = getChordColor(chord, bg);
+  const pcs = chord.pcs.slice().sort((a, b) => a - b);
+  const pts = pcs.map((i) => nodePosition(i, 36));
+
+  if (pts.length === 0) {
+    ctx.restore();
+    return;
+  }
+
+  const buildPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+    ctx.closePath();
+  };
+
+  // -------- 1) Subtle fill glow (circle mode only) --------
+  if (vizMode !== "constellation") {
+    ctx.save();
+    buildPath();
+    ctx.fillStyle = fill;
+    ctx.globalAlpha = 0.55;
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = fill;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // -------- 2) Strong halo stroke (thin line, big blur) --------
+  ctx.save();
+  buildPath();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.8;        // same as live-ish
+  ctx.shadowBlur = 45;        // BIG blur => visible glow
+  ctx.shadowColor = stroke;
+  ctx.globalAlpha = 0.95;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.stroke();
+  ctx.restore();
+
+  // -------- 3) Crisp core stroke on top --------
+  ctx.save();
+  buildPath();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.8;
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+  function drawConstellationFrame() {
+  ctx.save();
+  ctx.translate(drawX * SCALE, drawY * SCALE);
+  ctx.scale((drawW * SCALE) / 100, (drawH * SCALE) / 100);
+
+  chords.forEach((c) => {
+    const { stroke } = getChordColor(c, bg);
+    const pcs = c.pcs.slice().sort((a, b) => a - b);
+    const pts = pcs.map((i) => nodePosition(i, 36));
+    if (!pts.length) return;
+
+    const buildPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+      ctx.closePath();
+    };
+
+    // Soft halo
+    ctx.save();
+    buildPath();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.4;
+    ctx.shadowBlur = 16;
+    ctx.shadowColor = stroke;
+    ctx.globalAlpha = 0.8;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.stroke();
+    ctx.restore();
+
+    // Crisp line
+    ctx.save();
+    buildPath();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.2;
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  ctx.restore();
+}
 
     // 7) Start recorder + deterministic frame loop
     const t0 = performance.now();
@@ -609,9 +827,12 @@ const svgRef = useRef<SVGSVGElement | null>(null);
           }
         );
 
-        drawBaseCircle();
-        drawConstellationFrame();
-
+                  drawBaseCircle();
+  if (vizMode === "circle") {
+    drawCircleOverlayForChord(null, 0, false);
+  }
+  drawConstellationFrame();
+        
         if (elapsed >= totalMs) {
           rec.stop();
           return;
@@ -644,6 +865,11 @@ const svgRef = useRef<SVGSVGElement | null>(null);
       );
 
       drawBaseCircle();
+            drawBaseCircle();
+if (vizMode === "circle") {
+  drawCircleOverlayForChord(chords[chordIdx], phase, true);
+}
+
 
       const A = chords[chordIdx];
       if (playMode === "chords") {
@@ -890,139 +1116,181 @@ a.remove();
           </div>
 
           {/* Circle */}
-          <div
-            className="minw0"
-            style={{
-              display: "grid",
-              justifyContent: "center",
-              paddingInline: 2,
-            }}
-          >
-            <svg
-              ref={svgRef}
-              viewBox="0 0 100 100"
-              width={360}
-              height={360}
-              style={{ overflow: "visible" }}
-              shapeRendering="geometricPrecision"
-            >
-              {/* Glow filter */}
-              <defs>
-                <filter
-                  id="vt-glow"
-                  x="-50%"
-                  y="-50%"
-                  width="200%"
-                  height="200%"
-                >
-                  <feGaussianBlur
-                    in="SourceGraphic"
-                    stdDeviation="1.6"
-                    result="b1"
+<div
+  className="minw0"
+  style={{
+    display: "grid",
+    justifyContent: "center",
+    paddingInline: 2,
+  }}
+>
+  <svg
+    ref={svgRef}
+    viewBox="0 0 100 100"
+    width={360}
+    height={360}
+    style={{ overflow: "visible" }}
+    shapeRendering="geometricPrecision"
+  >
+    {/* Glow filter */}
+    <defs>
+      <filter
+        id="vt-glow"
+        x="-50%"
+        y="-50%"
+        width="200%"
+        height="200%"
+      >
+        <feGaussianBlur
+          in="SourceGraphic"
+          stdDeviation="1.6"
+          result="b1"
+        />
+        <feGaussianBlur
+          in="SourceGraphic"
+          stdDeviation="3.2"
+          result="b2"
+        />
+        <feMerge>
+          <feMergeNode in="b2" />
+          <feMergeNode in="b1" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+
+    {/* Ring */}
+    {vizMode === "circle" && (
+      <circle
+        cx="50"
+        cy="50"
+        r="36"
+        stroke={
+          bg === "dark"
+            ? "rgba(230,235,242,0.15)"
+            : "rgba(0,0,0,0.12)"
+        }
+        strokeWidth="2"
+        fill="none"
+      />
+    )}
+
+    {/* Final constellation — only when stopped (LIVE) */}
+    {!playing &&
+      finalPaths.length > 0 &&
+      finalPaths.map((d, i) => {
+        const { stroke } = getChordColor(
+          chords[i % chords.length],
+          bg
+        );
+        return (
+          <path
+            key={`final-${i}`}
+            d={d}
+            fill="none"
+            stroke={stroke}
+            strokeOpacity={0.5}
+            strokeWidth={1.3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#vt-glow)"
+          />
+        );
+      })}
+
+    {/* Current chord polygon (LIVE) */}
+    {currentPolygon &&
+      playing &&
+      (() => {
+        const { stroke, fill } = getChordColor(chords[stepIdx], bg);
+        return (
+          <path
+            d={currentPolygon}
+            fill={vizMode === "constellation" ? "none" : fill}
+            stroke={stroke}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#vt-glow)"
+          />
+        );
+      })()}
+
+    {/* Nodes + labels */}
+    {vizMode === "circle" && (
+      <>
+        {(() => {
+          const activeChord = playing ? chords[stepIdx] : undefined;
+          const activeChordColor = activeChord
+            ? getChordColor(activeChord, bg).stroke
+            : T.gold;
+
+          return (
+            <>
+              {/* Nodes (with strong pulsing root, in chord color) */}
+              {Array.from({ length: 12 }, (_, i) => {
+                const p = nodePosition(i, 36);
+                const isRoot = playing && highlightRoot === i;
+
+                const baseR = 1.6;
+                const pulse =
+                  isRoot && phase != null
+                    ? baseR +
+                      2.4 * Math.pow(Math.sin(phase * Math.PI), 2)
+                    : baseR;
+
+                const fillColor = isRoot ? activeChordColor : T.text;
+
+                return (
+                  <circle
+                    key={`node-${i}`}
+                    cx={p.x}
+                    cy={p.y}
+                    r={pulse}
+                    fill={fillColor}
+                    fillOpacity={isRoot ? 1 : 0.25}
+                    filter={isRoot ? "url(#vt-glow)" : undefined}
                   />
-                  <feGaussianBlur
-                    in="SourceGraphic"
-                    stdDeviation="3.2"
-                    result="b2"
-                  />
-                  <feMerge>
-                    <feMergeNode in="b2" />
-                    <feMergeNode in="b1" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
+                );
+              })}
 
-              {/* Ring */}
-              {vizMode === "circle" && (
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="36"
-                  stroke={
-                    bg === "dark"
-                      ? "rgba(230,235,242,0.15)"
-                      : "rgba(0,0,0,0.12)"
-                  }
-                  strokeWidth="2"
-                  fill="none"
-                />
-              )}
+              {/* Labels (all when idle, root-only when playing) */}
+              {Array.from({ length: 12 }, (_, i) => {
+                const p = nodePosition(i, 36);
+                const lp = labelPlacement(i, p);
 
-              {/* Final constellation — only when stopped (LIVE) */}
-              {!playing &&
-                finalPaths.length > 0 &&
-                finalPaths.map((d, i) => {
-                  const { stroke } = getChordColor(
-                    chords[i % chords.length],
-                    bg
-                  );
-                  return (
-                    <path
-                      key={`final-${i}`}
-                      d={d}
-                      fill="none"
-                      stroke={stroke}
-                      strokeOpacity={0.5}
-                      strokeWidth={1.3}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      filter="url(#vt-glow)"
-                    />
-                  );
-                })}
+                const showThisLabel =
+                  !playing ||
+                  highlightRoot == null ||
+                  highlightRoot === i;
 
-              {/* Current chord polygon (LIVE) */}
-              {currentPolygon &&
-                playing &&
-                (() => {
-                  const { stroke, fill } = getChordColor(chords[stepIdx], bg);
-                  return (
-                    <path
-                      d={currentPolygon}
-                      fill={vizMode === "constellation" ? "none" : fill}
-                      stroke={stroke}
-                      strokeWidth={1.8}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      filter="url(#vt-glow)"
-                    />
-                  );
-                })()}
+                if (!showThisLabel) return null;
 
-              {/* Nodes + labels */}
-              {vizMode === "circle" &&
-                Array.from({ length: 12 }, (_, i) => {
-                  const p = nodePosition(i, 36);
-                  const lp = labelPlacement(i, p);
-                  return (
-                    <g key={i}>
-                      <circle
-                        cx={p.x}
-                        cy={p.y}
-                        r="1.6"
-                        fill={
-                          bg === "dark"
-                            ? "rgba(230,235,242,0.5)"
-                            : "rgba(0,0,0,0.45)"
-                        }
-                      />
-                      <text
-                        x={lp.x}
-                        y={lp.y}
-                        textAnchor={lp.anchor}
-                        dominantBaseline={lp.baseline}
-                        fontSize="4"
-                        fill={T.text}
-                        style={{ userSelect: "none", pointerEvents: "none" }}
-                      >
-                        {noteNameForPc(i)}
-                      </text>
-                    </g>
-                  );
-                })}
-            </svg>
-          </div>
+                return (
+                  <text
+                    key={`label-${i}`}
+                    x={lp.x}
+                    y={lp.y}
+                    textAnchor={lp.anchor}
+                    dominantBaseline={lp.baseline}
+                    fontSize="4"
+                    fill={T.text}
+                    style={{
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {CHROMA_LABELS[i]}
+                  </text>
+                );
+              })}
+            </>
+          );
+        })()}
+      </>
+    )}
+  </svg>
+</div>
 
           {/* Bottom controls */}
           <div
@@ -1126,44 +1394,93 @@ a.remove();
                 })}
               </div>
 
-              {/* Playback segmented */}
-              <div
-                role="tablist"
-                aria-label="Playback mode"
-                style={{
-                  display: "inline-flex",
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 999,
-                  padding: 4,
-                  gap: 4,
-                }}
-              >
-                {(["chords", "arpeggio"] as PlayMode[]).map((v) => {
-                  const active = playMode === v;
-                  return (
-                    <button
-                      key={v}
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => setPlayMode(v)}
-                      style={{
-                        border: "none",
-                        borderRadius: 999,
-                        padding: "8px 12px",
-                        background: active
-                          ? "rgba(255,255,255,0.12)"
-                          : "transparent",
-                        color: T.text,
-                        fontSize: 14,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {v === "chords" ? "Chords" : "Arpeggio"}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Playback + Tempo segmented */}
+<div
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    alignItems: "center",
+  }}
+>
+  {/* Playback segmented */}
+  <div
+    role="tablist"
+    aria-label="Playback mode"
+    style={{
+      display: "inline-flex",
+      border: `1px solid ${T.border}`,
+      borderRadius: 999,
+      padding: 4,
+      gap: 4,
+    }}
+  >
+    {(["chords", "arpeggio"] as PlayMode[]).map((v) => {
+      const active = playMode === v;
+      return (
+        <button
+          key={v}
+          role="tab"
+          aria-selected={active}
+          onClick={() => setPlayMode(v)}
+          style={{
+            border: "none",
+            borderRadius: 999,
+            padding: "8px 12px",
+            background: active
+              ? "rgba(255,255,255,0.12)"
+              : "transparent",
+            color: T.text,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {v === "chords" ? "Chords" : "Arpeggio"}
+        </button>
+      );
+    })}
+  </div>
+
+  {/* Tempo segmented */}
+  <div
+    role="tablist"
+    aria-label="Tempo"
+    style={{
+      display: "inline-flex",
+      border: `1px solid ${T.border}`,
+      borderRadius: 999,
+      padding: 4,
+      gap: 4,
+    }}
+  >
+    {(["epic", "dynamic"] as const).map((mode) => {
+      const active = tempoMode === mode;
+      return (
+        <button
+          key={mode}
+          role="tab"
+          aria-selected={active}
+          onClick={() => setTempoMode(mode)}
+          style={{
+            border: "none",
+            borderRadius: 999,
+            padding: "6px 10px",
+            background: active
+              ? "rgba(255,255,255,0.12)"
+              : "transparent",
+            color: T.text,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {mode === "epic" ? "Epic" : "Dynamic"}
+        </button>
+      );
+    })}
+  </div>
+</div>
             </div>
           </div>
         </section>
