@@ -18,6 +18,11 @@ export default async function sitemap() {
     // Homepage
     { url: `${base}/`, lastModified: nowISO, ...high },
 
+    // Emotional Tools & Guides
+    { url: `${base}/learn/two-paths-of-harmony`, lastModified: nowISO, ...high },
+    { url: `${base}/learn/path-of-flow`, lastModified: nowISO, ...high },
+    { url: `${base}/learn/path-of-color`, lastModified: nowISO, ...high },
+
     // Trainers (Train)
     { url: `${base}/train`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation`, lastModified: nowISO, ...mid },

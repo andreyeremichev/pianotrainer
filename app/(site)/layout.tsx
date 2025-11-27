@@ -7,27 +7,45 @@ import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "PianoTrainer – Viral Piano Toys & Beginner Trainers",
+  title: "PianoTrainer – Playful Music Tools • Train, Play, Learn",
   description:
-    "Play with viral music toys (KeyClock, ToneDial, TextToTone) and learn faster with simple notation & ear trainers. Free and instant.",
+    "Turn emotions into harmony with Two Paths of Harmony. Explore musical toys, train your notation & ear skills, and learn music theory with interactive demos.",
   metadataBase: new URL("https://pianotrainer.app"),
   alternates: { canonical: "/" },
+
   openGraph: {
-    title: "PianoTrainer – Viral Piano Toys & Beginner Trainers",
+    title: "PianoTrainer – Playful Music Tools • Train, Play, Learn",
     description:
-      "Try KeyClock, ToneDial, and TextToTone. Fun web toys to turn dates, phone text, and phrases into music.",
-    url: "/", // resolves via metadataBase
+      "Explore interactive music tools: Two Paths of Harmony, Path of Flow, Path of Color, TextToTone, KeyClock, ToneDial. Train notation, ear skills, and harmony in a playful way.",
+    url: "/",
     siteName: "PianoTrainer",
-    images: ["/og/pianotrainer.jpg"], // 1200x630 in /public/og/
+    images: ["/og/pianotrainer.jpg"], // keep your 1200×630 image
     type: "website",
   },
+
   twitter: {
     card: "summary_large_image",
-    title: "PianoTrainer – Viral Piano Toys & Beginner Trainers",
+    title: "PianoTrainer – Turn Emotions Into Harmony",
     description:
-      "KeyClock, ToneDial, TextToTone: turn your dates, phone text, and phrases into music.",
+      "Try Two Paths of Harmony: emotional playback on the Circle of Fifths and Chromatic Circle. Plus musical toys & trainers for a playful learning experience.",
     images: ["/og/pianotrainer.jpg"],
   },
+
+  keywords: [
+    "Two Paths of Harmony",
+    "Path of Flow",
+    "Path of Color",
+    "emotional harmony",
+    "Circle of Fifths emotions",
+    "chromatic circle emotions",
+    "PianoTrainer",
+    "music toys",
+    "notation trainer",
+    "ear trainer",
+    "text to melody",
+    "date to music",
+  ],
+
   robots: { index: true, follow: true },
 };
 
