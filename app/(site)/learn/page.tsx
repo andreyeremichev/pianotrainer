@@ -139,12 +139,30 @@ export default function LearnHubPage() {
       {/* Header */}
       <h1 className="title">Spin. Read. Explore.</h1>
       <p className="subtitle">
-        Music theory doesn’t have to be dry — here you’ll spin wheels, press keys, type words,
+        Music theory doesn&apos;t have to be dry — here you&apos;ll spin wheels, press keys, type words,
         and see harmony turn into shapes. Pick a card and dive in.
       </p>
 
       {/* Cards */}
       <section className="deck" aria-label="Learn topics">
+        {/* Two Paths of Harmony */}
+        <article className="card">
+          <span className="chip">✨ Emotions</span>
+          <h3 className="heading">Two Paths of Harmony</h3>
+          <p className="blurb">
+            See how the same emotion can travel along two different harmonic paths. Compare the smooth Path of Flow with
+            the color-driven Path of Color across sadness, anger, mystery, wonder, and more.
+          </p>
+          <div className="meta">Visual, interactive overview — no theory names needed.</div>
+          <Link
+            href="/learn/two-paths-of-harmony"
+            className="cta"
+            aria-label="Open Two Paths of Harmony"
+          >
+            Explore Two Paths →
+          </Link>
+        </article>
+
         {/* Spin the Circle of Fifths */}
         <article className="card">
           <span className="chip">🎡 Spin</span>
@@ -179,18 +197,18 @@ export default function LearnHubPage() {
           </Link>
         </article>
 
-       {/* Intervals Guide */}
-<article className="card">
-  <span className="chip">🎶 Intervals</span>
-  <h3 className="heading">Intervals Guide</h3>
-  <p className="blurb">
-    Mind the gap between notes: see intervals as shapes on the stave and hear them as distinct colors in your ear.
-    From half-steps to octaves, connect sight and sound.
-  </p>
-  <Link href="/learn/intervals-guide" className="cta" aria-label="Open Intervals Guide">
-    Explore Intervals →
-  </Link>
-</article> 
+        {/* Intervals Guide */}
+        <article className="card">
+          <span className="chip">🎶 Intervals</span>
+          <h3 className="heading">Intervals Guide</h3>
+          <p className="blurb">
+            Mind the gap between notes: see intervals as shapes on the stave and hear them as distinct colors in your ear.
+            From half-steps to octaves, connect sight and sound.
+          </p>
+          <Link href="/learn/intervals-guide" className="cta" aria-label="Open Intervals Guide">
+            Explore Intervals →
+          </Link>
+        </article>
       </section>
     </main>
   );
