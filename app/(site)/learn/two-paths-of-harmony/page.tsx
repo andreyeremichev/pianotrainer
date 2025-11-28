@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Metadata } from "next";
-import TwoPathsSadnessMini from "./TwoPathsSadnessMini";
+import TwoPathsEmotionCompare from "./TwoPathsEmotionCompare";
 
 export const metadata: Metadata = {
   title: "Two Paths of Harmony – Emotional Harmony Guide • PianoTrainer",
@@ -272,11 +272,17 @@ table td:first-child {
   <h1 className="gradient-title">Two Paths of Harmony ✨</h1>
 
   <p className="lead lead-colored">
-    Harmony isn&apos;t just “music theory” — it&apos;s a language of <strong>emotion</strong>.  
-    This page shows how the same feeling (like 😢 sadness, 😡 anger, or 🕵️‍♀️ mystery) can travel along
-    two different harmonic roads:  
-    <strong>Path of Flow</strong> and <strong>Path of Color</strong>.
-  </p>
+  Harmony isn&apos;t just “music theory” — it&apos;s a language of <strong>emotion</strong>.  
+  This page shows how the same feeling (like 😢 sadness, 😡 anger, or 🕵️‍♀️ mystery) can travel along
+  two different harmonic roads:&nbsp;
+  <Link href="/learn/path-of-flow" style={{ fontWeight: 700, color: "#a687ff" }}>
+    Path of Flow
+  </Link>
+  &nbsp;and&nbsp;
+  <Link href="/learn/path-of-color" style={{ fontWeight: 700, color: "#5fc3ff" }}>
+    Path of Color
+  </Link>.
+</p>
 </header>
 
       <section>
@@ -297,22 +303,16 @@ table td:first-child {
 
             {/* Mini demo */}
       <section>
-        <h2>Try a tiny demo first</h2>
-        <p>
-          Before we dive deeper, here&apos;s a tiny preview. The same emotion springs from two different
-          movements. Tap each path and listen to how it feels:
-        </p>
+        <h2>Now compare two paths side by side </h2>
+      
         <div className="highlight-box">
           <p>
-            <strong>Interactive preview:</strong> sadness along Flow and Color.
+            <strong>Pick any emotion below</strong> 
           </p>
 
-          <TwoPathsSadnessMini />
+          <TwoPathsEmotionCompare />
 
-          <p style={{ marginTop: 8, fontSize: 13, color: "#555" }}>
-            Tip: on the full tools, you can switch to anger, mystery, tension and more, and watch how each path redraws
-            the emotion.
-          </p>
+          
         </div>
       </section>
 
