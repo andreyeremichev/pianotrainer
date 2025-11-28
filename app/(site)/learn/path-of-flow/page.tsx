@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
+import Link from "next/link";
 
 // === Export-only Web Audio helpers (separate from Tone.js live sampler) ===
 let _ctx: AudioContext | null = null;
@@ -1010,17 +1011,21 @@ c.restore();
         }}
       >
         <h1
-          style={{
-            margin: "4px 0 8px",
-            fontSize: 24,
-            lineHeight: 1.25,
-            textAlign: "center",
-            letterSpacing: 0.2,
-            fontWeight: 800,
-          }}
-        >
-          Path of Flow
-        </h1>
+  style={{
+    margin: "4px 0 8px",
+    fontSize: 24,
+    lineHeight: 1.25,
+    textAlign: "center",
+    letterSpacing: 0.2,
+    fontWeight: 800,
+    background: "linear-gradient(90deg, #e7c86e, #a687ff 40%, #5fc3ff 80%)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+  }}
+>
+  Path of Flow
+</h1>
         <div
   style={{
     textAlign: "center",
@@ -1356,6 +1361,34 @@ c.restore();
 </div>
         </section>
       </div>
+      {/* Navigation footer */}
+<div style={{ marginTop: 32, textAlign: "center", fontSize: 14, lineHeight: 1.6 }}>
+  <div style={{ marginBottom: 10 }}>
+    <Link
+      href="/learn/two-paths-of-harmony"
+      style={{
+        fontWeight: 700,
+        color: "#a687ff",
+        textDecoration: "none",
+      }}
+    >
+      ↔ Compare both paths (Two Paths of Harmony)
+    </Link>
+  </div>
+
+  <div>
+    <Link
+      href="/learn/path-of-color"
+      style={{
+        fontWeight: 700,
+        color: "#5fc3ff",
+        textDecoration: "none",
+      }}
+    >
+      → Go to Path of Color
+    </Link>
+  </div>
+</div>
     </main>
   );
 }

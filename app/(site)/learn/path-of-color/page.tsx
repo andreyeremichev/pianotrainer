@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { parseProgression, type ParsedChord } from "@/lib/harmony/chords";
 import { playProgression } from "@/lib/harmony/audio";
+import Link from "next/link";
 
 /* =========================
    Theme (Dark + Light)
@@ -1095,12 +1096,16 @@ loop();
       {/* Header (CoF-piano style) */}
 <h1
   style={{
-    margin: "4px 0 12px",
+    margin: "4px 0 8px",
     fontSize: 24,
     lineHeight: 1.25,
     textAlign: "center",
     letterSpacing: 0.2,
     fontWeight: 800,
+    background: "linear-gradient(90deg, #e7c86e, #a687ff 40%, #5fc3ff 80%)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
   }}
 >
   Path of Color
@@ -1555,6 +1560,34 @@ loop();
         </section>
         </section>
     </div>
+    {/* Navigation footer */}
+<div style={{ marginTop: 32, textAlign: "center", fontSize: 14, lineHeight: 1.6 }}>
+  <div style={{ marginBottom: 10 }}>
+    <Link
+      href="/learn/two-paths-of-harmony"
+      style={{
+        fontWeight: 700,
+        color: "#a687ff",
+        textDecoration: "none",
+      }}
+    >
+      ↔ Compare both paths (Two Paths of Harmony)
+    </Link>
+  </div>
+
+  <div>
+    <Link
+      href="/learn/path-of-flow"
+      style={{
+        fontWeight: 700,
+        color: "#e7c86e",
+        textDecoration: "none",
+      }}
+    >
+      ← Go to Path of Flow
+    </Link>
+  </div>
+</div>
   </main>
 );
 }
