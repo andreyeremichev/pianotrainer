@@ -221,6 +221,98 @@ const EMOTIONS: EmotionConfig[] = [
   },
 ];
 
+type EmotionCopy = {
+  introLine1: string;
+  introLine2: string;
+  flowLabel: string;
+  colorLabel: string;
+  outroLine1: string;
+  outroLine2: string;
+};
+
+const EMOTION_COPY: Record<EmotionId, EmotionCopy> = {
+  playful: {
+    introLine1: "🎈 Playful",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = light bounce",
+    colorLabel: "Color = playful spark",
+    outroLine1: "Blend them 🎨",
+    outroLine2: "to keep the fun moving",
+  },
+  anger: {
+    introLine1: "⚡ Anger",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = rising pressure",
+    colorLabel: "Color = sharp release",
+    outroLine1: "Combine both ⚡️",
+    outroLine2: "to control the energy",
+  },
+  mystery: {
+    introLine1: "🕵️‍♀️ Mystery",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = quiet search",
+    colorLabel: "Color = sudden shift",
+    outroLine1: "Mix them 🌀",
+    outroLine2: "to shape your story",
+  },
+  sadness: {
+    introLine1: "😢 Sadness",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = gentle fall",
+    colorLabel: "Color = soft ache",
+    outroLine1: "Use both 💙",
+    outroLine2: "to color the emotion deeply",
+  },
+  fear: {
+    introLine1: "😨 Fear",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = creeping tension",
+    colorLabel: "Color = sharp jolt",
+    outroLine1: "Pair them 🧩",
+    outroLine2: "to build and release tension",
+  },
+  melancholy: {
+    introLine1: "🌫️ Melancholy",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = drifting thought",
+    colorLabel: "Color = distant pull",
+    outroLine1: "Let both paths 🌧️",
+    outroLine2: "shape the mood gently",
+  },
+  calm: {
+    introLine1: "🌙 Calm",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = smooth breath",
+    colorLabel: "Color = soft glow",
+    outroLine1: "Balance the two ☯️",
+    outroLine2: "to keep the peace",
+  },
+  tension: {
+    introLine1: "🎭 Tension",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = slow build",
+    colorLabel: "Color = unstable edge",
+    outroLine1: "Use both 🪢",
+    outroLine2: "to craft the pull-and-release",
+  },
+  magic: {
+    introLine1: "✨ Magic",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = floating motion",
+    colorLabel: "Color = shimmering turn",
+    outroLine1: "Blend them ✨",
+    outroLine2: "to make the moment glow",
+  },
+  wonder: {
+    introLine1: "🌌 Wonder",
+    introLine2: "Two parts, one mood",
+    flowLabel: "Flow = open horizon",
+    colorLabel: "Color = bright lift",
+    outroLine1: "Combine both 🌠",
+    outroLine2: "to open the space wider",
+  },
+};
+
 /* =========================
    Flow side – degree model
 ========================= */
@@ -667,21 +759,78 @@ const CHROMA_LABELS: string[] = [
   "B",
 ];
 
+function getChordHighlightColor(emotionId: EmotionId, chordName: string): string | null {
+  switch (emotionId) {
+    case "sadness":
+      if (chordName === "Em") return "#3A7BBF";
+      return null;
+
+    case "anger":
+      if (chordName === "C#m") return "#D84C3D";
+      if (chordName === "E°") return "#FF6B3D";
+      return null;
+
+    case "fear":
+      if (chordName === "F#°") return "#9A00FF";
+      if (chordName === "A#°") return "#B600FF";
+      return null;
+
+    case "mystery":
+      if (chordName === "F°") return "#634DFF";
+      return null;
+
+    case "melancholy":
+      if (chordName === "A") return "#E6A857";
+      return null;
+
+    case "calm":
+      if (chordName === "Eb") return "#C9B4FF"; // improved calm color
+      return null;
+
+    case "playful":
+      if (chordName === "F#") return "#FFE56E";
+      return null;
+
+    case "magic":
+      if (chordName === "E") return "#FF8CF7";
+      return null;
+
+    case "wonder":
+      if (chordName === "B") return "#FFD76A";
+      return null;
+
+    case "tension":
+      if (chordName === "E°") return "#FF2E63";
+      return null;
+
+    default:
+      return null;
+  }
+}
+
 type ColorCircleProps = {
   emotion: EmotionConfig;
   playToken: number;
+  onFinished?: () => void;
 };
 
-function ColorCircle({ emotion, playToken }: ColorCircleProps) {
+function ColorCircle({ emotion, playToken, onFinished }: ColorCircleProps) {
   const [playing, setPlaying] = useState(false);
   const [activeRoot, setActiveRoot] = useState<number | null>(null);
+  const [activeChordIdx, setActiveChordIdx] = useState<number | null>(null);
 
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number>(0);
   const totalMsRef = useRef<number>(0);
 
-  const chords = useMemo<ParsedChord[]>(
+
+    const chords = useMemo<ParsedChord[]>(
     () => parseProgression(emotion.colorChords),
+    [emotion.colorChords]
+  );
+
+  const chordNames = useMemo(
+    () => emotion.colorChords.trim().split(/\s+/).filter(Boolean),
     [emotion.colorChords]
   );
 
@@ -691,13 +840,14 @@ function ColorCircle({ emotion, playToken }: ColorCircleProps) {
   );
 
   const stopPlayback = useCallback(() => {
-    setPlaying(false);
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    setActiveRoot(null);
-  }, []);
+  setPlaying(false);
+  if (rafRef.current) {
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }
+  setActiveRoot(null);
+  setActiveChordIdx(null);
+}, []);
 
   const startPlayback = useCallback(() => {
     if (!chords.length) return;
@@ -718,23 +868,24 @@ function ColorCircle({ emotion, playToken }: ColorCircleProps) {
     }).catch(() => {});
 
        const loop = () => {
-      const now = performance.now();
-      const elapsed = now - startRef.current;
+  const now = performance.now();
+  const elapsed = now - startRef.current;
 
-      if (elapsed >= totalMsRef.current) {
-        // On natural end, stop completely and clear active node
-        stopPlayback();
-        return;
-      }
+  if (elapsed >= totalMsRef.current) {
+    stopPlayback();
+    onFinished?.();
+    return;
+  }
 
-      const idx = Math.min(
-        chords.length - 1,
-        Math.floor(elapsed / chordMs)
-      );
-      setActiveRoot(chords[idx]?.root ?? null);
+  const idx = Math.min(
+    chords.length - 1,
+    Math.floor(elapsed / chordMs)
+  );
+  setActiveRoot(chords[idx]?.root ?? null);
+  setActiveChordIdx(idx);
 
-      rafRef.current = requestAnimationFrame(loop);
-    };
+  rafRef.current = requestAnimationFrame(loop);
+};
 
     rafRef.current = requestAnimationFrame(loop);
   }, [chords, chordDurSec, stopPlayback]);
@@ -808,20 +959,28 @@ function ColorCircle({ emotion, playToken }: ColorCircleProps) {
           })}
 
           {CHROMA_LABELS.map((_, i) => {
-            const p = nodePosition(i, 33);
-            const isActive = activeRoot === i;
-            return (
-              <circle
-                key={i}
-                cx={p.x}
-                cy={p.y}
-                r={isActive ? 3.2 : 2.4}
-                fill={isActive ? emotion.trailColor : "rgba(0,0,0,0.7)"}
-                stroke={isActive ? emotion.glowColor : "rgba(255,255,255,0.25)"}
-                strokeWidth={isActive ? 1 : 0.5}
-              />
-            );
-          })}
+  const p = nodePosition(i, 33);
+  const isActive = activeRoot === i;
+
+  let nodeColor = emotion.trailColor;
+  if (isActive && activeChordIdx != null) {
+    const chordName = chordNames[activeChordIdx] ?? "";
+    const highlight = getChordHighlightColor(emotion.id, chordName);
+    if (highlight) nodeColor = highlight;
+  }
+
+  return (
+    <circle
+      key={i}
+      cx={p.x}
+      cy={p.y}
+      r={isActive ? 3.2 : 2.4}
+      fill={isActive ? nodeColor : "rgba(0,0,0,0.7)"}
+      stroke={isActive ? nodeColor : "rgba(255,255,255,0.25)"}
+      strokeWidth={isActive ? 1 : 0.5}
+    />
+  );
+})}
 
           
         </svg>
@@ -839,13 +998,21 @@ export default function TwoPathsEmotionCompare() {
   const [flowPlayToken, setFlowPlayToken] = useState(0);
   const [colorPlayToken, setColorPlayToken] = useState(0);
 
+  // ⬇️ Add these two lines:
+  const [showIntro, setShowIntro] = useState(false);
+  const [showOutro, setShowOutro] = useState(false);
+
   const active = EMOTIONS.find((e) => e.id === emotionId) ?? EMOTIONS[0];
+  const copy = EMOTION_COPY[active.id];
 
   const handleEmotionClick = (id: EmotionId) => {
-    setEmotionId(id);
-    setColorPlayToken(0);
-    setFlowPlayToken((t) => t + 1);
-  };
+  setShowIntro(true);
+  setShowOutro(false);
+
+  setEmotionId(id);
+  setColorPlayToken(0);            // reset Color
+  setFlowPlayToken((t) => t + 1);  // trigger Flow playback
+};
 
   return (
     <div className="two-paths-compare">
@@ -862,19 +1029,18 @@ export default function TwoPathsEmotionCompare() {
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         }
         .two-paths-compare-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          margin-bottom: 8px;
-        }
-        .two-paths-compare-title {
-          font-size: 14px;
-          font-weight: 700;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-        }
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.two-paths-compare-title {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
         .two-paths-compare-title span.emoji {
           font-size: 18px;
         }
@@ -958,25 +1124,43 @@ export default function TwoPathsEmotionCompare() {
       `}</style>
 
       <div className="two-paths-compare-card">
-        <div className="two-paths-compare-header">
-          <div className="two-paths-compare-title">
-            <span className="emoji">{active.emoji}</span>
-            <span>{active.label}</span>
-          </div>
-          <div className="two-paths-compare-sub">
-            Flow &amp; Color versions of the same feeling.
-          </div>
+       <div className="two-paths-compare-header">
+  <div className="two-paths-compare-title" style={{ flexDirection: "column" }}>
+    {showIntro ? (
+      <>
+        <div>{copy.introLine1}</div>
+        <div>{copy.introLine2}</div>
+      </>
+    ) : showOutro ? (
+      <>
+        <div>{copy.outroLine1}</div>
+        {copy.outroLine2 ? <div>{copy.outroLine2}</div> : null}
+      </>
+    ) : (
+      <>
+        <div>
+          <span className="emoji">{active.emoji}</span>{" "}
+          <span>{active.label}</span>
         </div>
+        <div style={{ fontSize: 12, color: "#555" }}>
+          Flow &amp; Color versions of the same feeling.
+        </div>
+      </>
+    )}
+  </div>
+</div>
 
         <div className="two-paths-circle-wrapper">
           {/* Flow circle (top) */}
           <div className="two-paths-circle-block">
-            <div className="two-paths-circle-label">Path of Flow</div>
+            <div className="two-paths-circle-label">{copy.flowLabel}</div>
             <FlowCircle
               emotion={active}
               playToken={flowPlayToken}
               onFinished={() => {
                 setColorPlayToken((t) => t + 1);
+                setShowIntro(false);
+                setShowOutro(true);
               }}
             />
             <div className="two-paths-circle-meta">
@@ -992,19 +1176,25 @@ export default function TwoPathsEmotionCompare() {
           <hr className="two-paths-compare-divider" />
 
           {/* Color circle (bottom) */}
-          <div className="two-paths-circle-block">
-            <div className="two-paths-circle-label">Path of Color</div>
-            <ColorCircle emotion={active} playToken={colorPlayToken} />
-            <div className="two-paths-circle-meta">
-              <div>
-                Local steps: <code>{active.colorFormula}</code>
-              </div>
-              <div>
-                {active.colorExampleKey} example:{" "}
-                <code>{active.colorChords.replace(/ /g, " → ")}</code>
-              </div>
-            </div>
-          </div>
+<div className="two-paths-circle-block">
+  <div className="two-paths-circle-label">{copy.colorLabel}</div>
+  <ColorCircle
+    emotion={active}
+    playToken={colorPlayToken}
+    onFinished={() => {
+      setShowOutro(false);
+    }}
+  />
+  <div className="two-paths-circle-meta">
+    <div>
+      Local steps: <code>{active.colorFormula}</code>
+    </div>
+    <div>
+      {active.colorExampleKey} example:{" "}
+      <code>{active.colorChords.replace(/ /g, " → ")}</code>
+    </div>
+  </div>
+</div>
         </div>
       </div>
 
