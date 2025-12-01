@@ -4,10 +4,10 @@ export const metadata: Metadata = {
   title: "Path of Color – Chromatic Circle Emotions • PianoTrainer",
   description:
     "Hear emotions mapped onto the Chromatic Circle. Explore presets and create your own emotional colors.",
-  alternates: { canonical: "/tools/path-of-color" },
+  alternates: { canonical: "/learn/path-of-color" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/tools/path-of-color",
+    url: "https://pianotrainer.app/learn/path-of-color",
     title: "Path of Color – Chromatic Emotional Playback",
     description:
       "Ten emotional presets + custom chromatic color paths. Emotional harmony in pure chromatic space.",

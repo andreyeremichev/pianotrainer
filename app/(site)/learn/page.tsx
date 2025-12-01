@@ -1,21 +1,17 @@
-
-// app/(site)/learn/page.tsx
-
 import Link from "next/link";
-
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Explore Hub — Spin. Read. Explore. • PianoTrainer",
+  title: "Learn – Two Paths of Harmony & Musical Demos • PianoTrainer",
   description:
-    "Interactive music lessons and demos: Spin the Circle of Fifths, Turn the Stave into Sound, Intervals Guide, and more.",
+    "Start with Two Paths of Harmony, then dive into simple guides and demos for intervals, the Circle of Fifths, notation, and musical toys.",
   alternates: { canonical: "/learn" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/learn",
-    title: "Explore Hub — Spin. Read. Explore. • PianoTrainer",
+    title: "Learn – Two Paths of Harmony & Musical Demos • PianoTrainer",
     description:
-      "Pick a card and dive in: Circle of Fifths, How to Read Music, Intervals Guide, and interactive demos.",
+      "Two Paths of Harmony as your starting point: emotional harmony plus guides on intervals, the Circle of Fifths, and musical toys.",
   },
   robots: { index: true, follow: true },
 };
@@ -66,10 +62,6 @@ export default function LearnHubPage() {
         .card:hover {
           transform: translateY(-2px);
           box-shadow: 0 6px 20px rgba(0,0,0,.12);
-        }
-        .card.disabled {
-          opacity: .6;
-          filter: grayscale(0.1);
         }
 
         .chip {
@@ -123,24 +115,14 @@ export default function LearnHubPage() {
           padding: 0;
           border-radius: 0;
         }
-
-        .soon {
-          margin-top: auto;
-          display: inline-block;
-          padding: 8px 12px;
-          border: 1px dashed #bbb;
-          border-radius: 8px;
-          color: #444;
-          background: #fafafa;
-          font-weight: 700;
-        }
       `}</style>
 
-      {/* Header */}
-      <h1 className="title">Spin. Read. Explore.</h1>
+      {/* Header – Two Paths is the hero */}
+      <h1 className="title">Two Paths of Harmony & More</h1>
       <p className="subtitle">
-        Music theory doesn&apos;t have to be dry — here you&apos;ll spin wheels, press keys, type words,
-        and see harmony turn into shapes. Pick a card and dive in.
+        Start with emotions. Two Paths of Harmony lets you hear how the same feeling can move along
+        different paths of harmony. From there, zoom in on intervals, explore the Circle of Fifths
+        as a map, learn to read notes, and play with toys that turn numbers and words into sound.
       </p>
 
       {/* Cards */}
@@ -150,10 +132,10 @@ export default function LearnHubPage() {
           <span className="chip">✨ Emotions</span>
           <h3 className="heading">Two Paths of Harmony</h3>
           <p className="blurb">
-            See how the same emotion can travel along two different harmonic paths. Compare the smooth Path of Flow with
-            the color-driven Path of Color across sadness, anger, mystery, wonder, and more.
+            Hear how one emotion can travel in two ways: a smooth, song-like Path of Flow and a more vivid,
+            color-driven Path of Color. Ten emotional presets plus custom playback – no theory names needed.
           </p>
-          <div className="meta">Visual, interactive overview — no theory names needed.</div>
+          <div className="meta">Start here to feel harmony before you name it.</div>
           <Link
             href="/learn/two-paths-of-harmony"
             className="cta"
@@ -163,27 +145,41 @@ export default function LearnHubPage() {
           </Link>
         </article>
 
-        {/* Spin the Circle of Fifths */}
+        {/* Intervals Guide – microscope for Path of Color */}
         <article className="card">
-          <span className="chip">🎡 Spin</span>
-          <h3 className="heading">Spin the Circle of Fifths</h3>
+          <span className="chip">🎶 Steps</span>
+          <h3 className="heading">Intervals Guide</h3>
           <p className="blurb">
-            The Circle of Fifths made fun — spin it, watch numbers & chords come alive, and
-            feel how keys connect. See it, hear it, and play with it right in your browser.
+            Zoom in on the small gaps and jumps that shape harmony. See intervals as distances on the stave,
+            hear them as colors in your ear, and learn how they fuel the Path of Color&apos;s local steps.
           </p>
-          <div className="meta">Includes interactive Numbers & Chords demos.</div>
-          <Link href="/learn/spin-circle-of-fifths" className="cta" aria-label="Open Spin the Circle of Fifths">
-            Spin the Circle →
+          <div className="meta">Building blocks behind chromatic color and chord motion.</div>
+          <Link href="/learn/intervals-guide" className="cta" aria-label="Open Intervals Guide">
+            Explore Intervals →
           </Link>
         </article>
 
-        {/* How to Read Music (rebranded) */}
+        {/* Spin the Circle of Fifths – map behind Flow */}
+        <article className="card">
+          <span className="chip">🎡 Map</span>
+          <h3 className="heading">Spin the Circle of Fifths</h3>
+          <p className="blurb">
+            The classic wheel underneath Flow-like harmony. Spin keys around the Circle of Fifths, see how
+            neighbors share notes, and watch numbers and chords wrap smoothly around the map.
+          </p>
+          <div className="meta">Includes playful Numbers &amp; Chords circles based on the wheel.</div>
+          <Link href="/learn/spin-circle-of-fifths" className="cta" aria-label="Open Spin the Circle of Fifths">
+            Spin the Map →
+          </Link>
+        </article>
+
+        {/* How to Read Music */}
         <article className="card">
           <span className="chip">📖 Read</span>
           <h3 className="heading">Turn The Stave Into Sound</h3>
           <p className="blurb">
-            From “where is middle C?” to reading both staves with confidence. Simple visuals,
-            tiny steps, and a few tips that actually stick.
+            From “where is middle C?” to reading both staves with confidence. Simple visuals, tiny steps,
+            and a few tips that actually stick.
           </p>
           <div className="meta">
             Bonus: turn phrases into melody with{" "}
@@ -197,17 +193,37 @@ export default function LearnHubPage() {
           </Link>
         </article>
 
-        {/* Intervals Guide */}
+        {/* Musical Toys & Translators */}
         <article className="card">
-          <span className="chip">🎶 Intervals</span>
-          <h3 className="heading">Intervals Guide</h3>
+          <div style={{ fontSize: 22 }}>🎲</div>
+          <h3 className="heading">Musical Toys &amp; Translators</h3>
           <p className="blurb">
-            Mind the gap between notes: see intervals as shapes on the stave and hear them as distinct colors in your ear.
-            From half-steps to octaves, connect sight and sound.
+            See how dates, numbers, letters, and even phonemes can turn into harmony and melody.
+            A playful way to learn how structure and sound connect.
           </p>
-          <Link href="/learn/intervals-guide" className="cta" aria-label="Open Intervals Guide">
-            Explore Intervals →
-          </Link>
+
+          <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 14, color: "#444" }}>
+            <li>
+              <Link href="/learn/why-these-numbers">
+                <strong>Why these numbers?</strong> – dates &amp; digits → harmony
+              </Link>
+            </li>
+            <li>
+              <Link href="/learn/why-these-notes">
+                <strong>Why these notes?</strong> – TextToTone: text &amp; phonemes → melody
+              </Link>
+            </li>
+          </ul>
+
+          <div>
+            <Link
+              href="/toys"
+              aria-label="Open Musical Toys hub"
+              className="cta"
+            >
+              Open Musical Toys →
+            </Link>
+          </div>
         </article>
       </section>
     </main>

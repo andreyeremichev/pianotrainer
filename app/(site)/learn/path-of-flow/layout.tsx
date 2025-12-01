@@ -4,10 +4,10 @@ export const metadata: Metadata = {
   title: "Path of Flow – Circle of Fifths Emotions • PianoTrainer",
   description:
     "Hear emotions mapped onto the Circle of Fifths. Explore presets like Sadness, Wonder, Hope, Tension, Fear, and custom flows.",
-  alternates: { canonical: "/tools/path-of-flow" },
+  alternates: { canonical: "/learn/path-of-flow" },
   openGraph: {
     type: "website",
-    url: "https://pianotrainer.app/tools/path-of-flow",
+    url: "https://pianotrainer.app/learn/path-of-flow",
     title: "Path of Flow – Circle of Fifths Emotional Playback",
     description:
       "Ten emotional presets + custom flows. Emotional harmony via Circle of Fifths.",

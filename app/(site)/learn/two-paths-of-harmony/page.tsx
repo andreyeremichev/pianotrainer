@@ -571,7 +571,7 @@ table td:first-child {
         </p>
       </section>
 
-      <section>
+            <section>
         <h2>Flow: the smooth, familiar path</h2>
         <p>
           <strong>Path of Flow</strong> is the gentle storyteller of harmony. It connects chords in a way that feels
@@ -584,23 +584,28 @@ table td:first-child {
 
         <div className="highlight-box">
           <p>
-            <strong>Interactive idea:</strong> try the same emotion in Path of Flow and see how the circle traces a smooth
-            curve around the ring.
+            <strong>Want the “map” behind Flow?</strong> The{" "}
+            <Link href="/learn/spin-circle-of-fifths">Spin the Circle of Fifths</Link>{" "}
+            page shows how these progressions sit on the Circle of Fifths as smooth curves and chord shapes.
           </p>
           <div className="inline-tools">
             <Link href="/learn/path-of-flow">
               <span>🟡</span>
               <span>Open Path of Flow</span>
             </Link>
+            <Link href="/learn/spin-circle-of-fifths">
+              <span>🎡</span>
+              <span>Spin the Circle</span>
+            </Link>
           </div>
         </div>
       </section>
 
-      <section>
+           <section>
         <h2>Color: the surprising, expressive path</h2>
         <p>
           <strong>Path of Color</strong> takes a different route. Instead of sliding smoothly, it likes to lean on
-          chromatic steps: moving a chord up by a semitone, dropping down a third into a new color, or snapping into
+          small steps: moving a chord up by a semitone, dropping down a third into a new color, or snapping into
           a diminished shape.
         </p>
         <p>
@@ -610,13 +615,18 @@ table td:first-child {
 
         <div className="highlight-box">
           <p>
-            <strong>Interactive idea:</strong> open Path of Color, pick an emotion like anger or mystery, and watch how
-            small steps create big feelings.
+            <strong>Want to zoom in on those steps?</strong> The{" "}
+            <Link href="/learn/intervals-guide">Intervals Guide</Link>{" "}
+            looks at the small gaps and jumps (intervals) that Path of Color uses between chords and notes.
           </p>
           <div className="inline-tools">
             <Link href="/learn/path-of-color">
               <span>🟣</span>
               <span>Open Path of Color</span>
+            </Link>
+            <Link href="/learn/intervals-guide">
+              <span>🎶</span>
+              <span>Open Intervals Guide</span>
             </Link>
           </div>
         </div>
@@ -639,7 +649,7 @@ table td:first-child {
       </section>
 
       <section>
-         <h2>Or explore the tools 🎧</h2>
+         <h2>Or explore the Paths 🎧</h2>
       
 
                 <div className="highlight-box">

@@ -951,9 +951,19 @@ addTimeout(async () => {
       Link copied!
     </span>
   )}
-
-
 </div>
+<div>
+    <Link
+      href="/learn/spin-circle-of-fifths"
+      style={{
+        fontWeight: 700,
+        color: "#e7c86e",
+        textDecoration: "none",
+      }}
+    >
+      ← Go to Spin the Cicle of Fifths lesson
+    </Link>
+  </div>
           </div>
         </section>
       </main>

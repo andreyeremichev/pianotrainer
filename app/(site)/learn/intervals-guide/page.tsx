@@ -1,17 +1,26 @@
-
 import Link from "next/link";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: "Intervals Guide • PianoTrainer",
+export const metadata: Metadata = {
+  title: "Intervals Guide – Steps Behind Path of Color • PianoTrainer",
   description:
-    "Mind the Gap: see, hear, and feel intervals — music’s invisible geometry. Learn what they look like, what they sound like, and why they matter.",
+    "Intervals are the small gaps and jumps that shape harmony. Learn how they work on the stave, in your ear, and inside the Path of Color emotions.",
+  alternates: { canonical: "/learn/intervals-guide" },
+  openGraph: {
+    type: "article",
+    url: "https://pianotrainer.app/learn/intervals-guide",
+    title: "Intervals Guide – Steps Behind Path of Color",
+    description:
+      "See intervals as distances on the stave and hear them as colors in your ear. Connect them to the local steps in Path of Color.",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function IntervalsGuidePage() {
   return (
-    <main className="intervals-guide">
+    <main className="intervals-page">
       <style>{`
-        .intervals-guide {
+        .intervals-page {
           max-width: 900px;
           margin: 0 auto;
           padding: 16px;
@@ -29,95 +38,117 @@ export default function IntervalsGuidePage() {
           line-height: 1.6;
         }
         .h2 {
-          margin: 24px 0 8px;
+          margin: 22px 0 8px;
           font-size: 22px;
           line-height: 1.25;
         }
-
-        /* Cards grid */
-        .deck {
-          display: grid;
-          gap: 16px;
-          grid-template-columns: 1fr;
-          margin-top: 12px;
-        }
-        @media (min-width: 720px) { .deck { grid-template-columns: 1fr 1fr; } }
-
-        .card {
-          border: 1px solid #ddd;
-          background: #fff;
-          border-radius: 12px;
-          padding: 16px;
-          display: grid;
-          gap: 10px;
-          min-height: 220px;
-          transition: box-shadow .15s ease, transform .15s ease;
-        }
-        .card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(0,0,0,.12);
-        }
-
-        .chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-weight: 800;
-          font-size: 14px;
-          color: #111;
-          background: #EBCF7A; /* gold */
-          border-radius: 999px;
-          padding: 4px 10px;
-          width: max-content;
-        }
-        .heading {
-          margin: 0;
+        .h3 {
+          margin: 18px 0 6px;
           font-size: 18px;
-          line-height: 1.35;
         }
-        .blurb {
-          margin: -2px 0 0 0;
+        ul {
+          margin: 6px 0 10px;
+          padding-left: 18px;
+          font-size: 15px;
+          line-height: 1.6;
+        }
+        .callout {
+          margin-top: 18px;
+          border: 1px dashed #ccc;
+          background: #fafafa;
+          border-radius: 12px;
+          padding: 14px;
           line-height: 1.55;
-          color: #222;
+          font-size: 14px;
         }
         .cta {
-          margin-top: auto;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          font-weight: 800;
+          font-weight: 700;
           text-decoration: none;
           color: #111;
-          background: #EBCF7A; /* gold */
+          background: #EBCF7A;
           border-radius: 8px;
           padding: 10px 14px;
-          transition: filter .15s ease, transform .15s ease;
+          margin-top: 10px;
+          transition: filter .15s ease;
         }
-        .cta:hover { filter: brightness(1.05); transform: translateY(-1px); }
+        .cta:hover { filter: brightness(1.05); }
       `}</style>
 
-      {/* Page title */}
-      <h1 className="h1">Mind the Gap</h1>
+      <h1 className="h1">Intervals Guide – Steps Behind Color</h1>
+
       <p className="lead">
-        Every note lives in relation to another — and the distance between them is where the magic happens.
-        Some gaps whisper, some shout, some pull you home. Explore how intervals stretch across the stave
-        and how they ring in your ear, from tight half-steps to soaring octaves.
+        In <Link href="/learn/two-paths-of-harmony">Two Paths of Harmony</Link>, you hear emotions carried by two
+        big motion types: a smooth <strong>Path of Flow</strong> and a more intense <strong>Path of Color</strong>.
+        Flow feels like a story; Color feels like sharp turns and vivid hits. Under the hood, both rely on{" "}
+        <strong>intervals</strong> – the small gaps and jumps between notes and between chords.
       </p>
 
-      {/* Why Intervals Matter */}
-      <h2 className="h2">Why Intervals Matter</h2>
+      <div className="callout">
+        <strong>Big idea:</strong> intervals are the smallest “units of movement” in harmony. Path of Color
+        leans on sharper, more chromatic intervals; Path of Flow leans on gentler, more diatonic ones.
+      </div>
+
+      <h2 className="h2">What is an interval, really?</h2>
       <p className="lead">
-        Intervals are the heartbeat of music. They’re the tiny sparks and wide-open skies between notes.
-        Stack them close and you get tension, pull them apart and you get release. Scales are nothing but
-        intervals in a row, chords are intervals stacked into towers, and melodies are intervals set in motion.
-        Learn to feel these spaces, and you start to hear music not as notes on a page but as living shapes
-        and colors.
+        An interval is just the distance between two notes. On the stave, it&apos;s how many steps you climb or drop.
+        On the piano, it&apos;s how many keys apart. To your ear, it&apos;s the difference between “tight” and “wide”,
+        between “cramped” and “open”.
+      </p>
+      <ul>
+        <li><strong>Seconds</strong> (half-steps, whole steps) feel like close neighbors.</li>
+        <li><strong>Thirds</strong> feel like a leap to a new color (sad or bright).</li>
+        <li><strong>Tritones</strong> feel unstable and edgy.</li>
+        <li><strong>Sixths and sevenths</strong> feel stretched and emotional.</li>
+      </ul>
+
+      <h2 className="h2">Intervals inside Path of Color</h2>
+      <p className="lead">
+        In the Path of Color column of the Two Paths table, we describe chord moves with simple local steps – things like
+        “m → M(–4)” or “m → dim(+6)”. Those labels hide very real intervals:
       </p>
 
-      {/* Interactive cards */}
-      <h2 className="h2">Explore Intervals</h2>
-      <div className="deck">
-        {/* Notation Trainer */}
+      <h3 className="h3">Example: Sadness</h3>
+      <p className="lead">
+        In the Sadness Path of Color, the last chord is <strong>Em</strong> relative to C minor. That chord is built
+        on a <strong>major third</strong> above C. The move from Cm to Em is a big upward third that feels like a tragic
+        “lift and drop”.
+      </p>
+
+      <h3 className="h3">Example: Fear</h3>
+      <p className="lead">
+        In Fear / Horror, Path of Color uses chords like <strong>F#°</strong> relative to C. C → F# is a{" "}
+        <strong>tritone</strong> – the most unstable interval in the scale. That&apos;s why the Color path sounds like
+        the floor disappearing under you.
+      </p>
+
+      <h3 className="h3">Example: Wonder</h3>
+      <p className="lead">
+        In Wonder, the &quot;halo&quot; chord often appears a <strong>major third</strong> or <strong>major seventh</strong>
+        away from home. Those larger, bright intervals are what make the harmony feel like it&apos;s glowing.
+      </p>
+
+      <div className="callout">
+        <strong>Takeaway:</strong> Path of Color isn&apos;t magic – it&apos;s just leaning on more dramatic intervals:
+        tritones, big thirds, and chromatic steps. Once you recognize them, you can borrow them in your own progressions.
+      </div>
+
+      <h2 className="h2">Seeing intervals on the stave</h2>
+      <p className="lead">
+        If you&apos;re a visual learner, intervals are easy to see as <strong>gaps on the staff</strong>:
+      </p>
+      <ul>
+        <li>Half-step (minor 2nd): two notes hugging each other, almost touching.</li>
+        <li>Whole-step (major 2nd): one note in between.</li>
+        <li>Thirds: skip one note; on the staff they stack neatly.</li>
+        <li>Tritone: the one that looks “wrong” and sounds mysterious or scary.</li>
+      </ul>
+      <p className="lead">
+        You can use any simple notes-on-staff trainer to visualize these – or just draw them out on paper.
+      </p>
+      {/* Notation Trainer */}
         <article className="card">
           <span className="chip">🎼 See</span>
           <h3 className="heading">See the Shape, Hear the Distance</h3>
@@ -131,30 +162,35 @@ export default function IntervalsGuidePage() {
           </Link>
         </article>
 
-        {/* Ear Trainer */}
-        <article className="card">
-          <span className="chip">👂 Hear</span>
-          <h3 className="heading">Jump the Intervals</h3>
-          <p className="blurb">
-            Intervals are the leaps and steps that give music its shape. A tiny half-step can make your skin crawl,
-            while a wide leap feels like flying. Spin through seconds, thirds, fifths, and octaves — and learn how
-            each jump changes the mood of a melody. Hear them, sing them, and type the right answer. <strong>Train</strong> your ear
-            to recognize intervals instantly.
-          </p>
-          <Link href="/train/ear/intervals" className="cta">
-            Open Ear Trainer →
-          </Link>
-        </article>
+      <h2 className="h2">Hearing intervals in your ear</h2>
+      <p className="lead">
+        Your ear stores intervals as feelings: some want to resolve, some feel final, some feel like a question. The best
+        way to internalize them is to listen, guess, and get instant feedback.
+      </p>
+      <p className="lead">
+        Our <Link href="/train/ear/intervals">Ear Intervals Trainer</Link> plays intervals and asks you to identify them.
+        Practice a few minutes a day and the colors in Path of Color will start to feel obvious instead of mysterious.
+      </p>
+      <div>
+        <Link href="/train/ear/intervals" className="cta" aria-label="Open Ear Intervals Trainer">
+          🎧 Try the Ear Intervals Trainer →
+        </Link>
       </div>
 
-      {/* Takeaway */}
-      <h2 className="h2">Takeaway</h2>
+      <h2 className="h2">Where to go next</h2>
       <p className="lead">
-        Intervals aren’t just theory — they’re the shortcuts your brain uses to recognize, sing, and play music with confidence.
-        Once you know their shapes and sounds, every score becomes easier to read and every melody easier to catch.
-        The best part? You don’t need hours of practice — just a few minutes a day with the trainers above. Jump in, listen, play,
-        and let intervals become second nature. Your ear — and your hands — will thank you.
+        Once intervals feel familiar, you can go back to the emotional layer:
       </p>
+      <ul>
+        <li>
+          <Link href="/learn/two-paths-of-harmony"><strong>Two Paths of Harmony</strong></Link> – hear how Flow and Color use these intervals
+          to paint emotions.
+        </li>
+        <li>
+          <Link href="/learn/path-of-color"><strong>Path of Color</strong></Link> – pick any emotion and listen for the jumps and tight spots.
+        </li>
+       
+      </ul>
     </main>
   );
 }

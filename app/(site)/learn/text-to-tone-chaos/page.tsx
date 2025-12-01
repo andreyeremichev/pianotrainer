@@ -449,6 +449,24 @@ export default function ChaosTextToTonePage(){
                   <option value="major">Letters: A major</option>
                 </select>
         </div>
+         <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
+          <Link
+            href="/learn/why-these-notes"
+            style={{
+              color: theme.gold,
+              fontWeight: 800,
+              letterSpacing: 0.3,
+              textDecoration: "none",
+              padding: "10px 14px",
+              border: `1px solid ${theme.border}`,
+              borderRadius: 10,
+              background: "#0F1821",
+            }}
+            aria-label="Why these notes?"
+          >
+            Why these notes? →
+          </Link>
+        </div>
       </div>
     </main>
   );
