@@ -28,26 +28,26 @@ export default async function sitemap() {
     { url: `${base}/train/notation`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/random-notes`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/keys-to-notes`, lastModified: nowISO, ...mid },
-    { url: `${base}/train/notation/chords`, lastModified: nowISO, ...mid },
+    { url: `${base}/train/notation/chords-helper`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/intervals`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear`, lastModified: nowISO, ...mid },
-    { url: `${base}/train/ear/circle-of-fifths`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear/intervals`, lastModified: nowISO, ...mid },
-    { url: `${base}/train/ear/progressions`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear/degrees`, lastModified: nowISO, ...mid },
 
     // Learn section
-    { url: `${base}/learn/how-to-read-music`, lastModified: nowISO, ...low },
-    { url: `${base}/learn/ear-training-for-beginners`, lastModified: nowISO, ...low },
-    { url: `${base}/learn/circle-of-fifths-explained`, lastModified: nowISO, ...low },
+    { url: `${base}/learn`, lastModified: nowISO, ...mid },
+    { url: `${base}/learn/spin-circle-of-fifths`, lastModified: nowISO, ...low },
     { url: `${base}/learn/intervals-guide`, lastModified: nowISO, ...low },
-    { url: `${base}/learn/glossary`, lastModified: nowISO, ...low },
+    { url: `${base}/learn/turn-the-stave-into-sound`, lastModified: nowISO, ...low },
     { url: `${base}/learn/why-these-numbers`, lastModified: nowISO, ...low },
+    { url: `${base}/learn/why-these-notes`, lastModified: nowISO, ...low },
+    { url: `${base}/learn/numbers-circle`, lastModified: nowISO, ...low },
+    { url: `${base}/learn/chords-circle`, lastModified: nowISO, ...low },
+    { url: `${base}/learn/text-to-tone-chaos`, lastModified: nowISO, ...low },
 
     // Site pages
     { url: `${base}/about`, lastModified: nowISO, ...low },
     { url: `${base}/contact`, lastModified: nowISO, ...low },
     { url: `${base}/privacy`, lastModified: nowISO, ...low },
-    { url: `${base}/terms`, lastModified: nowISO, ...low },
   ];
 }
