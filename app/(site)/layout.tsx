@@ -7,43 +7,64 @@ import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "PianoTrainer – Playful Music Tools • Train, Play, Learn",
+  title: "PianoTrainer – Emotional Harmony & Playful Music Tools",
   description:
-    "Turn emotions into harmony with Two Paths of Harmony. Explore musical toys, train your notation & ear skills, and learn music theory with interactive demos.",
+    "Hear emotions as harmony with Two Paths of Harmony. Explore Path of Flow, Path of Color, musical toys, notation & ear trainers, and simple guides that make music feel intuitive.",
+
   metadataBase: new URL("https://pianotrainer.app"),
   alternates: { canonical: "/" },
 
   openGraph: {
-    title: "PianoTrainer – Playful Music Tools • Train, Play, Learn",
-    description:
-      "Explore interactive music tools: Two Paths of Harmony, Path of Flow, Path of Color, TextToTone, KeyClock, ToneDial. Train notation, ear skills, and harmony in a playful way.",
-    url: "/",
-    siteName: "PianoTrainer",
-    images: ["/og/pianotrainer.jpg"], // keep your 1200×630 image
     type: "website",
+    url: "https://pianotrainer.app/",
+    siteName: "PianoTrainer",
+    title: "PianoTrainer – Emotional Harmony & Playful Music Tools",
+    description:
+      "Start with Two Paths of Harmony to hear how emotions move through harmony. Then explore Path of Flow, Path of Color, musical toys, notation trainers, ear trainers, and friendly learning guides.",
+    images: ["/og/pianotrainer.jpg"],
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "PianoTrainer – Turn Emotions Into Harmony",
+    title: "PianoTrainer – Hear Emotions as Harmony",
     description:
-      "Try Two Paths of Harmony: emotional playback on the Circle of Fifths and Chromatic Circle. Plus musical toys & trainers for a playful learning experience.",
+      "Discover emotional harmony through Two Paths of Harmony. Explore Flow, Color, musical toys, and beginner-friendly trainers for notes and ear skills.",
     images: ["/og/pianotrainer.jpg"],
   },
 
   keywords: [
+    // Emotional Harmony
     "Two Paths of Harmony",
     "Path of Flow",
     "Path of Color",
     "emotional harmony",
-    "Circle of Fifths emotions",
-    "chromatic circle emotions",
-    "PianoTrainer",
+    "sadness chords",
+    "mystery harmony",
+    "anger harmony",
+    "wonder harmony",
+
+    // Learning paths
+    "learn music",
+    "music lessons",
+    "harmony explained",
+    "music theory for beginners",
+
+    // Tools
     "music toys",
-    "notation trainer",
-    "ear trainer",
+    "KeyClock",
+    "ToneDial",
+    "TextToTone",
+    "Shape of Harmony",
     "text to melody",
     "date to music",
+    "phone to melody",
+
+    // Trainers
+    "notation trainer",
+    "ear trainer",
+    "chords helper",
+    "learn notes",
+    "intervals trainer",
   ],
 
   robots: { index: true, follow: true },

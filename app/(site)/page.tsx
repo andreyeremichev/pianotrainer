@@ -39,147 +39,231 @@ function playArpeggio(urls: string[], gapMs = 140) {
 export default function HomePage() {
   return (
     <main style={pageStyles.root}>
-    {/* SEO: JSON-LD for homepage (tailored to current sections/links) */}
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      name: "PianoTrainer",
-      url: "https://pianotrainer.app/"
-    }),
-  }}
-/>
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: "PianoTrainer",
-      url: "https://pianotrainer.app/",
-      logo: {
-        "@type": "ImageObject",
-        url: "https://pianotrainer.app/og/pianotrainer.jpg" // ← update if your JPG lives elsewhere
-      }
-      // "sameAs": ["https://twitter.com/...", "https://www.youtube.com/@..."] // add later if you want
-    }),
-  }}
-/>
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      name: "Featured on Homepage",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          url: "https://pianotrainer.app/trainer/notation/chords-helper",
-          name: "Chords Helper – Play Root / 1st / 2nd Inversion"
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          url: "https://pianotrainer.app/trainer/notation/keys-to-notes",
-          name: "Keys to Notes – See What You Play"
-        },
-        {
-          "@type": "ListItem",
-          position: 3,
-          url: "https://pianotrainer.app/trainer/ear/degrees",
-          name: "Ear Trainers – Degrees & Intervals"
-        },
-        {
-          "@type": "ListItem",
-          position: 4,
-          url: "https://pianotrainer.app/viral",
-          name: "Musical Toys – Make Birthdays, Names, Numbers Sing"
-        }
-      ]
-    }),
-  }}
-/>
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      name: "Viral Piano Toys",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          url: "https://pianotrainer.app/toys/key-clock",
-          name: "KeyClock – Dates → Music (Cadences)"
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          url: "https://pianotrainer.app/toys/tone-dial",
-          name: "ToneDial – Phone/Text → Melody"
-        },
-        {
-          "@type": "ListItem",
-          position: 3,
-          url: "https://pianotrainer.app/toys/text-to-tone",
-          name: "TextToTone – Text → Music"
-        }
-      ]
-    }),
-  }}
-/>  
+      {/* SEO: JSON-LD for homepage (tailored to current sections/links) */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "PianoTrainer",
+            url: "https://pianotrainer.app/"
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "PianoTrainer",
+            url: "https://pianotrainer.app/",
+            logo: {
+              "@type": "ImageObject",
+              url: "https://pianotrainer.app/og/pianotrainer.jpg"
+            }
+          }),
+        }}
+      />
+      {/* Featured items for crawlers */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "Featured on Homepage",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                url: "https://pianotrainer.app/learn/two-paths-of-harmony",
+                name: "Two Paths of Harmony – Emotional Harmony Guide"
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                url: "https://pianotrainer.app/train/notation/chords-helper",
+                name: "Chords Helper – Play Root / 1st / 2nd Inversion"
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                url: "https://pianotrainer.app/train/notation/keys-to-notes",
+                name: "Keys to Notes – See What You Play"
+              },
+              {
+                "@type": "ListItem",
+                position: 4,
+                url: "https://pianotrainer.app/train/ear/degrees",
+                name: "Ear Trainers – Degrees & Intervals"
+              },
+              {
+                "@type": "ListItem",
+                position: 5,
+                url: "https://pianotrainer.app/toys",
+                name: "Musical Toys – Make Birthdays, Names, Numbers Sing"
+              }
+            ]
+          }),
+        }}
+      />
+      {/* Toys list */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "Musical Toys",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                url: "https://pianotrainer.app/toys/key-clock",
+                name: "KeyClock – Dates → Music (Cadences)"
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                url: "https://pianotrainer.app/toys/tone-dial",
+                name: "ToneDial – Phone/Text → Melody"
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                url: "https://pianotrainer.app/toys/text-to-tone",
+                name: "TextToTone – Text → Music"
+              }
+            ]
+          }),
+        }}
+      />
+
       {/* HERO */}
       <section style={pageStyles.hero}>
-        <h1 style={pageStyles.h1}>Make Notes Come Alive 🎵</h1>
+        <h1 style={pageStyles.h1}>Make Chords Come Alive 🎵</h1>
         <p style={pageStyles.sub}>
-          Tap "Root" or "1st Inv" "2nd Inv", hear, and see chords right away — no signup, no theory needed.
+          Tap &quot;Root&quot; or &quot;1st Inv&quot; &quot;2nd Inv&quot;, hear, and see chords right away.
         </p>
 
         {/* Mini Chords Helper Preview (compact, interactive) */}
         <div style={pageStyles.previewWrap}>
           <MiniChordsPreview />
         </div>
+        <p style={pageStyles.sub}>
+  Chords are the heart of harmony.
+</p>
 
-        <Link href="/train/notation/chords-helper" style={pageStyles.primaryCta} aria-label="Start Playing Chords Helper">
+        <Link
+          href="/train/notation/chords-helper"
+          style={pageStyles.primaryCta}
+          aria-label="Start Playing Chords Helper"
+        >
           Start Playing →
         </Link>
       </section>
 
+            {/* FEATURED: Two Paths of Harmony */}
+<section
+  style={{
+    maxWidth: 980,
+    margin: "16px auto 8px",
+    padding: "12px 12px 14px",
+    borderRadius: 14,
+    border: "1px solid #dddddd",
+    background: "#fafafa",
+    display: "grid",
+    gap: 8,
+  }}
+>
+  <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>
+    🎭 Play Emotions With Your Keys
+  </h2>
+
+  <p style={{ margin: 0, fontSize: 14, color: "#555" }}>
+    Harmony isn’t just chords — it’s emotion. Sadness, anger, wonder, calm… every feeling
+    moves through harmony in its own way.
+  </p>
+
+  <p style={{ margin: "4px 0 0", fontSize: 14, color: "#555" }}>
+    <strong>Two Paths of Harmony</strong> lets you hear these emotional movements instantly:
+    Path of Flow brings smooth, song-like motion, while Path of Color adds vivid, expressive
+    steps. 
+  </p>
+  <p style={{ margin: "4px 0 0", fontSize: 14, color: "#555" }}>Pick an emotion, press play, and feel how harmony tells the story — <strong>then speak
+    emotions with your keys. </strong>
+    </p>
+
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 10,
+      marginTop: 8,
+    }}
+  >
+    <Link
+      href="/learn/two-paths-of-harmony"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 800,
+        color: "#081019",
+        background: "#EBCF7A",
+        borderRadius: 10,
+        padding: "8px 12px",
+        textDecoration: "none",
+      }}
+    >
+      Explore &amp; Play Emotional Harmony →
+    </Link>
+  </div>
+</section>
+
       {/* QUICK TILES */}
       <section style={pageStyles.tilesWrap}>
         <div style={pageStyles.tile}>
-  <div style={pageStyles.tileIcon}>👀</div>
-  <h3 style={pageStyles.tileTitle}>Learn Notes</h3>
-  <p style={pageStyles.tileText}>
-    Every key press paints a note on the stave — connect what you play to what you see.
-  </p>
-  <Link
-    href="/train/notation/keys-to-notes"
-    style={pageStyles.tileButton}
-    aria-label="Open Keys to Notes"
-  >
-    Keys to Notes →
-  </Link>
-</div>
+          <div style={pageStyles.tileIcon}>👀</div>
+          <h3 style={pageStyles.tileTitle}>Learn Notes</h3>
+          <p style={pageStyles.tileText}>
+  Music is emotion — but understanding notes helps. Every key press paints a note on the
+  stave. <strong>  Connect what you play to what you see.</strong>
+</p>
+          <Link
+            href="/train/notation/keys-to-notes"
+            style={pageStyles.tileButton}
+            aria-label="Open Keys to Notes"
+          >
+            Keys to Notes →
+          </Link>
+        </div>
 
         <div style={pageStyles.tile}>
           <div style={pageStyles.tileIcon}>👂</div>
           <h3 style={pageStyles.tileTitle}>Train Your Ear</h3>
-          <p style={pageStyles.tileText}>Guess sounds before they vanish.</p>
-          <Link href="/train/ear/degrees" style={pageStyles.tileButton} aria-label="Open Ear Trainers">
-            Degrees & Intervals →
+          <p style={pageStyles.tileText}>
+  Music is sound — train the ear behind emotion. Hear the shapes of harmony and <strong> build the
+  listening skills that make emotions feel real.</strong>
+</p>
+          <Link
+            href="/train/ear/degrees"
+            style={pageStyles.tileButton}
+            aria-label="Open Ear Trainers"
+          >
+            Degrees &amp; Intervals →
           </Link>
         </div>
 
         <div style={pageStyles.tile}>
           <div style={pageStyles.tileIcon}>🎲</div>
           <h3 style={pageStyles.tileTitle}>Play with Toys</h3>
-          <p style={pageStyles.tileText}>Make birthdays, names, or numbers sing.</p>
+          <p style={pageStyles.tileText}>
+  Music is everywhere — <strong>turn birthdays, names, numbers, and moods into music.</strong> A playful
+  way to explore harmony.
+</p>
           <Link href="/toys" style={pageStyles.tileButton} aria-label="Open Musical Toys">
             Musical Toys →
           </Link>
@@ -191,8 +275,12 @@ export default function HomePage() {
         <p style={pageStyles.footerText}>
           A few minutes a day is enough to train your music brain.
         </p>
-        <Link href="/learn" style={pageStyles.secondaryCta} aria-label="Explore learning pages">
-          Explore →
+        <Link
+          href="/learn"
+          style={pageStyles.secondaryCta}
+          aria-label="Explore learning pages"
+        >
+          Explore emotional harmony &amp; more →
         </Link>
       </footer>
     </main>
@@ -222,10 +310,9 @@ function MiniChordsPreview() {
     else playArpeggio(urls, 140);
 
     // highlight briefly
-  // highlight briefly
-kbRef.current?.clear();
-four.forEach(n => kbRef.current?.highlight(n as any, "correct"));
-window.setTimeout(() => { kbRef.current?.clear(); }, 1200);  
+    kbRef.current?.clear();
+    four.forEach(n => kbRef.current?.highlight(n as any, "correct"));
+    window.setTimeout(() => { kbRef.current?.clear(); }, 1200);
   };
 
   return (
@@ -242,10 +329,20 @@ window.setTimeout(() => { kbRef.current?.clear(); }, 1200);
           </div>
           <div style={previewStyles.modeRow}>
             <label style={previewStyles.modeLabel}>
-              <input type="radio" name="mini_mode" checked={mode==="block"} onChange={()=>setMode("block")} /> Block
+              <input
+                type="radio"
+                name="mini_mode"
+                checked={mode==="block"}
+                onChange={()=>setMode("block")}
+              /> Block
             </label>
             <label style={previewStyles.modeLabel}>
-              <input type="radio" name="mini_mode" checked={mode==="arp"} onChange={()=>setMode("arp")} /> Arpeggio
+              <input
+                type="radio"
+                name="mini_mode"
+                checked={mode==="arp"}
+                onChange={()=>setMode("arp")}
+              /> Arpeggio
             </label>
           </div>
         </div>
@@ -267,8 +364,8 @@ window.setTimeout(() => { kbRef.current?.clear(); }, 1200);
 const pageStyles: Record<string, React.CSSProperties> = {
   root: {
     minHeight: "100vh",
-    background: "#ffffff",           // white background
-    color: "#0B0F14",                // dark text
+    background: "#ffffff",
+    color: "#0B0F14",
     padding: 12,
     boxSizing: "border-box",
   },
@@ -287,7 +384,7 @@ const pageStyles: Record<string, React.CSSProperties> = {
   sub: {
     margin: "10px 0 16px",
     fontSize: 18,
-    color: "#444",                   // muted dark on white
+    color: "#444",
   },
   previewWrap: {
     margin: "0 auto 16px",
@@ -296,7 +393,7 @@ const pageStyles: Record<string, React.CSSProperties> = {
   primaryCta: {
     display: "inline-block",
     marginTop: 6,
-    background: "#EBCF7A",           // gold
+    background: "#EBCF7A",
     color: "#081019",
     textDecoration: "none",
     fontWeight: 800,
@@ -304,15 +401,15 @@ const pageStyles: Record<string, React.CSSProperties> = {
     borderRadius: 10,
   },
   tilesWrap: {
-    maxWidth: 980,
-    margin: "22px auto 12px",
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 14,
-  },
+  maxWidth: 980,
+  margin: "22px auto 12px",
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 14,
+},
   tile: {
-    background: "#ffffff",           // white tile
-    border: "1px solid #dddddd",     // subtle gray border
+    background: "#ffffff",
+    border: "1px solid #dddddd",
     borderRadius: 12,
     padding: 16,
     display: "grid",
@@ -334,7 +431,7 @@ const pageStyles: Record<string, React.CSSProperties> = {
   tileButton: {
     marginTop: 8,
     display: "inline-block",
-    background: "#EBCF7A",           // gold button inside tile
+    background: "#EBCF7A",
     color: "#081019",
     textDecoration: "none",
     fontWeight: 800,
@@ -366,7 +463,7 @@ const pageStyles: Record<string, React.CSSProperties> = {
 const previewStyles: Record<string, React.CSSProperties> = {
   card: {
     background: "#ffffff",
-    border: "1px solid #dddddd",     // subtle gray border
+    border: "1px solid #dddddd",
     borderRadius: 12,
     padding: 12,
     display: "grid",
