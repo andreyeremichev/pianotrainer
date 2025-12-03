@@ -10,6 +10,11 @@ import React, {
 import * as Tone from "tone";
 import { parseProgression, type ParsedChord } from "@/lib/harmony/chords";
 import { playProgression } from "@/lib/harmony/audio";
+import {
+  FLOW_PRESETS,
+  buildFlowChordsForKey,
+  pitchNameToPc,
+} from "@/lib/harmony/flow";
 
 /* =========================
    Shared emotion model
@@ -482,38 +487,7 @@ function parseDegreeProgression(input: string): DegToken[] {
   return tokens;
 }
 
-function triadMidiForToken(tok: DegToken, mode: Mode): string[] {
-  const baseOffsets = mode === "major" ? MAJOR_OFFSETS : MINOR_OFFSETS;
-  const tonicPC = mode === "major" ? TONIC_PC_BB : TONIC_PC_CM;
 
-  const baseOff = baseOffsets[tok.base];
-  const rootPC = (tonicPC + baseOff + tok.acc + 12) % 12;
-
-  const baseOct = 4;
-  let rootMidi = (baseOct + 1) * 12 + rootPC;
-  if (rootMidi < 48) rootMidi += 12;
-  if (rootMidi > 72) rootMidi -= 12;
-
-  let quality: "M" | "m" | "dim";
-  if (tok.acc !== 0) {
-    quality = "M";
-  } else {
-    if (mode === "major") {
-      if (tok.base === 1 || tok.base === 4 || tok.base === 5) quality = "M";
-      else if (tok.base === 7) quality = "dim";
-      else quality = "m";
-    } else {
-      if (tok.base === 1 || tok.base === 4 || tok.base === 5) quality = "m";
-      else if (tok.base === 2) quality = "dim";
-      else quality = "M";
-    }
-  }
-
-  const triadSteps =
-    quality === "M" ? TRIAD_MAJOR : quality === "dim" ? TRIAD_DIM : TRIAD_MINOR;
-
-  return triadSteps.map((semi) => midiToNoteName(rootMidi + semi));
-}
 
 function nodeIndexForToken(tok: DegToken, mode: Mode): number {
   if (tok.acc !== 0) {
@@ -566,6 +540,42 @@ async function ensurePianoSampler(ref: React.MutableRefObject<Tone.Sampler | nul
   await Tone.loaded();
   ref.current = sampler;
 }
+function triadFromChordName(name: string): string[] {
+  const m = /^([A-G])(b|#)?(m|°|dim)?$/i.exec(name);
+  if (!m) return [];
+  const letter = m[1].toUpperCase();
+  const acc = m[2] || "";
+  const qual = (m[3] || "").toLowerCase();
+
+  const basePCMap: Record<string, number> = {
+    C: 0,
+    D: 2,
+    E: 4,
+    F: 5,
+    G: 7,
+    A: 9,
+    B: 11,
+  };
+  let pc = basePCMap[letter] ?? 0;
+  if (acc === "#") pc = (pc + 1 + 12) % 12;
+  if (acc === "b") pc = (pc - 1 + 12) % 12;
+
+  let quality: "M" | "m" | "dim" = "M";
+  if (qual === "m") quality = "m";
+  if (qual === "°" || qual === "dim") quality = "dim";
+
+  const steps =
+    quality === "M"
+      ? TRIAD_MAJOR
+      : quality === "m"
+      ? TRIAD_MINOR
+      : TRIAD_DIM;
+
+  const baseOct = 4;
+  const rootMidi = (baseOct + 1) * 12 + pc;
+
+  return steps.map((semi) => midiToNoteName(rootMidi + semi));
+}
 
 /* =========================
    FLOW circle component
@@ -584,15 +594,29 @@ function FlowCircle({ emotion, playToken, onFinished }: FlowCircleProps) {
   const samplerRef = useRef<Tone.Sampler | null>(null);
   const timeoutsRef = useRef<number[]>([]);
 
-  const mode: Mode = emotion.flowKey === "B♭ Major" ? "major" : "minor";
+  // 1. Shared Flow preset for this emotion
+  const preset = FLOW_PRESETS[emotion.id];
 
-  const degreeTokens = useMemo(
-    () => parseDegreeProgression(emotion.flowDegrees),
-    [emotion.flowDegrees]
+  // 2. Canonical tonic: minor → C, major → Bb
+  const tonicPc =
+    preset.mode === "minor" ? pitchNameToPc("C") : pitchNameToPc("Bb");
+
+  // 3. Build the actual Flow chords via FlowPreset
+  const flowChordNames = useMemo(
+    () => buildFlowChordsForKey(tonicPc, preset),
+    [tonicPc, preset]
   );
 
-  const chords: string[][] = useMemo(
-    () => degreeTokens.map((tok) => triadMidiForToken(tok, mode)),
+  // 4. Degrees for node positions (from preset, not local string)
+  const degreeTokens = useMemo(
+    () => parseDegreeProgression(preset.degrees.join(" ")),
+    [preset.degrees]
+  );
+
+  const mode: Mode = preset.mode;
+
+  const flowNodeIndices = useMemo(
+    () => degreeTokens.map((tok) => nodeIndexForToken(tok, mode)),
     [degreeTokens, mode]
   );
 
@@ -608,47 +632,52 @@ function FlowCircle({ emotion, playToken, onFinished }: FlowCircleProps) {
   }, [clearTimers]);
 
   const startPlayback = useCallback(async () => {
-    if (!chords.length) return;
+  if (!flowChordNames.length) return;
 
-    stopPlayback();
-    setIsPlaying(true);
-    setActiveNodeIndex(null);
+  stopPlayback();
+  setIsPlaying(true);
+  setActiveNodeIndex(null);
 
-    await Tone.start();
-    await ensurePianoSampler(samplerRef);
-    const s = samplerRef.current;
-    if (!s) return;
+  await Tone.start();
+  await ensurePianoSampler(samplerRef);
+  const s = samplerRef.current;
+  if (!s) return;
 
-    const baseStepSec = 0.9;
-    const tempoMult = emotion.tempo || 1.0;
-    const stepSec = baseStepSec / tempoMult;
+  const baseStepSec = 0.9;
+  const tempoMult = emotion.tempo || 1.0;
+  const stepSec = baseStepSec / tempoMult;
 
-    let accSec = 0;
-    const now = Tone.now();
+  let accSec = 0;
+  const now = Tone.now();
 
-    chords.forEach((notes, idx) => {
-      const startTime = now + accSec;
+  flowChordNames.forEach((chName, idx) => {
+    const notes = triadFromChordName(chName);
+    const startTime = now + accSec;
+
+    // Play Flow chord
+    if (notes.length) {
       (s as any).triggerAttackRelease(notes, 0.8, startTime);
+    }
 
-      const tok = degreeTokens[idx];
-      const nodeIndex = nodeIndexForToken(tok, mode);
+    const tok = degreeTokens[idx];
+    const nodeIndex = nodeIndexForToken(tok, mode);
 
-      const tid = window.setTimeout(() => {
-        setActiveNodeIndex(nodeIndex);
-      }, accSec * 1000);
-      timeoutsRef.current.push(tid);
+    const tid = window.setTimeout(() => {
+      setActiveNodeIndex(nodeIndex);
+    }, accSec * 1000);
+    timeoutsRef.current.push(tid);
 
-      accSec += stepSec;
-    });
+    accSec += stepSec;
+  });
 
-    const totalSec = accSec;
-    const endId = window.setTimeout(() => {
-      setIsPlaying(false);
-      setActiveNodeIndex(null);
-      onFinished?.();
-    }, (totalSec + 0.5) * 1000);
-    timeoutsRef.current.push(endId);
-  }, [chords, degreeTokens, mode, emotion.tempo, stopPlayback, onFinished]);
+  const totalSec = accSec;
+  const endId = window.setTimeout(() => {
+    setIsPlaying(false);
+    setActiveNodeIndex(null);
+    onFinished?.();
+  }, (totalSec + 0.5) * 1000);
+  timeoutsRef.current.push(endId);
+}, [flowChordNames, degreeTokens, mode, emotion.tempo, stopPlayback, onFinished]);
 
   useEffect(() => {
     if (!playToken) return;
@@ -1004,6 +1033,19 @@ export default function TwoPathsEmotionCompare() {
 
   const active = EMOTIONS.find((e) => e.id === emotionId) ?? EMOTIONS[0];
   const copy = EMOTION_COPY[active.id];
+  // DEBUG — verify FlowPreset-based chords (not degree-based)
+// This runs once when the blog component mounts.
+useEffect(() => {
+  const preset = FLOW_PRESETS[active.id];               // FlowPreset for current emotion
+  const tonicName = preset.mode === "minor" ? "C" : "Bb";
+  const tonicPc = pitchNameToPc(tonicName);
+  const flowChords = buildFlowChordsForKey(tonicPc, preset);
+
+  console.log(
+    `[Flow BLOG DEBUG] ${active.id} (${tonicName} ${preset.mode}):`,
+    flowChords.join(" → ")
+  );
+}, [active.id]);
 
   const handleEmotionClick = (id: EmotionId) => {
   setShowIntro(true);
