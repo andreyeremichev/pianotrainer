@@ -7,7 +7,7 @@ import TwoPathsEmotionCompare from "./TwoPathsEmotionCompare";
 export const metadata: Metadata = {
   title: "Two Paths of Harmony – Emotional Harmony Guide • PianoTrainer",
   description:
-    "Discover how harmony expresses emotion through two different kinds of movement: Path of Flow and Path of Color. Hear sadness, anger, mystery, and more along both paths.",
+    "Learn how harmony expresses emotion along two paths: smooth Flow and vivid Color. Hear sadness, anger, mystery and more as music.",
   alternates: { canonical: "/learn/two-paths-of-harmony" },
   openGraph: {
     type: "article",
