@@ -3,6 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
 import Link from "next/link";
+import {
+  FLOW_PRESETS,
+  buildFlowChordsForKey,
+  pitchNameToPc,
+} from "@/lib/harmony/flow";
 
 // === Export-only Web Audio helpers (separate from Tone.js live sampler) ===
 let _ctx: AudioContext | null = null;
@@ -523,6 +528,45 @@ function triadMidiForToken(tok: DegToken, mode: Mode): string[] {
   return triadSteps.map((semi) => midiToNoteName(rootMidi + semi));
 }
 
+
+// 🔽 ADD THIS HELPER HERE
+function triadFromChordName(name: string): string[] {
+  const m = /^([A-G])(b|#)?(m|°|dim)?$/i.exec(name);
+  if (!m) return [];
+  const letter = m[1].toUpperCase();
+  const acc = m[2] || "";
+  const qual = (m[3] || "").toLowerCase();
+
+  const basePCMap: Record<string, number> = {
+    C: 0,
+    D: 2,
+    E: 4,
+    F: 5,
+    G: 7,
+    A: 9,
+    B: 11,
+  };
+  let pc = basePCMap[letter] ?? 0;
+  if (acc === "#") pc = (pc + 1 + 12) % 12;
+  if (acc === "b") pc = (pc - 1 + 12) % 12;
+
+  let quality: "M" | "m" | "dim" = "M";
+  if (qual === "m") quality = "m";
+  if (qual === "°" || qual === "dim") quality = "dim";
+
+  const steps =
+    quality === "M"
+      ? TRIAD_MAJOR
+      : quality === "m"
+      ? TRIAD_MINOR
+      : TRIAD_DIM;
+
+  const baseOct = 4;
+  const rootMidi = (baseOct + 1) * 12 + pc;
+
+  return steps.map((semi) => midiToNoteName(rootMidi + semi));
+}
+
 function nodeIndexForToken(tok: DegToken, mode: Mode): number {
   if (tok.acc !== 0) {
     const key = `${tok.base},${tok.acc}`;
@@ -558,6 +602,7 @@ function pathFromNodes(indices: number[]): string {
 export default function CofPianoPage() {
   // Emotion selection
   const [emotionId, setEmotionId] = useState<EmotionId>("playful");
+  const lastEmotionIdRef = useRef<EmotionId | "custom">("custom");
 
   const [degInput, setDegInput] = useState("1 5 6 4");
   const [mode, setModeState] = useState<Mode>("major");
@@ -621,52 +666,103 @@ export default function CofPianoPage() {
   }
 
   const start = useCallback(async () => {
-    if (!chords.length || isPlaying) return;
+  if (isPlaying) return;
 
-    setIsPlaying(true);
+  // Decide which chords to use:
+  // - Preset emotions → FlowPreset engine (flow.ts)
+  // - Custom mode → old degree-based chords
+  let chordsToPlay: string[][] = [];
+
+  if (emotionId !== "custom" && activePreset) {
+    // Use shared FlowPreset for presets
+    const flowPreset = FLOW_PRESETS[activePreset.id as Exclude<EmotionId, "custom">];
+    const tonicPc =
+      flowPreset.mode === "minor" ? pitchNameToPc("C") : pitchNameToPc("Bb");
+    const flowChordNames = buildFlowChordsForKey(tonicPc, flowPreset);
+
+    console.log(
+  `[Flow PATH-OF-FLOW DEBUG] preset=${activePreset.id}:`,
+  flowChordNames.join(" → ")
+);
+    chordsToPlay = flowChordNames.map((name) => triadFromChordName(name));
+
+    // Optional debug:
+    console.log(
+      `[Flow PATH-OF-FLOW DEBUG] preset=${activePreset.id}:`,
+      flowChordNames.join(" → ")
+    );
+} else {
+  // Custom mode – old degree-based engine
+  if (!chords.length) return;
+  chordsToPlay = chords;
+
+  // 🔍 DEBUG — print Custom mode chord ROOTS (simple)
+  const customChordSymbols = chords.map((triad) => {
+    const root = triad[0] ?? "";
+    return root.replace(/[0-9]/g, ""); // "C4" -> "C", "G#4" -> "G#"
+  });
+
+  console.log(
+    `%c[Custom Flow DEBUG] mode=${mode}, degrees="${degInput}":`,
+    "color:#9AE6B4;font-weight:bold",
+    customChordSymbols.join(" → ")
+  );
+}
+
+  setIsPlaying(true);
+  setActiveIdx(null);
+  clearTimers();
+  resetTrails();
+
+  await Tone.start();
+  await ensurePianoSampler(samplerRef);
+  const s = samplerRef.current;
+  if (!s) return;
+
+  const baseStepSec = 0.9;
+  const tempoMult = activePreset?.tempo ?? 1.0;
+  const baseStep = baseStepSec / tempoMult;
+  const shortFactor = 0.5;
+
+  let accSec = 0;
+  const now = Tone.now();
+
+  chordsToPlay.forEach((notes, idx) => {
+    const isLong = longFlags[idx] ?? true;
+    const stepSec = isLong ? baseStep : baseStep * shortFactor;
+
+    const startTime = now + accSec;
+    (s as any).triggerAttackRelease(notes, 0.8, startTime);
+
+    const tok = degTokens[idx];
+    const nodeIndex = nodeIndexForToken(tok, mode);
+
+    const tid = window.setTimeout(() => {
+      setActiveIdx(idx);
+      if (nodeIndex >= 0) appendTrail(nodeIndex);
+    }, accSec * 1000);
+    timeoutsRef.current.push(tid);
+
+    accSec += stepSec;
+  });
+
+  const totalSec = accSec;
+  const endId = window.setTimeout(() => {
     setActiveIdx(null);
-    clearTimers();
-    resetTrails();
+    setIsPlaying(false);
+  }, (totalSec + 0.5) * 1000);
+  timeoutsRef.current.push(endId);
+}, [
+  isPlaying,
+  emotionId,
+  activePreset,
+  chords,
+  degTokens,
+  longFlags,
+  mode,
+  appendTrail,
+]);
 
-    await Tone.start();
-    await ensurePianoSampler(samplerRef);
-    const s = samplerRef.current;
-    if (!s) return;
-
-    const baseStepSec = 0.9;
-    const tempoMult = activePreset?.tempo ?? 1.0;
-    const baseStep = baseStepSec / tempoMult;
-    const shortFactor = 0.5;
-
-    let accSec = 0;
-    const now = Tone.now();
-
-    chords.forEach((notes, idx) => {
-      const isLong = longFlags[idx] ?? true;
-      const stepSec = isLong ? baseStep : baseStep * shortFactor;
-
-      const startTime = now + accSec;
-      (s as any).triggerAttackRelease(notes, 0.8, startTime);
-
-      const tok = degTokens[idx];
-      const nodeIndex = nodeIndexForToken(tok, mode);
-
-      const tid = window.setTimeout(() => {
-        setActiveIdx(idx);
-        if (nodeIndex >= 0) appendTrail(nodeIndex);
-      }, accSec * 1000);
-      timeoutsRef.current.push(tid);
-
-      accSec += stepSec;
-    });
-
-    const totalSec = accSec;
-    const endId = window.setTimeout(() => {
-      setActiveIdx(null);
-      setIsPlaying(false);
-    }, (totalSec + 0.5) * 1000);
-    timeoutsRef.current.push(endId);
-  }, [chords, degTokens, longFlags, mode, isPlaying, activePreset]);
 
   const stop = useCallback(() => {
     clearTimers();
@@ -674,6 +770,24 @@ export default function CofPianoPage() {
     setIsPlaying(false);
     resetTrails();
   }, []);
+
+// Auto-play when a NEW preset emotion is selected
+useEffect(() => {
+  if (emotionId === "custom") {
+    lastEmotionIdRef.current = emotionId;
+    return;
+  }
+  if (!activePreset) return;
+  if (!chords.length) return;
+  if (isPlaying || isExporting) return;
+
+  // Only auto-play if this is a different preset than last time
+  if (lastEmotionIdRef.current !== emotionId) {
+    lastEmotionIdRef.current = emotionId;
+    start();
+  }
+}, [emotionId, activePreset, chords, isPlaying, isExporting, start]);
+
   const onDownloadVideo = useCallback(async () => {
   if (!degTokens.length) return;
   setIsExporting(true);
@@ -721,6 +835,37 @@ export default function CofPianoPage() {
       accSec += stepSec;
     }
     const totalSec = accSec;
+
+// Decide which chords to export...
+let chordsToExport: string[][] = [];
+
+if (emotionId !== "custom" && activePreset) {
+  const flowPreset = FLOW_PRESETS[activePreset.id as Exclude<EmotionId, "custom">];
+  const tonicPc =
+    flowPreset.mode === "minor" ? pitchNameToPc("C") : pitchNameToPc("Bb");
+  const flowChordNames = buildFlowChordsForKey(tonicPc, flowPreset);
+
+  console.log(
+    `%c[Flow EXPORT DEBUG] preset=${activePreset.id} (${flowPreset.mode === "minor" ? "C minor" : "Bb major"}):`,
+    "color:#FBBF24;font-weight:bold",
+    flowChordNames.join(" → ")
+  );
+
+  chordsToExport = flowChordNames.map((name) => triadFromChordName(name));
+} else {
+  chordsToExport = degTokens.map((tok) => triadMidiForToken(tok, mode));
+
+  const customRoots = chordsToExport.map((triad) => {
+    const root = triad[0] ?? "";
+    return root.replace(/[0-9]/g, "");
+  });
+  console.log(
+    `%c[Flow EXPORT DEBUG] custom degrees="${degInput}" (mode=${mode}):`,
+    "color:#9AE6B4;font-weight:bold",
+    customRoots.join(" → ")
+  );
+}
+
 
     // Schedule audio
     const t0 = ac.currentTime + 0.2;
@@ -970,7 +1115,7 @@ c.restore();
   } finally {
     setIsExporting(false);
   }
-}, [degTokens, longFlags, mode, activePreset, backgroundTop, backgroundBottom, modeColor, degInput]);
+}, [degTokens, longFlags, mode, activePreset, backgroundTop, backgroundBottom, modeColor, degInput, emotionId]);
 
   useEffect(() => {
     return () => clearTimers();
@@ -1111,6 +1256,14 @@ c.restore();
                 setEmotionId("custom");
                 setDegInput(e.target.value);
               }}
+              onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!isPlaying && !isExporting && chords.length) {
+        start();
+      }
+    }
+  }}
               placeholder="1 5 6 4"
               style={{
                 minWidth: 160,
@@ -1126,6 +1279,55 @@ c.restore();
               }}
             />
           </div>
+          {/* Actions */}
+          <div
+  style={{
+    display: "flex",
+    gap: 10,
+    justifyContent: "center",
+    marginTop: 8,
+    flexWrap: "wrap",
+  }}
+>
+  <button
+    onClick={start}
+    disabled={!chords.length || isPlaying || isExporting}
+    style={{
+      background:
+        !chords.length || isPlaying || isExporting ? "#2A3442" : baseTheme.gold,
+      color:
+        !chords.length || isPlaying || isExporting ? "#6B7280" : "#081019",
+      border: "none",
+      borderRadius: 999,
+      padding: "10px 16px",
+      fontWeight: 700,
+      cursor:
+        !chords.length || isPlaying || isExporting ? "not-allowed" : "pointer",
+      fontSize: 16,
+      minHeight: 40,
+    }}
+  >
+    ▶ Play
+  </button>
+  
+  <button
+    onClick={onDownloadVideo}
+    disabled={!degTokens.length || isExporting}
+    style={{
+      background: "transparent",
+      color: baseTheme.gold,
+      border: `1px solid ${baseTheme.border}`,
+      borderRadius: 999,
+      padding: "8px 14px",
+      fontWeight: 700,
+      cursor: !degTokens.length || isExporting ? "not-allowed" : "pointer",
+      fontSize: 14,
+      minHeight: 36,
+    }}
+  >
+    💾 {isExporting ? "Recording…" : "Download"}
+  </button>
+</div>
 
           {/* Mode toggle (only active in Custom) */}
           <div
@@ -1310,55 +1512,7 @@ c.restore();
             </span>
           </div>
 
-          {/* Actions */}
-          <div
-  style={{
-    display: "flex",
-    gap: 10,
-    justifyContent: "center",
-    marginTop: 8,
-    flexWrap: "wrap",
-  }}
->
-  <button
-    onClick={start}
-    disabled={!chords.length || isPlaying || isExporting}
-    style={{
-      background:
-        !chords.length || isPlaying || isExporting ? "#2A3442" : baseTheme.gold,
-      color:
-        !chords.length || isPlaying || isExporting ? "#6B7280" : "#081019",
-      border: "none",
-      borderRadius: 999,
-      padding: "10px 16px",
-      fontWeight: 700,
-      cursor:
-        !chords.length || isPlaying || isExporting ? "not-allowed" : "pointer",
-      fontSize: 16,
-      minHeight: 40,
-    }}
-  >
-    ▶ Play
-  </button>
-  
-  <button
-    onClick={onDownloadVideo}
-    disabled={!degTokens.length || isExporting}
-    style={{
-      background: "transparent",
-      color: baseTheme.gold,
-      border: `1px solid ${baseTheme.border}`,
-      borderRadius: 999,
-      padding: "8px 14px",
-      fontWeight: 700,
-      cursor: !degTokens.length || isExporting ? "not-allowed" : "pointer",
-      fontSize: 14,
-      minHeight: 36,
-    }}
-  >
-    💾 {isExporting ? "Recording…" : "Download"}
-  </button>
-</div>
+          
         </section>
       </div>
       {/* Navigation footer */}
