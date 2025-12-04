@@ -316,258 +316,382 @@ table td:first-child {
         </div>
       </section>
 
-      <section>
-        <h2>Path of Flow vs Path of Color</h2>
-        <p>
-          Here&apos;s the big picture: for each emotion, there is a <strong>Flow</strong> version and a{" "}
-          <strong>Color</strong> version. Flow uses more stable, directional progressions. Color uses smaller
-          chromatic steps and more tension.
-        </p>
-       
-      </section>
-
-      <section>
+                 <section>
         <h2>Emotion Map — Flow &amp; Color side by side</h2>
 
+        <p style={{ fontSize: 13, marginBottom: 8 }}>
+          We&apos;ve sorted the emotions from <strong>fully diatonic</strong> (no borrowed chords in Flow) to
+          <strong> more colored</strong> (one or two chromatic chords in Flow). The right column shows where Path of
+          Color goes fully chromatic.
+        </p>
+
         <div className="table-wrapper">
-  <table>
-    <thead>
-      <tr>
-        <th>Emotion</th>
-        <th>Path of Flow (degrees → C example)</th>
-        <th>Path of Color (local steps → C example)</th>
-        <th>⭐ Pure Chromatic Chords<br/><span style={{ fontWeight: 400 }}>(Color highlights)</span></th>
-      </tr>
-    </thead>
+          <table>
+            <thead>
+              <tr>
+                <th>Emotion</th>
+                <th>Path of Flow (degrees → C / B♭ example)</th>
+                <th>Path of Color (local steps → C example)</th>
+                <th>
+                  ⭐ Pure Chromatic Chords
+                  <br />
+                  <span style={{ fontWeight: 400 }}>(Color Circle)</span>
+                </th>
+              </tr>
+            </thead>
 
-    <tbody>
-      {/* SADNESS */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">😢</span>
-            <span>Sadness</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 6b, 3b, 7b</code><br/>
-          <span>C minor example: </span><code>Cm → Ab → Eb → Bb</code>
-        </td>
-        <td>
-          <code>m → M(–4) → m(–3) → m(–1)</code><br/>
-          <span>C example: </span><code>Cm → Ab → Fm → Em</code>
-        </td>
-        <td>
-          <code>Em</code><br/>
-          <span>foreign major third (G♯) relative to Cm, tragic “lift then drop.”</span>
-        </td>
-      </tr>
+            <tbody>
+              {/* =========================
+                  GROUP 1 – FULLY DIATONIC FLOW
+                  ========================= */}
 
-      {/* ANGER */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">😡</span>
-            <span>Anger</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 4, 2b, 5</code><br/>
-          <span>C minor example: </span><code>Cm → Fm → Db → G</code>
-        </td>
-        <td>
-          <code>m → m(+1) → dim(+3) → M(+2)</code><br/>
-          <span>C example: </span><code>Cm → C#m → E° → F#</code>
-        </td>
-        <td>
-          <code>C#m, E°</code><br/>
-          <span>This entire progression is chromatic except the starting Cm</span>
-        </td>
-      </tr>
+              {/* CALM (Bb major, fully diatonic) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">🌿</span>
+                    <span>Calm / Peace</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 5, 6, 4</code>
+                  <br />
+                  <span>B♭ major example: </span>
+                  <code>Bb → F → Gm → Eb</code>
+                </td>
+                <td>
+                  <code>M → M(+2) → M(+3) → M(–2)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>C → D → F → Eb</code>
+                </td>
+                <td>
+                  <code>Eb</code>
+                  <br />
+                  <span>a soft pastel color at the end — a gentle &quot;exhale&quot; away from C.</span>
+                </td>
+              </tr>
 
-      {/* FEAR */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">😱</span>
-            <span>Fear / Horror</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 2b, 5, 1</code><br/>
-          <span>C minor example: </span><code>Cm → Db → G → Cm</code>
-        </td>
-        <td>
-          <code>m → dim(+6) → M(+1) → dim(+3)</code><br/>
-          <span>C example: </span><code>Cm → F#° → G → A#°</code>
-        </td>
-        <td>
-          <code>F#°, A#°</code><br/>
-          <span>C → F#° (tritone), G → A#° (chromatic +3)</span>
-        </td>
-      </tr>
+              {/* PLAYFUL (Bb major, fully diatonic) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">🎈</span>
+                    <span>Playful</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 2, 5, 1</code>
+                  <br />
+                  <span>B♭ major example: </span>
+                  <code>Bb → Cm → F → Bb</code>
+                </td>
+                <td>
+                  <code>M → M(+3) → M(+3) → M(+2)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>C → Eb → F# → G#</code>
+                </td>
+                <td>
+                  <code>F#</code>
+                  <br />
+                  <span>the &quot;jump up&quot; between Eb and F# — like a playful hop.</span>
+                </td>
+              </tr>
 
-      {/* MYSTERY */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">🕵️‍♀️</span>
-            <span>Mystery</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 4, 7b, 1</code><br/>
-          <span>C minor example: </span><code>Cm → Fm → Bb → Cm</code>
-        </td>
-        <td>
-          <code>m → M(+2) → dim(+3) → M(+1)</code><br/>
-          <span>C example: </span><code>Cm → D → F° → F#</code>
-        </td>
-        <td>
-          <code>F°</code><br/>
-          <span>the chromatic “fog chord.”</span>
-        </td>
-      </tr>
+              {/* MAGIC (Bb major, fully diatonic) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">✨</span>
+                    <span>Magic / Fantasy</span>
+                  </span>
+                </td>
+                <td>
+                  <code>4, 1, 5, 6</code>
+                  <br />
+                  <span>B♭ major example: </span>
+                  <code>Eb → Bb → F → Gm</code>
+                </td>
+                <td>
+                  <code>M → M(+8) → M(–4) → M(+3)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>C → Ab → E → G</code>
+                </td>
+                <td>
+                  <code>E</code>
+                  <br />
+                  <span>the brightest chromatic moment — a sudden flash of light in the harmony.</span>
+                </td>
+              </tr>
 
-      {/* MELANCHOLY */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">🌧️</span>
-            <span>Melancholy</span>
-          </span>
-        </td>
-        <td>
-          <code>6b, 4, 1, 5</code><br/>
-          <span>C minor example: </span><code>Ab → Fm → Cm → G</code>
-        </td>
-        <td>
-          <code>m → M(–3) → m(+4) → M(–3)</code><br/>
-          <span>C example: </span><code>Cm → A → C#m → A#</code>
-        </td>
-        <td>
-          <code>A</code><br/>
-          <span>the main melancholy trigger (bright but off-key)</span>
-        </td>
-      </tr>
+              {/* SADNESS (C minor, fully diatonic) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">😢</span>
+                    <span>Sadness</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 6b, 3b, 7b</code>
+                  <br />
+                  <span>C minor example: </span>
+                  <code>Cm → Ab → Eb → Bb</code>
+                </td>
+                <td>
+                  <code>m → M(–4) → m(–3) → m(–1)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>Cm → Ab → Fm → Em</code>
+                </td>
+                <td>
+                  <code>Em</code>
+                  <br />
+                  <span>
+                    fully outside C minor — a sudden bright color before falling back into the minor mood.
+                  </span>
+                </td>
+              </tr>
 
-      {/* CALM */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">🌿</span>
-            <span>Calm / Peace</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 5, 6, 4</code><br/>
-          <span>B♭ major example: </span><code>Bb → F → Gm → Eb</code>
-        </td>
-        <td>
-          <code>M → M(+2) → M(+3) → M(–2)</code><br/>
-          <span>C example: </span><code>C → D → F → Eb</code>
-        </td>
-        <td>
-          <code>Eb</code><br/>
-          <span>gives a gentle pastel color</span>
-        </td>
-      </tr>
+              {/* MYSTERY (C minor, fully diatonic) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">🕵️‍♀️</span>
+                    <span>Mystery</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 4, 7b, 1</code>
+                  <br />
+                  <span>C minor example: </span>
+                  <code>Cm → Fm → Bb → Cm</code>
+                </td>
+                <td>
+                  <code>m → M(+2) → dim(+3) → M(+1)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>Cm → D → F° → F#</code>
+                </td>
+                <td>
+                  <code>F°</code>
+                  <br />
+                  <span>the chromatic &quot;fog chord&quot; — it blurs the key before sliding onward.</span>
+                </td>
+              </tr>
 
-      {/* PLAYFUL */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">🎈</span>
-            <span>Playful</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 2, 5, 1</code><br/>
-          <span>B♭ major example: </span><code>Bb → Cm → F → Bb</code>
-        </td>
-        <td>
-          <code>M → M(+3) → M(+3) → M(+2)</code><br/>
-          <span>C example: </span><code>C → Eb → F# → G#</code>
-        </td>
-        <td>
-          <code>F#</code><br/>
-          <span>“jump up” effect Eb → F#</span>
-        </td>
-      </tr>
+              {/* =========================
+                  GROUP 2 – ONE CHROMATIC / BORROWED FLOW CHORD
+                  ========================= */}
 
-      {/* MAGIC */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">✨</span>
-            <span>Magic / Fantasy</span>
-          </span>
-        </td>
-        <td>
-          <code>4, 1, 5, 6</code><br/>
-          <span>B♭ major example: </span><code>Eb → Bb → F → Gm</code>
-        </td>
-        <td>
-          <code>M → M(+8) → M(–4) → M(+3)</code><br/>
-          <span>C example: </span><code>C → Ab → E → G</code>
-        </td>
-        <td>
-          <code>E</code><br/>
-          <span>is the brightest chromatic moment</span>
-        </td>
-      </tr>
+              {/* MELANCHOLY (C minor, one chromatic: G) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">🌧️</span>
+                    <span>Melancholy</span>
+                  </span>
+                </td>
+                <td>
+                  <code>6b, 4, 1, 5</code>
+                  <br />
+                  <span>C minor example: </span>
+                  <code>Ab → Fm → Cm → G⭐</code>
+                </td>
+                <td>
+                  <code>m → M(–3) → m(+4) → M(–3)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>Cm → A → C#m → A#</code>
+                </td>
+                <td>
+                  <code>A</code>
+                  <br />
+                  <span>the main melancholy trigger — bright, off-key, and slightly nostalgic.</span>
+                </td>
+              </tr>
 
-      {/* WONDER */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">🌌</span>
-            <span>Wonder</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 6b, 3b, 4</code><br/>
-          <span>C minor example: </span><code>Cm → Ab → Eb → F</code>
-        </td>
-        <td>
-          <code>m → M(+5) → M(+2) → M(+4)</code><br/>
-          <span>C example: </span><code>Cm → F → G → B</code>
-        </td>
-        <td>
-          <code>B</code><br/>
-          <span>a “halo chord” that creates shimmer</span>
-        </td>
-      </tr>
+              {/* WONDER (C minor, one chromatic: F) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">🌌</span>
+                    <span>Wonder</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 6b, 3b, 4</code>
+                  <br />
+                  <span>C minor example: </span>
+                  <code>Cm → Ab → Eb → F⭐</code>
+                </td>
+                <td>
+                  <code>m → M(+5) → M(+2) → M(+4)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>Cm → F → G → B</code>
+                </td>
+                <td>
+                  <code>B</code>
+                  <br />
+                  <span>a &quot;halo chord&quot; — very bright, almost glowing above the home key.</span>
+                </td>
+              </tr>
 
-      {/* TENSION */}
-      <tr>
-        <td>
-          <span className="emotion-label">
-            <span className="emotion-emoji">😬</span>
-            <span>Tension / Suspense</span>
-          </span>
-        </td>
-        <td>
-          <code>1, 2, 5, 1</code><br/>
-          <span>C minor example: </span><code>Cm → D° → G → Cm</code>
-        </td>
-        <td>
-          <code>M → m(+1) → dim(+3) → M(+2)</code><br/>
-          <span>C example: </span><code>C → C#m → E° → F#</code>
-        </td>
-        <td>
-          <code>E°</code><br/>
-          <span>C# → E° (collapse)</span>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+              {/* TENSION (C minor, one chromatic: G) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">😬</span>
+                    <span>Tension / Suspense</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 2, 5, 1</code>
+                  <br />
+                  <span>C minor example: </span>
+                  <code>Cm → D° → G⭐ → Cm</code>
+                </td>
+                <td>
+                  <code>M → m(+1) → dim(+3) → M(+2)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>C → C#m → E° → F#</code>
+                </td>
+                <td>
+                  <code>E°</code>
+                  <br />
+                  <span>the chord where everything &quot;collapses inward&quot; before pushing up again.</span>
+                </td>
+              </tr>
+
+              {/* =========================
+                  GROUP 3 – TWO CHROMATIC FLOW CHORDS
+                  ========================= */}
+
+              {/* ANGER (C minor, two chromatic: Db, G) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">😡</span>
+                    <span>Anger</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 4, 2b, 5</code>
+                  <br />
+                  <span>C minor example: </span>
+                  <code>Cm → Fm → Db⭐ → G⭐</code>
+                </td>
+                <td>
+                  <code>m → m(+1) → dim(+3) → M(+2)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>Cm → C#m → E° → F#</code>
+                </td>
+                <td>
+                  <code>C#m, E°, F#</code>
+                  <br />
+                  <span>all three chords after Cm are chromatic, turning anger into a grinding, rising line.</span>
+                </td>
+              </tr>
+
+              {/* FEAR / HORROR (C minor, two chromatic: Db, G) */}
+              <tr>
+                <td>
+                  <span className="emotion-label">
+                    <span className="emotion-emoji">😱</span>
+                    <span>Fear / Horror</span>
+                  </span>
+                </td>
+                <td>
+                  <code>1, 2b, 5, 1</code>
+                  <br />
+                  <span>C minor example: </span>
+                  <code>Cm → Db⭐ → G⭐ → Cm</code>
+                </td>
+                <td>
+                  <code>m → dim(+6) → M(+1) → dim(+3)</code>
+                  <br />
+                  <span>C example: </span>
+                  <code>Cm → F#° → G → A#°</code>
+                </td>
+                <td>
+                  <code>F#°, A#°</code>
+                  <br />
+                  <span>
+                    C → F#° (tritone), G → A#° (chromatic +3) — classic horror &quot;unstable&quot; colors.
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style={{ fontSize: 13, marginTop: 6 }}>
+          In the <strong>Flow</strong> column, chords marked with{" "}
+          <span style={{ fontSize: "90%" }}>⭐</span> are <strong>borrowed / chromatic</strong> — they step slightly
+          outside the basic scale to sharpen the emotion.
+        </p>
+
+        <h3 style={{ marginTop: 18 }}>How the Flow colors increase</h3>
+        <p>
+          For the minor examples we use <strong>C minor</strong> as our &quot;home key.&quot; If you write out the C
+          natural minor scale, you get these diatonic triads:
+        </p>
+        <p>
+          <code>Cm, D°, Eb, Fm, Gm, Ab, Bb</code>
+        </p>
+        <p>
+          The table starts with emotions that stay <em>inside</em> that home key (plus the B♭ major set), then gradually
+          adds borrowed chords:
+        </p>
+
+        <ul>
+          <li>
+            <strong>Fully diatonic Flow</strong> — <em>Calm, Playful, Magic, Sadness, Mystery</em>.
+            <br />
+            All chords are built from the notes of their key (B♭ major or C minor), so the feeling is pure and stable.
+          </li>
+          <li>
+            <strong>One borrowed Flow chord</strong> — <em>Melancholy, Wonder, Tension</em>.
+            <br />
+            Each progression uses exactly one ⭐ chord outside the plain scale:
+            <ul>
+              <li>
+                <em>Melancholy</em> uses <code>G⭐</code> (V major in C minor) for a stronger, aching pull back to Cm.
+              </li>
+              <li>
+                <em>Wonder</em> ends on <code>F⭐</code> (F major instead of Fm), borrowed from the relative major key
+                — like a sudden ray of light.
+              </li>
+              <li>
+                <em>Tension</em> also leans on <code>G⭐</code> as a bright V that wants to resolve.
+              </li>
+            </ul>
+          </li>
+          <li>
+            <strong>Two borrowed Flow chords</strong> — <em>Anger, Fear / Horror</em>.
+            <br />
+            These use both <code>Db⭐</code> (the heavy ♭II “Neapolitan” chord) and <code>G⭐</code> (bright V):
+            <ul>
+              <li>
+                <em>Anger</em> feels like being crushed by <code>Db⭐</code> and then pushed forward by{" "}
+                <code>G⭐</code>.
+              </li>
+              <li>
+                <em>Fear / Horror</em> uses the same pair for a classic cinematic horror sound.
+              </li>
+            </ul>
+          </li>
+        </ul>
 
         <p>
-          You don&apos;t need to memorize the numbers or formulas. What matters is that you can{" "}
-          <strong>hear</strong> the difference: Flow tends to move in broader, familiar arcs. Color tends to move
-          in tighter, more surprising steps.
+          You don&apos;t need to remember the names of every chord. It&apos;s enough to feel the ladder:{" "}
+          <strong>Flow</strong> starts with clean, in-scale progressions, then adds one borrowed chord, then two. Each
+          extra chromatic step makes the emotion a bit sharper, more magical, or more intense.
         </p>
       </section>
 
