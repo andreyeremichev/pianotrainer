@@ -1447,6 +1447,7 @@ c.restore();
           </div>
 
           {/* Input row (only meaningful in Custom; still visible for presets so you can see the degrees) */}
+          {isCustom && (
           <div
             style={{
               display: "flex",
@@ -1491,6 +1492,7 @@ c.restore();
               }}
             />
           </div>
+          )}
           {/* Actions */}
           <div
   style={{
@@ -1542,6 +1544,7 @@ c.restore();
 </div>
 
           {/* Mode toggle (only active in Custom) */}
+          {isCustom && (
           <div
             style={{
               display: "flex",
@@ -1596,6 +1599,7 @@ c.restore();
               C minor (Circle)
             </button>
           </div>
+          )}
 
           {/* Caption block ABOVE the circle */}
 <div
@@ -1667,7 +1671,7 @@ c.restore();
               display: "grid",
               justifyContent: "center",
               paddingInline: 2,
-              marginTop: 6,
+              marginTop: -16,
             }}
           >
             <svg
@@ -1735,13 +1739,14 @@ c.restore();
 
           {/* Mode label under the circle */}
           <div
-            style={{
-              marginTop: 4,
-              textAlign: "center",
-              fontSize: 13,
-              color: baseTheme.muted,
-            }}
-          >
+  style={{
+    marginTop: -18,         // was 4 → now tighter ABOVE the circle
+    marginBottom: 2,       // reduced spacing BELOW
+    textAlign: "center",
+    fontSize: 13,
+    color: baseTheme.muted,
+  }}
+>
             Scale:&nbsp;
             <span
               style={{
