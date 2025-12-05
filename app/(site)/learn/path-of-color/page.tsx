@@ -311,6 +311,39 @@ const EMOTION_PRESETS: EmotionPreset[] = [
   },
 ];
 
+// Emotion-specific explanations for Path of Color (Color Circle).
+// Based on the blog table's "⭐ Pure Chromatic Chords" column.
+const COLOR_EMOTION_TEXT = {
+  // Fully diatonic Flow – but Color introduces a key chromatic color
+
+  calm:
+    "Eb is the soft pastel color at the end — a gentle “exhale” away from C.",
+  playful:
+    "F# is the “jump up” between Eb and F# — like a playful hop.",
+  magic:
+    "E is the brightest chromatic moment — a sudden flash of light in the harmony.",
+  sadness:
+    "Em sits fully outside C minor — a sudden bright color before falling back into the minor mood.",
+  mystery:
+    "F° is the chromatic “fog chord” — it blurs the key before sliding onward.",
+
+  // One strong chromatic trigger
+
+  melancholy:
+    "A is the main melancholy trigger — bright, off-key, and slightly nostalgic.",
+  wonder:
+    "B is a “halo chord” — very bright, almost glowing above the home key.",
+  tension:
+    "E° is the point where everything “collapses inward” before pushing up again.",
+
+  // Heavier chromatic usage
+
+  anger:
+    "C#m, E°, and F# are all chromatic — turning anger into a grinding, rising line.",
+  fear:
+    "F#° and A#° push away from C: C → F#° (tritone), G → A#° (chromatic +3) — classic horror “unstable” colors.",
+} as const;
+
 /* =========================
    Export helpers (audio + MP4)
 ========================= */
@@ -618,6 +651,18 @@ const backgroundBottom =
       const FPS = 30;
       const SCALE = 2;
 
+      // Label & helper texts for export (Color)
+const exportTitleLabel = activePreset?.label ?? "Custom Color";
+const exportColorFormula = activePreset?.formula ?? "";
+
+// Explanation from blog table (Color Circle) – only for presets
+const exportEmotionText =
+  activePreset && emotionId !== "custom"
+    ? COLOR_EMOTION_TEXT[
+        activePreset.id as keyof typeof COLOR_EMOTION_TEXT
+      ]
+    : "";
+
       const canvas = document.createElement("canvas");
       canvas.width = FRAME_W * SCALE;
       canvas.height = FRAME_H * SCALE;
@@ -657,11 +702,14 @@ const backgroundBottom =
 const NOTE_MS = chordDur * 1000;
 const chordsMs = totalChords * NOTE_MS;
 
+
 // Add a short visual hold on the last chord (equal to one chord slot)
 const holdMs = NOTE_MS;
 const totalMs = chordsMs + holdMs;
 
       const captionLabels = chords.map((c) => c.label || "");
+
+      
 
       // AUDIO schedule (export graph → dst + speakers)
       const baseOct = 4;
@@ -947,6 +995,23 @@ function loop() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.globalAlpha = 1;
 
+    // === Export Title (Path of Color) ===
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#E6EBF2";  // same milky color as labels / text
+  ctx.font = `${56 * SCALE}px Inter, system-ui, sans-serif`;
+
+  const titleY = circleCenterY - targetRadiusPx - 100 * SCALE;
+
+  ctx.fillText(
+    `${exportTitleLabel} – Path of Color`,
+    (FRAME_W * SCALE) / 2,
+    titleY
+  );
+
+  ctx.restore();
+
   // If we've passed totalMs, just stop recording
   if (elapsed >= totalMs) {
     try {
@@ -1000,6 +1065,37 @@ function loop() {
         text: theme.text,
       }
     );
+  }
+    // === Formula line under the chord caption ===
+  const CAPTION_FONT = 74; // same as in drawExportCaptionLine
+  const formulaY = captionY + CAPTION_FONT * SCALE * 1.3;
+
+  if (exportColorFormula) {
+    ctx.font = `${CAPTION_FONT * 0.85 * SCALE}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = "#E6EBF2";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(
+      exportColorFormula,   // e.g. "m → M(+3) → M(+3) → M(+2)"
+      (FRAME_W * SCALE) / 2,
+      formulaY
+    );
+  }
+
+  // === Emotion helper text under the formula (from blog) ===
+  if (exportEmotionText) {
+    const lines = exportEmotionText.split("\n");
+    let textY = formulaY + CAPTION_FONT * 0.85 * SCALE * 1.4;
+
+    ctx.font = `${26 * SCALE}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = "#E6EBF2";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+
+    for (const line of lines) {
+      ctx.fillText(line, (FRAME_W * SCALE) / 2, textY);
+      textY += 28 * SCALE;
+    }
   }
 
   requestAnimationFrame(loop);
@@ -1116,7 +1212,7 @@ loop();
     fontSize: 15,
     lineHeight: 1.45,
     color: baseTheme.muted,
-    marginTop: -2,
+    marginTop: -10,
     marginBottom: 10,
     paddingInline: 10,
   }}
@@ -1192,74 +1288,69 @@ loop();
           </div>
 
           {/* Input / preset info */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              paddingInline: 110,
-            }}
-          >
-            {emotionId === "custom" ? (
-              <>
-                <label
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: T.muted,
-                  }}
-                >
-                  Type Your progression
-                </label>
-                <input
-                  type="text"
-                  value={customInput}
-                  onChange={(e) =>
-                    setCustomInput(e.target.value)
-                  }
-                  placeholder="Example: Am(maj7) Dm9 G7(#5#9) Cmaj7"
-                  style={{
-                    width: "100%",
-                    borderRadius: 999,
-                    border: `1px solid ${T.border}`,
-                    padding: "8px 12px",
-                    background: "transparent",
-                    color: T.text,
-                    fontSize: 14,
-                    outline: "none",
-                  }}
-                />
-              </>
-            ) : (
-              activePreset && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: T.muted,
-                    lineHeight: 1.4,
-                    textAlign: "center",
-                    width: "100%",
-                  }}
-                >
-                  <div>
-                    <strong>{activePreset.label}</strong>{" "}
-                    <span style={{ opacity: 0.85 }}>
-                      (
-                      {activePreset.chords.join(
-                        "  ·  "
-                      )}
-                      )
-                    </span>
-                  </div>
-                  <div style={{ opacity: 0.8 }}>
-                    {activePreset.formula}
-                  </div>
-                </div>
-              )
-            )}
-
-            
-          </div>
+<div
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    paddingInline: 12, // was 110 — this was squeezing everything
+    width: "100%",
+  }}
+>
+  {emotionId === "custom" ? (
+    <>
+      <label
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.muted,
+        }}
+      >
+        Type Your progression
+      </label>
+      <input
+        type="text"
+        value={customInput}
+        onChange={(e) => setCustomInput(e.target.value)}
+        placeholder="Example: Am(maj7) Dm9 G7(#5#9) Cmaj7"
+        style={{
+          width: "100%",
+          borderRadius: 999,
+          border: `1px solid ${T.border}`,
+          padding: "8px 12px",
+          background: "transparent",
+          color: T.text,
+          fontSize: 14,
+          outline: "none",
+        }}
+      />
+    </>
+  ) : (
+    activePreset && (
+      <div
+        style={{
+          fontSize: 12,
+          color: T.muted,
+          lineHeight: 1.4,
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            opacity: 0.8,
+            width: "100%",
+            whiteSpace: "normal",
+            overflowWrap: "break-word",
+            textAlign: "center", // or "left" if you prefer
+            paddingInline: 4,
+          }}
+        >
+          {activePreset.formula}
+        </div>
+      </div>
+    )
+  )}
+</div>
 
           {/* Play / Stop / Download */}
           <div
@@ -1267,7 +1358,7 @@ loop();
               display: "flex",
               justifyContent: "center",
               gap: 10,
-              marginTop: 2,
+              marginTop: -6,
               flexWrap: "wrap",
             }}
           >
@@ -1499,8 +1590,8 @@ loop();
           style={{
             display: "flex",
             justifyContent: "center",
-            marginTop: 6,
-            paddingInline: 8,
+            marginTop: -10,
+            paddingInline: 2,
           }}
         >
           <div
@@ -1558,6 +1649,22 @@ loop();
             </div>
           </div>
         </section>
+        {/* Emotion helper text – Color Circle (presets only) */}
+{emotionId !== "custom" && (
+  <div
+    style={{
+      marginTop: -4,
+      textAlign: "center",
+      fontSize: 13,
+      lineHeight: 1.5,
+      color: "#E6EBF2",
+      opacity: 0.9,
+      paddingInline: 10,
+    }}
+  >
+    {COLOR_EMOTION_TEXT[emotionId as keyof typeof COLOR_EMOTION_TEXT]}
+  </div>
+)}
         </section>
     </div>
     {/* Navigation footer */}
