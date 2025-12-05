@@ -7,6 +7,7 @@ import {
   FLOW_PRESETS,
   buildFlowChordsForKey,
   pitchNameToPc,
+  PITCHES,
 } from "@/lib/harmony/flow";
 
 // === Export-only Web Audio helpers (separate from Tone.js live sampler) ===
@@ -321,20 +322,7 @@ const TRIAD_DIM = [0, 3, 6];
 const TONIC_PC_BB = 10; // A#
 const TONIC_PC_CM = 0;  // C
 
-const PITCHES = [
-  "C",
-  "C#",
-  "D",
-  "D#",
-  "E",
-  "F",
-  "F#",
-  "G",
-  "G#",
-  "A",
-  "A#",
-  "B",
-] as const;
+
 
 function midiToNoteName(midi: number): string {
   const pc = PITCHES[midi % 12];
@@ -392,6 +380,50 @@ const NODE_INDEX_CHROMA: Record<string, number> = {
   "6,-1": 8,  // ♭6 → ♭VI
   "7,-1": 10, // ♭7 → ♭VII
 };
+
+// Which Flow chords are "borrowed" (outside plain diatonic scale) per emotion.
+// Indices are 0-based: 0..3 for the 4 Flow chords.
+const FLOW_BORROWED_INDICES = {
+  sadness: [],
+  anger: [2, 3],
+  fear: [1, 2],
+  mystery: [],
+  melancholy: [3],
+  calm: [],
+  playful: [],
+  magic: [],
+  wonder: [3],
+  tension: [2],
+} as const;
+
+// 🔽 ADD THIS UNDER FLOW_BORROWED_INDICES
+const FLOW_EMOTION_TEXT = {
+  // Fully diatonic: Calm, Playful, Magic, Sadness, Mystery
+  sadness:
+    "All chords are built from the notes of the key, so the feeling stays pure and stable.",
+  mystery:
+    "All chords are built from the notes of the key, so the feeling stays pure and stable.",
+  calm:
+    "All chords are built from the notes of the key, so the feeling stays pure and stable.",
+  playful:
+    "All chords are built from the notes of the key, so the feeling stays pure and stable.",
+  magic:
+    "All chords are built from the notes of the key, so the feeling stays pure and stable.",
+
+  // One borrowed Flow chord
+  melancholy:
+    "This progression uses exactly one ⭐ chord outside the plain scale.\nMelancholy uses G⭐ (V major in C minor) for a stronger, aching pull back to Cm.",
+  wonder:
+    "This progression uses exactly one ⭐ chord outside the plain scale.\nWonder ends on F⭐ (F major instead of Fm), borrowed from the relative major key — like a sudden ray of light.",
+  tension:
+    "This progression uses exactly one ⭐ chord outside the plain scale.\nTension leans on G⭐ as a bright V that wants to resolve.",
+
+  // Two borrowed Flow chords
+  anger:
+    "This progression uses both Db⭐ (the heavy ♭II “Neapolitan” chord) and G⭐ (bright V).\nAnger feels like being crushed by Db⭐ and then pushed forward by G⭐.",
+  fear:
+    "This progression also leans on Db⭐ (the heavy ♭II “Neapolitan” chord) and G⭐ (bright V).\nFear / Horror uses that pair in a classic cinematic horror sequence.",
+} as const;
 
 /* =========================
    Tone.Sampler – pure piano
@@ -580,6 +612,30 @@ function nodeIndexForToken(tok: DegToken, mode: Mode): number {
   }
 }
 
+function triadToSymbol(notes: string[]): string {
+  if (!notes || notes.length < 3) return "?";
+
+  const n = notes.map((n) => n.replace(/[0-9]/g, "")); // strip octaves
+
+  const root = n[0];
+  const rootPc = PITCHES.indexOf(root as any);
+  if (rootPc < 0) return root;
+
+  const pc1 = PITCHES.indexOf(n[1] as any);
+  const pc2 = PITCHES.indexOf(n[2] as any);
+
+  const i1 = (pc1 - rootPc + 12) % 12;
+  const i2 = (pc2 - rootPc + 12) % 12;
+
+  let suffix = "";
+  if (i1 === 4 && i2 === 7) suffix = "";      // major
+  else if (i1 === 3 && i2 === 7) suffix = "m"; // minor
+  else if (i1 === 3 && i2 === 6) suffix = "°"; // dim
+  else suffix = "?";
+
+  return root + suffix;
+}
+
 /* =========================
    Trails
 ========================= */
@@ -617,9 +673,34 @@ export default function CofPianoPage() {
   const [trailPath, setTrailPath] = useState<string>("");
 
   const activePreset =
-    emotionId === "custom"
+    emotionId === "playful"
       ? null
       : EMOTION_PRESETS.find((p) => p.id === emotionId) || null;
+
+      const isCustom = emotionId === "custom";
+
+const flowUiPreset =
+  !isCustom && activePreset
+    ? FLOW_PRESETS[activePreset.id as keyof typeof FLOW_PRESETS]
+    : null;
+
+const flowUiChordNames = useMemo(() => {
+  if (!flowUiPreset) return [];
+  const tonicPc =
+    flowUiPreset.mode === "minor" ? pitchNameToPc("C") : pitchNameToPc("Bb");
+  return buildFlowChordsForKey(tonicPc, flowUiPreset);
+}, [flowUiPreset]);
+
+// Explicit mutable number[] + spread to convert readonly tuple into a normal array
+const flowUiBorrowedIndices: number[] = !isCustom
+  ? [
+      ...(
+        FLOW_BORROWED_INDICES[
+          emotionId as keyof typeof FLOW_BORROWED_INDICES
+        ] ?? []
+      ),
+    ]
+  : [];
 
   // When selecting a preset, override mode & input
   useEffect(() => {
@@ -771,7 +852,13 @@ export default function CofPianoPage() {
     resetTrails();
   }, []);
 
+  // Clear playback state whenever the emotion preset changes
+useEffect(() => {
+  stop();
+}, [emotionId, stop]);
+
 // Auto-play when a NEW preset emotion is selected
+/*
 useEffect(() => {
   if (emotionId === "custom") {
     lastEmotionIdRef.current = emotionId;
@@ -787,6 +874,7 @@ useEffect(() => {
     start();
   }
 }, [emotionId, activePreset, chords, isPlaying, isExporting, start]);
+*/
 
   const onDownloadVideo = useCallback(async () => {
   if (!degTokens.length) return;
@@ -794,11 +882,25 @@ useEffect(() => {
 
   try {
     const ac = getCtxExport();
-
+        // Label for export title (use preset label when available)
+    
     const FRAME_W = 1080;
     const FRAME_H = 1920;
     const SCALE = 2;
     const FPS = 30;
+    
+    const exportLabel = activePreset?.label ?? "Custom Flow";
+    const exportScaleLabel = mode === "major" ? "B♭ Major" : "C minor";
+
+// For presets: emotion text; for custom: empty
+const exportEmotionText =
+  activePreset && emotionId !== "custom"
+    ? FLOW_EMOTION_TEXT[activePreset.id as keyof typeof FLOW_EMOTION_TEXT]
+    : "";
+
+      // Flow chords + borrowed indices for export caption
+  let expectedFlowChordsExport: string[] = [];
+  let borrowedFlowIdxExport: number[] = [];
 
     const canvas = document.createElement("canvas");
     canvas.width = FRAME_W * SCALE;
@@ -836,61 +938,100 @@ useEffect(() => {
     }
     const totalSec = accSec;
 
-// Decide which chords to export...
+// ===== Build chords for export audio =====
 let chordsToExport: string[][] = [];
 
 if (emotionId !== "custom" && activePreset) {
-  const flowPreset = FLOW_PRESETS[activePreset.id as Exclude<EmotionId, "custom">];
-  const tonicPc =
-    flowPreset.mode === "minor" ? pitchNameToPc("C") : pitchNameToPc("Bb");
-  const flowChordNames = buildFlowChordsForKey(tonicPc, flowPreset);
+  // Use FlowPreset for presets (same engine as live)
+  const flowPresetExport =
+    FLOW_PRESETS[activePreset.id as keyof typeof FLOW_PRESETS];
+  const tonicNameFlow =
+    flowPresetExport.mode === "minor" ? "C" : "Bb";
+  const tonicPcFlow = pitchNameToPc(tonicNameFlow);
 
-  console.log(
-    `%c[Flow EXPORT DEBUG] preset=${activePreset.id} (${flowPreset.mode === "minor" ? "C minor" : "Bb major"}):`,
-    "color:#FBBF24;font-weight:bold",
-    flowChordNames.join(" → ")
+  // ASSIGN into the outer variables
+  expectedFlowChordsExport = buildFlowChordsForKey(
+    tonicPcFlow,
+    flowPresetExport
   );
 
-  chordsToExport = flowChordNames.map((name) => triadFromChordName(name));
-} else {
-  chordsToExport = degTokens.map((tok) => triadMidiForToken(tok, mode));
+  // Borrowed indices: convert readonly tuple to mutable number[]
+  borrowedFlowIdxExport = [
+    ...(
+      FLOW_BORROWED_INDICES[
+        activePreset.id as keyof typeof FLOW_BORROWED_INDICES
+      ] ?? []
+    ),
+  ];
 
-  const customRoots = chordsToExport.map((triad) => {
-    const root = triad[0] ?? "";
-    return root.replace(/[0-9]/g, "");
-  });
+  // Degree-engine chords (reference only, for debug)
+  const actualFlowChordsFromDegrees = degTokens.map((tok) =>
+    triadToSymbol(triadMidiForToken(tok, mode))
+  );
+
   console.log(
-    `%c[Flow EXPORT DEBUG] custom degrees="${degInput}" (mode=${mode}):`,
+    `%c[Path-of-Flow EXPORT EXPECTED] ${activePreset.id} (${tonicNameFlow} ${flowPresetExport.mode}):`,
+    "color:#FBBF24;font-weight:bold",
+    expectedFlowChordsExport.join(" → ")
+  );
+  console.log(
+    `%c[Path-of-Flow DEGREE-ENGINE]    ${activePreset.id} (${mode}):`,
+    "color:#F97316;font-weight:bold",
+    actualFlowChordsFromDegrees.join(" → ")
+  );
+
+  // Use FlowPreset chords for actual export audio
+  chordsToExport = expectedFlowChordsExport.map((name) =>
+    triadFromChordName(name)
+  );
+} else {
+  // Custom mode or no preset: keep degree-based export
+  chordsToExport = degTokens.map((tok) =>
+    triadMidiForToken(tok, mode)
+  );
+
+  const customChordSymbols = chordsToExport.map(triadToSymbol);
+  console.log(
+    `%c[Path-of-Flow EXPORT CUSTOM] degrees="${degInput}" (mode=${mode}):`,
     "color:#9AE6B4;font-weight:bold",
-    customRoots.join(" → ")
+    customChordSymbols.join(" → ")
   );
 }
 
 
     // Schedule audio
-    const t0 = ac.currentTime + 0.2;
-    for (const { startSec, idx } of schedule) {
-      const notes = triadMidiForToken(degTokens[idx], mode);
-      const at = t0 + startSec;
-      for (const name of notes) {
-        loadBufferExport(name)
-          .then((buf) => {
-            const src = ac.createBufferSource();
-            src.buffer = buf;
-            const g = ac.createGain();
-            g.gain.setValueAtTime(1, at);
-            g.gain.setTargetAtTime(0, at + 0.8, 0.2);
-            src.connect(g);
-            g.connect(exportDst);
-            g.connect(ac.destination);
-            try {
-              src.start(at);
-              src.stop(at + 1.5);
-            } catch {}
-          })
-          .catch(() => {});
-      }
-    }
+const t0 = ac.currentTime + 0.2;
+for (const { startSec, idx } of schedule) {
+  const notes = chordsToExport[idx];
+  const at = t0 + startSec;
+
+   if (emotionId !== "custom") {
+    console.log(
+      `%c[Path-of-Flow EXPORT AUDIO] ${activePreset?.id}:`,
+      "color:#22C55E;font-weight:bold",
+      triadToSymbol(notes)
+    );
+  }
+
+  for (const name of notes) {
+    loadBufferExport(name)
+      .then((buf) => {
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(1, at);
+        g.gain.setTargetAtTime(0, at + 0.8, 0.2);
+        src.connect(g);
+        g.connect(exportDst);
+        g.connect(ac.destination);
+        try {
+          src.start(at);
+          src.stop(at + 1.5);
+        } catch {}
+      })
+      .catch(() => {});
+  }
+}
 
     // Start recording
     rec.start();
@@ -949,6 +1090,28 @@ const SCALE_LIVE = targetRadiusPx / 36;   // 36 CoF units = radius
 const circleCenterX = (FRAME_W * SCALE) / 2;
 const circleCenterY = FRAME_H * SCALE * 0.60;   // good placement for export
 
+// === Emotion Title (high contrast, moved up) ===
+c.save();
+c.textAlign = "center";
+c.textBaseline = "middle";
+
+// MUCH more visible than previous gray
+c.fillStyle = "#E6EBF2";
+// Larger and more readable
+c.font = `${64 * SCALE}px system-ui, -apple-system, sans-serif`;
+
+// NEW: move title UP by 20px from previous position
+const titleY =
+  circleCenterY - targetRadiusPx - (40 * SCALE) - (40 * SCALE);
+
+// Render
+c.fillText(
+  `${exportLabel} – Path of Flow`,
+  (FRAME_W * SCALE) / 2,
+  titleY
+);
+
+c.restore();
 //
 // 2) Compute caption Y based on ring geometry
 //    caption sits just UNDER the ring
@@ -970,6 +1133,12 @@ const captionTextPieces = degTokens.map(tok => tok.display);
 const captionText = captionTextPieces.join("   ");
 const captionActiveColor = modeColor;
 const baseTextColor = "#E6EBF2";
+
+// Build chord line with ⭐ for borrowed Flow chords
+const chordPiecesExport = expectedFlowChordsExport.map((ch, idx) =>
+  borrowedFlowIdxExport.includes(idx) ? `${ch} ⭐` : ch
+);
+const chordTextExport = chordPiecesExport.join("   ");
 
 // Draw full caption
 c.fillStyle = baseTextColor;
@@ -1001,6 +1170,49 @@ if (activeExportIdx >= 0 && activeExportIdx < degTokens.length) {
     }
     x += w;
     if (!part.isGap) idx++;
+  }
+}
+// Draw chord names line under degrees
+const chordLineY = captionY + CAPTION_FONT * SCALE * 1.4; // tweak spacing if needed
+
+c.font = `${CAPTION_FONT * 0.85 * SCALE}px Inter, system-ui, sans-serif`;
+c.fillStyle = baseTextColor;
+c.textAlign = "center";
+c.textBaseline = "top";
+c.fillText(
+  chordTextExport,
+  (FRAME_W * SCALE) / 2,
+  chordLineY
+);
+// === Scale helper line under the chords caption ===
+const scaleHelperY = chordLineY + CAPTION_FONT * 0.85 * SCALE * 1.6;
+
+c.font = `${32 * SCALE}px Inter, system-ui, sans-serif`;
+c.fillStyle = "#E6EBF2"; 
+c.textAlign = "center";
+c.textBaseline = "top";
+
+c.fillText(
+  `Scale: ${exportScaleLabel}`,
+  (FRAME_W * SCALE) / 2,
+  scaleHelperY
+);
+
+// === Emotion explanation under the scale helper (presets only) ===
+if (exportEmotionText) {
+  const emotionLines = exportEmotionText.split("\n");
+  c.font = `${26 * SCALE}px Inter, system-ui, sans-serif`;
+  c.fillStyle = "#E6EBF2";
+
+  let textY = scaleHelperY + 32 * SCALE;
+
+  for (const line of emotionLines) {
+    c.fillText(
+      line,
+      (FRAME_W * SCALE) / 2,
+      textY
+    );
+    textY += 28 * SCALE;
   }
 }
 
@@ -1385,38 +1597,68 @@ c.restore();
             </button>
           </div>
 
-          {/* Caption line ABOVE the circle */}
-          <div
+          {/* Caption block ABOVE the circle */}
+<div
+  style={{
+    textAlign: "center",
+    marginTop: 10,
+    fontSize: 16,
+    lineHeight: 1.4,
+    letterSpacing: 0.2,
+  }}
+>
+  {/* Line 1: Degrees */}
+  {degTokens.length ? (
+    degTokens.map((tok, idx) => {
+      const isActive = activeIdx === idx;
+      return (
+        <span
+          key={idx}
+          style={{
+            marginRight: 8,
+            fontWeight: isActive ? 800 : 500,
+            color: isActive ? modeColor : baseTheme.text,
+          }}
+        >
+          {tok.display}
+        </span>
+      );
+    })
+  ) : (
+    <span style={{ opacity: 0.7 }}>
+      Enter a progression (e.g. 1 5 6 4 or 1 2b 4# or 1-5-6-4)
+    </span>
+  )}
+
+  {/* Line 2: Chord names with ⭐ for borrowed chords (presets only) */}
+  {!isCustom && flowUiChordNames.length > 0 && (
+    <div
+      style={{
+        marginTop: 2,
+        fontSize: 14,
+        color: baseTheme.text,
+        letterSpacing: 0.15,
+      }}
+    >
+      {flowUiChordNames.map((ch, idx) => {
+        const isBorrowed = flowUiBorrowedIndices.includes(idx);
+        return (
+          <span
+            key={idx}
             style={{
-              textAlign: "center",
-              marginTop: 10,
-              fontSize: 16,
-              lineHeight: 1.4,
-              letterSpacing: 0.2,
+              marginRight: 10,
+              fontWeight: isBorrowed ? 800 : 500,
+              color: isBorrowed ? baseTheme.gold : baseTheme.text,
             }}
           >
-            {degTokens.length ? (
-              degTokens.map((tok, idx) => {
-                const isActive = activeIdx === idx;
-                return (
-                  <span
-                    key={idx}
-                    style={{
-                      marginRight: 8,
-                      fontWeight: isActive ? 800 : 500,
-                      color: isActive ? modeColor : baseTheme.text,
-                    }}
-                  >
-                    {tok.display}
-                  </span>
-                );
-              })
-            ) : (
-              <span style={{ opacity: 0.7 }}>
-                Enter a progression (e.g. 1 5 6 4 or 1 2b 4# or 1-2-3)
-              </span>
-            )}
-          </div>
+            {ch}
+            {isBorrowed ? " ⭐" : ""}
+          </span>
+        );
+      })}
+    </div>
+  )}
+</div>
 
           {/* Circle */}
           <div
@@ -1511,7 +1753,25 @@ c.restore();
               {activePreset ? ` • ${activePreset.label}` : ""}
             </span>
           </div>
-
+{/* Emotion explanation under the scale helper (presets only) */}
+{emotionId !== "custom" && (
+  <div
+    style={{
+      marginTop: 6,
+      textAlign: "center",
+      fontSize: 13,
+      lineHeight: 1.5,
+      color: baseTheme.muted,
+      paddingInline: 12,
+    }}
+  >
+    {FLOW_EMOTION_TEXT[emotionId as keyof typeof FLOW_EMOTION_TEXT]
+      ?.split("\n")
+      .map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
+  </div>
+)}
           
         </section>
       </div>
