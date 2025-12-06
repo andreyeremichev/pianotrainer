@@ -657,7 +657,7 @@ function pathFromNodes(indices: number[]): string {
 
 export default function CofPianoPage() {
   // Emotion selection
-  const [emotionId, setEmotionId] = useState<EmotionId>("playful");
+  const [emotionId, setEmotionId] = useState<EmotionId>("calm");
   const lastEmotionIdRef = useRef<EmotionId | "custom">("custom");
 
   const [degInput, setDegInput] = useState("1 5 6 4");
@@ -673,7 +673,7 @@ export default function CofPianoPage() {
   const [trailPath, setTrailPath] = useState<string>("");
 
   const activePreset =
-    emotionId === "playful"
+    emotionId === "custom"
       ? null
       : EMOTION_PRESETS.find((p) => p.id === emotionId) || null;
 
