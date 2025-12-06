@@ -3,6 +3,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import TwoPathsEmotionCompare from "./TwoPathsEmotionCompare";
+import FlowKeyboard from "./FlowKeyboard";
+import ColorKeyboard from "./ColorKeyboard";
+import {
+  FLOW_PRESETS,
+  buildFlowChordsForKey,
+  pitchNameToPc,
+  type EmotionId,
+} from "@/lib/harmony/flow";
 
 export const metadata: Metadata = {
   title: "Two Paths of Harmony – Emotional Harmony Guide • PianoTrainer",
@@ -20,6 +28,34 @@ export const metadata: Metadata = {
 };
 
 export default function TwoPathsPage() {
+    // Demo emotion for inline keyboards – use "sadness"
+  const demoEmotionId: EmotionId = "sadness";
+  const flowPreset = FLOW_PRESETS[demoEmotionId];
+
+  // Canonical tonic: minor → C, major → Bb (same as in Flow player)
+  const tonicName = flowPreset.mode === "minor" ? "C" : "Bb";
+  const tonicPc = pitchNameToPc(tonicName);
+
+  // Flow chords for this emotion (e.g. Cm → Ab → Eb → Bb)
+  const flowChords = buildFlowChordsForKey(tonicPc, flowPreset);
+
+  // For the demo, highlight the first Flow chord (Cm)
+  const flowActiveChordSymbol = flowChords[0] ?? null;
+
+  // Visual palette for Sadness (same as in Two Paths lab)
+  const flowEmotion = {
+    label: "Sadness",
+    gradientTop: "#2D3E68",
+    gradientBottom: "#6076AF",
+    trailColor: "#4A6FA5",
+  };
+
+  // For Color path, use the C example from the table: Cm → Ab → Fm → Em
+  // Let's highlight Em – the fully chromatic "bright sadness" chord
+  const colorActiveChordSymbol = "Em";
+
+  // Use the same visual palette for Color (you can change later if you want)
+  const colorEmotion = flowEmotion;
   return (
     <main className="two-paths">
       <style>{`
@@ -757,23 +793,27 @@ table td:first-child {
       </section>
 
       <section>
-        <h2>🎹✨ Now use both on your piano</h2>
+        <h2>🎹✨ Create gentle feelings with Flow</h2>
         <p>
           Speak this harmonic language with your keys.
         </p>
-        <p>
-          Combine <strong>Flow</strong> and <strong>Color</strong> in one progression:
-        </p>
+        
         <ul>
-          <li>create gentle feelings with Flow,</li>
-          <li>deepen or sharpen that emotion with chromatic movement,</li>
-          <li>experiment with different keys and/or starting chords</li>
+          
+          <FlowKeyboard />
+          
         </ul>
        
       </section>
 
+       <section>
+        <h2>🎹✨ Deepen or sharpen that emotion with chromatic movement</h2>
+       
+<ColorKeyboard />
+        </section>
+
       <section>
-         <h2>Or explore the Paths 🎧</h2>
+         <h2>Or explore the Paths using Circles 🎧</h2>
       
 
                 <div className="highlight-box">
