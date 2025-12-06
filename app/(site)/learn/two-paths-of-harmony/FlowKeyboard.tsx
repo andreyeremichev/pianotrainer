@@ -799,18 +799,16 @@ function FlowEmotionPlayerInner() {
           boxSizing: "border-box",
         }}
       >
-        <h1
-          style={{
-            margin: "4px 0 2px",
-            fontSize: 24,
-            lineHeight: 1.25,
-            textAlign: "center",
-            letterSpacing: 0.2,
-            fontWeight: 800,
-          }}
-        >
+        <h3
+  style={{
+    margin: "18px 0 6px",
+    fontSize: 18,
+    lineHeight: 1.4,
+    fontWeight: 700,
+  }}
+>
           Flow Emotion Player
-        </h1>
+        </h3>
         <p
           style={{
             margin: "0 0 12px",
