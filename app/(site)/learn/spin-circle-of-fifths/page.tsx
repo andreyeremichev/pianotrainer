@@ -2,24 +2,25 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Spin the Circle of Fifths – Map Behind Flow • PianoTrainer",
+  title: "Spin the Circle of Fifths – A Visual Map of Keys • PianoTrainer",
   description:
-    "Use the Circle of Fifths as a playful map for Flow-like harmony. Spin keys, explore neighbors, and see how numbers and chord shapes move on the wheel.",
+    "Explore the Circle of Fifths as a simple visual map of key relationships. See neighbors, sharps/flats growth, and chord shapes on the wheel.",
   alternates: { canonical: "/learn/spin-circle-of-fifths" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/learn/spin-circle-of-fifths",
-    title: "Spin the Circle of Fifths – Map Behind Flow",
+    title: "Spin the Circle of Fifths – A Visual Map of Keys",
     description:
-      "The Circle of Fifths as a clean, interactive map: neighbors, sharps/flats growth, and chord constellations. A structural companion to Two Paths of Harmony.",
+      "A clean, interactive way to understand key relationships: neighbors, sharps/flats growth, and chord shapes drawn on the wheel.",
   },
   keywords: [
     "circle of fifths",
     "circle of 5ths",
     "key relationships",
-    "modulation",
+    "key signatures",
+    "sharps and flats",
     "interactive music theory",
-    "flow harmony",
+    "piano training",
   ],
   robots: { index: true, follow: true },
 };
@@ -127,75 +128,76 @@ export default function CircleOfFifthsExplainedPage() {
       <h1 className="h1">Spin the Circle of Fifths</h1>
 
       <p className="lead">
-        In <Link href="/learn/two-paths-of-harmony">Two Paths of Harmony</Link>, you listen to emotions as harmony.
-        Underneath the Path of Flow there&apos;s a simple wheel: the Circle of Fifths. This page is about that wheel –
-        a clean map where keys and chords live, and where Flow-like progressions draw smooth curves.
+        The Circle of Fifths is a simple visual map of how keys relate to each other.
+        Neighboring keys share most notes, and moving around the wheel shows how sharps and flats
+        accumulate. This page is here as a friendly reference — not something you must memorize.
       </p>
 
       <div className="callout">
-        <strong>Big picture:</strong> Path of Flow is the story, the Circle of Fifths is the{" "}
-        <strong>map</strong> behind it. You don&apos;t need the map to feel the story, but it&apos;s fun once you&apos;re curious.
+        <strong>Practical use:</strong> the Circle helps you recognize “close” keys, understand why key signatures
+        change gradually, and spot common patterns in chord movement.
       </div>
 
-      <h2 className="h2">What the circle actually does</h2>
+      <h2 className="h2">What the circle helps you see</h2>
       <ul className="bullets">
-        <li>Shows all 12 keys arranged so neighbors share most notes.</li>
-        <li>Lets you see sharps and flats “grow” as you walk around the rim.</li>
-        <li>Makes common Flow progressions tiny hops on the wheel.</li>
-        <li>Helps you visualize chord shapes as constellations drawn on the circle.</li>
+        <li><strong>Key neighbors:</strong> keys next to each other share most notes.</li>
+        <li><strong>Sharps/flats growth:</strong> as you move around the wheel, accidentals accumulate.</li>
+        <li><strong>Common patterns:</strong> many chord progressions move through nearby keys.</li>
+        <li><strong>Chord shapes:</strong> chords can be drawn as simple polygons on the wheel.</li>
       </ul>
 
-      <h2 className="h2">Playful spins on the wheel</h2>
+      <h2 className="h2">Two visual demos (optional)</h2>
       <p className="lead">
-        Reading about the Circle is fine. But spinning it – letting numbers or chords move around it –
-        is much more fun. These two demos show what the wheel can do:
+        If you like learning visually, these demos show the wheel in motion. They’re optional —
+        use them as a way to build intuition, not as homework.
       </p>
 
       <div className="deck">
-        {/* Numbers Circle – irrationals only */}
+        {/* Numbers Circle */}
         <article className="card">
           <span className="chip">🎲 Numbers Circle</span>
           <p className="blurb">
-            Feed the Circle with <strong>irrational numbers</strong> like π, e, √2 or √3 and let their digits
-            walk around the wheel. Each digit nudges you into a new degree, tracing a hypnotic Flow pattern that is
-            equal parts math and melody.
+            A playful exploration using irrational numbers (π, e, √2, √3). Digits become degrees on the wheel,
+            tracing repeating patterns that are part math and part music.
           </p>
           <div className="meta">
-            Pure exploration of numbers + Circle of Fifths – no letters, no dates, just π and friends.
+            Best for curiosity and pattern recognition.
           </div>
           <Link href="/learn/numbers-circle" className="cta" aria-label="Open Numbers Circle">
-            Spin π around the circle →
+            Open Numbers Circle →
           </Link>
         </article>
 
-        {/* Chords Circle – chord constellations on CoF */}
+        {/* Chords Circle */}
         <article className="card">
-          <span className="chip">🎶 Chord Constellations</span>
+          <span className="chip">🎶 Chords Circle</span>
           <p className="blurb">
-            Every chord becomes a shape on the Circle of Fifths – like a constellation of stars that glows for a moment
-            before the next appears. Major, minor, dim, 6ths and 7ths are drawn as polygons so you can see Flow-like harmony
-            as moving geometry.
+            See triads and sevenths as geometric shapes on the wheel. It’s a visual way to notice how
+            chords relate without needing heavy theory language.
           </p>
           <div className="meta">
-            Another visual explanation of smooth chord movement – Flow patterns as shapes drawn on the wheel.
+            Helpful if you like “shapes over labels.”
           </div>
           <Link href="/learn/chords-circle" className="cta" aria-label="Open Chords Circle">
-            See chord constellations →
+            Open Chords Circle →
           </Link>
         </article>
       </div>
 
-      <h2 className="h2">From map back to emotions</h2>
+      <h2 className="h2">Where next?</h2>
       <p className="lead">
-        Once you&apos;re comfortable with the Circle as a map, you&apos;ll start recognizing Flow progressions from
-        <Link href="/learn/two-paths-of-harmony"> Two Paths of Harmony</Link> as short, neighborly walks on the wheel.
-        When you want to feel the more chromatic, intense side of things, you can switch back to Path of Color or the{" "}
-        <Link href="/learn/intervals-guide">Intervals Guide</Link>.
+        If you want to apply this in practice, here are the most direct training pages:
       </p>
 
-      <div style={{ marginTop: 12 }}>
-        <Link href="/learn/two-paths-of-harmony" className="cta" aria-label="Open Two Paths of Harmony">
-          🔁 Return to Two Paths of Harmony →
+      <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <Link href="/train/notation/keys-to-notes" className="cta" aria-label="Open Keys to Notes">
+          Keys → Notes →
+        </Link>
+        <Link href="/train/ear/degrees" className="cta" aria-label="Open Degrees Trainer">
+          Degrees Trainer →
+        </Link>
+        <Link href="/learn/intervals-guide" className="cta" aria-label="Open Intervals Guide">
+          Intervals Guide →
         </Link>
       </div>
     </main>

@@ -2,37 +2,41 @@ import Link from "next/link";
 
 export default function SiteFooter() {
   return (
-    <footer className="pt-footer" role="contentinfo" aria-label="Footer">
-      <style>{`
-        .pt-footer {
-          padding: 16px 12px;
-          border-top: 1px solid #e5e5e5;
-          margin-top: 24px;
-          background: #fff;
-        }
-        .pt-footer-nav {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-          justify-content: center;
-        }
-        .pt-footer-link {
-          color: #000;
-          text-decoration: none;
-          font-size: 14px;
-          line-height: 1.2;
-        }
-        .pt-footer-link:hover,
-        .pt-footer-link:focus-visible {
-          text-decoration: underline;
-        }
-      `}</style>
+    <footer
+      style={{
+        borderTop: "1px solid #ddd",
+        padding: "16px 16px",
+        background: "#fff",
+      }}
+      aria-label="Footer"
+    >
+      <div
+        style={{
+          maxWidth: 980,
+          margin: "0 auto",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 14,
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 14,
+        }}
+      >
+        <Link href="/learn" style={linkStyle}>Learn</Link>
+        <Link href="/about" style={linkStyle}>About</Link>
+        <Link href="/contact" style={linkStyle}>Contact</Link>
+        <Link href="/privacy" style={linkStyle}>Privacy</Link>
+      </div>
 
-      <nav aria-label="Footer navigation" className="pt-footer-nav">
-        <Link href="/about" className="pt-footer-link">About</Link>
-        <Link href="/contact" className="pt-footer-link">Contact</Link>
-        <Link href="/privacy" className="pt-footer-link">Privacy</Link>
-      </nav>
+      <div style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: "#666" }}>
+        © {new Date().getFullYear()} PianoTrainer
+      </div>
     </footer>
   );
 }
+
+const linkStyle: React.CSSProperties = {
+  color: "#000",
+  textDecoration: "none",
+  fontWeight: 600,
+};

@@ -169,6 +169,10 @@ function pct(n: number): string {
   return `${Math.round(n * 100000) / 100000}%`;
 }
 
+// ===== DEBUG SWITCHES (safe to leave in dev) =====
+const DEBUG_LIVE_AUDIO = true;   // set to false to silence live logs
+const DEBUG_EXPORT_AUDIO = true; // set to false to silence export logs
+
 /* ===========================
    Web Audio engine (sample-accurate)
    =========================== */
