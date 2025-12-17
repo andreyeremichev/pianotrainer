@@ -37,6 +37,27 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+       // =========================
+      // Toys → MusicalToys.app
+      // =========================
+      { source: "/toys", destination: "https://musicaltoys.app/toys", permanent: true },
+      { source: "/toys/:slug*", destination: "https://musicaltoys.app/toys/:slug*", permanent: true },
+
+      // Toy explainers → MusicalToys.app
+      {
+        source: "/learn/why-these-notes",
+        destination: "https://musicaltoys.app/learn/why-these-notes",
+        permanent: true,
+      },
+      {
+        source: "/learn/why-these-numbers",
+        destination: "https://musicaltoys.app/learn/why-these-numbers",
+        permanent: true,
+      },
+      // =========================
+      // Legacy redirects kept
+      // =========================
+
       // Phase A: move /viral → /toys (preserve all subpaths)
       { source: "/viral", destination: "/toys", permanent: true },
       { source: "/viral/:slug*", destination: "/toys/:slug*", permanent: true },

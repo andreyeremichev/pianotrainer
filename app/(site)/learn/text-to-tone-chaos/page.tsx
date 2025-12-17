@@ -378,9 +378,9 @@ export default function ChaosTextToTonePage(){
   return (
     <main style={{ minHeight:"100vh", background:theme.bg, color:theme.text }}>
       <div style={{ maxWidth:760, margin:"0 auto", padding:12 }}>
-        <h1 style={{ margin:"6px 0 8px" }}>TextToTone: Chaos Mode</h1>
+        <h1 style={{ margin:"6px 0 8px" }}>Text to Music Lab: Exploring Major & Minor Through Notation</h1>
         <p style={{ margin:"6px 0 14px", opacity:.9 }}>
-          Letters toggle between A minor / A major while numbers and symbols stay in A minor. Melody is spread across A2–A4 for a controlled-chaos texture.
+          Use your own words to explore melody, harmony, and notation in both major and minor — designed for learning.
         </p>
 
         <div style={{ background:theme.card, border:`1px solid ${theme.border}`, borderRadius:12, padding:12 }}>
@@ -435,9 +435,7 @@ export default function ChaosTextToTonePage(){
             <button onClick={copyLink} style={{ padding:"10px 14px", borderRadius:8, border:`1px solid ${theme.border}`, background:"transparent", color:theme.text, fontWeight:800 }}>
               Copy Link
             </button>
-            <Link href="/toys/text-to-tone" style={{ marginLeft:"auto", color:theme.gold, textDecoration:"none", fontWeight:800 }}>
-              Compare to Viral →
-            </Link>
+            
           </div>
           <select
                   value={lettersScale}
@@ -449,24 +447,7 @@ export default function ChaosTextToTonePage(){
                   <option value="major">Letters: A major</option>
                 </select>
         </div>
-         <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
-          <Link
-            href="/learn/why-these-notes"
-            style={{
-              color: theme.gold,
-              fontWeight: 800,
-              letterSpacing: 0.3,
-              textDecoration: "none",
-              padding: "10px 14px",
-              border: `1px solid ${theme.border}`,
-              borderRadius: 10,
-              background: "#0F1821",
-            }}
-            aria-label="Why these notes?"
-          >
-            Why these notes? →
-          </Link>
-        </div>
+         
       </div>
     </main>
   );

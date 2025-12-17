@@ -8,22 +8,10 @@ export default async function sitemap() {
   const low  = { changeFrequency: "yearly" as const, priority: 0.4 };
 
   return [
-    // Toys hub and pages
-    { url: `${base}/toys`, lastModified: nowISO, ...high },
-    { url: `${base}/toys/key-clock`, lastModified: nowISO, ...high },
-    { url: `${base}/toys/tone-dial`, lastModified: nowISO, ...high },
-    { url: `${base}/toys/text-to-tone`, lastModified: nowISO, ...high },
-    { url: `${base}/toys/shape-of-harmony`, lastModified: nowISO, ...high },
-
     // Homepage
     { url: `${base}/`, lastModified: nowISO, ...high },
 
-    // Emotional Tools & Guides
-    { url: `${base}/learn/two-paths-of-harmony`, lastModified: nowISO, ...high },
-    { url: `${base}/learn/path-of-flow`, lastModified: nowISO, ...high },
-    { url: `${base}/learn/path-of-color`, lastModified: nowISO, ...high },
-
-    // Trainers (Train)
+    // Trainers (core of Pianotrainer)
     { url: `${base}/train`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/random-notes`, lastModified: nowISO, ...mid },
@@ -34,16 +22,21 @@ export default async function sitemap() {
     { url: `${base}/train/ear/intervals`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear/degrees`, lastModified: nowISO, ...mid },
 
-    // Learn section
+    // Learn section (still hosted on Pianotrainer)
     { url: `${base}/learn`, lastModified: nowISO, ...mid },
+    { url: `${base}/learn/two-paths-of-harmony`, lastModified: nowISO, ...mid },
+    { url: `${base}/learn/path-of-flow`, lastModified: nowISO, ...low },
+    { url: `${base}/learn/path-of-color`, lastModified: nowISO, ...low },
     { url: `${base}/learn/spin-circle-of-fifths`, lastModified: nowISO, ...low },
     { url: `${base}/learn/intervals-guide`, lastModified: nowISO, ...low },
     { url: `${base}/learn/turn-the-stave-into-sound`, lastModified: nowISO, ...low },
-    { url: `${base}/learn/why-these-numbers`, lastModified: nowISO, ...low },
-    { url: `${base}/learn/why-these-notes`, lastModified: nowISO, ...low },
+
+    // Experimental / legacy learn content (kept intentionally)
+    { url: `${base}/learn/text-to-tone-chaos`, lastModified: nowISO, ...low },
+
+    // Visual / experimental tools (decision pending)
     { url: `${base}/learn/numbers-circle`, lastModified: nowISO, ...low },
     { url: `${base}/learn/chords-circle`, lastModified: nowISO, ...low },
-    { url: `${base}/learn/text-to-tone-chaos`, lastModified: nowISO, ...low },
 
     // Site pages
     { url: `${base}/about`, lastModified: nowISO, ...low },

@@ -6,40 +6,41 @@ export const fetchCache = "force-no-store";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "TextToTone: Chaos Mode • PianoTrainer",
+  title: "Text to Music Lab: Exploring Major & Minor Through Notation • PianoTrainer",
   description:
-    "Letters toggle between A minor and A major while numbers and symbols stay in A minor. Chaos spreads melody across octaves for a rich, unpredictable texture — all normalized to 8 seconds.",
+    "Use your own words to explore melody, harmony, and notation in both major and minor. Letters shift A minor ↔ A major while chords stay grounded in A minor, creating a rich, learnable texture.",
   alternates: { canonical: "/learn/text-to-tone-chaos" },
   openGraph: {
     type: "website",
     url: "https://pianotrainer.app/learn/text-to-tone-chaos",
-    title: "TextToTone: Chaos Mode • PianoTrainer",
+    title: "Text to Music Lab: Exploring Major & Minor Through Notation • PianoTrainer",
     description:
-      "Explore controlled musical chaos. Letters shift A minor ↔ A major, chords stay moody A minor. Hear how text, numbers, and symbols become sound — perfectly looped in 8 seconds.",
+      "An experimental learning tool: type your own phrases and explore how major/minor changes the feel. Letters shift A minor ↔ A major while chords stay in A minor — designed for learning, not sharing.",
     images: [
       {
         url: "https://pianotrainer.app/og/texttotone-chaos.png",
         width: 1200,
         height: 630,
-        alt: "TextToTone: Chaos Mode — Explore How Language Becomes Music",
+        alt: "Text to Music Lab — Explore Major & Minor Through Notation",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "TextToTone: Chaos Mode • PianoTrainer",
+    title: "Text to Music Lab: Major & Minor Through Notation • PianoTrainer",
     description:
-      "Letters flip major/minor, chords stay minor — experience musical chaos in A minor. Try TextToTone: Chaos Mode by PianoTrainer.",
+      "Use your own words to explore melody, harmony, and notation in major and minor. An experimental learning tool in A minor ↔ A major.",
     images: ["https://pianotrainer.app/og/texttotone-chaos.png"],
   },
   keywords: [
-    "text to tone",
-    "chaos mode",
     "text to music",
-    "piano chaos",
+    "music lab",
+    "learn notation",
+    "major and minor",
+    "piano harmony",
+    "melody from text",
     "A minor",
     "A major",
-    "text melody generator",
     "PianoTrainer",
   ],
   robots: { index: true, follow: true },
