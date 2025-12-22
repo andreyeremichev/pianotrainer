@@ -14,18 +14,15 @@ const nextConfig: NextConfig = {
               // Scripts: GA4, Vercel Analytics
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://va.vercel-scripts.com /_vercel/insights/script.js https://*.vercel-insights.com",
               "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://va.vercel-scripts.com /_vercel/insights/script.js https://*.vercel-insights.com",
-              // XHR/beacons: GA regional, GTM, Vercel Analytics
+              // XHR / beacons
               "connect-src 'self' https://*.google-analytics.com https://www.googletagmanager.com https://*.vercel-insights.com /_vercel/insights/v1/events",
-              // Images: GA/DoubleClick pixels
+              // Images
               "img-src 'self' data: blob: https://*.google-analytics.com https://stats.g.doubleclick.net",
-              // ✅ AudioWorklet / Web Workers for Tone.js
+              // Audio / Workers (Tone.js)
               "worker-src 'self' blob:",
-
-              // ✅ Allow playing local wav samples (/audio/notes/*.wav)
               "media-src 'self'",
-              // ✅ Google Fonts CSS
+              // Fonts
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              // ✅ Google Fonts files
               "font-src 'self' data: https://fonts.gstatic.com",
               "frame-src 'self'",
             ].join("; "),
@@ -37,11 +34,28 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
-       // =========================
-      // Toys → MusicalToys.app
-      // =========================
-      { source: "/toys", destination: "https://musicaltoys.app/toys", permanent: true },
-      { source: "/toys/:slug*", destination: "https://musicaltoys.app/toys/:slug*", permanent: true },
+      // =====================================================
+      // Emotional Harmony → EmotionalChords.app (canonical)
+      // =====================================================
+      {
+        source: "/learn/two-paths-of-harmony",
+        destination: "https://emotionalchords.app/learn/paths-of-harmony",
+        permanent: true,
+      },
+
+      // =====================================================
+      // Toys → MusicalToys.app (canonical)
+      // =====================================================
+      {
+        source: "/toys",
+        destination: "https://musicaltoys.app/toys",
+        permanent: true,
+      },
+      {
+        source: "/toys/:slug*",
+        destination: "https://musicaltoys.app/toys/:slug*",
+        permanent: true,
+      },
 
       // Toy explainers → MusicalToys.app
       {
@@ -54,20 +68,49 @@ const nextConfig: NextConfig = {
         destination: "https://musicaltoys.app/learn/why-these-numbers",
         permanent: true,
       },
-      // =========================
-      // Legacy redirects kept
-      // =========================
 
-      // Phase A: move /viral → /toys (preserve all subpaths)
-      { source: "/viral", destination: "/toys", permanent: true },
-      { source: "/viral/:slug*", destination: "/toys/:slug*", permanent: true },
+      // =====================================================
+      // Legacy redirects (kept for SEO continuity)
+      // =====================================================
 
-      // Phase B: move /trainer → /train (preserve subpaths)
-{ source: "/trainer", destination: "/train", permanent: true },
-{ source: "/trainer/notation", destination: "/train/notation", permanent: true },
-{ source: "/trainer/notation/:slug*", destination: "/train/notation/:slug*", permanent: true },
-{ source: "/trainer/ear", destination: "/train/ear", permanent: true },
-{ source: "/trainer/ear/:slug*", destination: "/train/ear/:slug*", permanent: true },
+      // Old viral → toys
+      {
+        source: "/viral",
+        destination: "/toys",
+        permanent: true,
+      },
+      {
+        source: "/viral/:slug*",
+        destination: "/toys/:slug*",
+        permanent: true,
+      },
+
+      // Old trainer → train
+      {
+        source: "/trainer",
+        destination: "/train",
+        permanent: true,
+      },
+      {
+        source: "/trainer/notation",
+        destination: "/train/notation",
+        permanent: true,
+      },
+      {
+        source: "/trainer/notation/:slug*",
+        destination: "/train/notation/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/trainer/ear",
+        destination: "/train/ear",
+        permanent: true,
+      },
+      {
+        source: "/trainer/ear/:slug*",
+        destination: "/train/ear/:slug*",
+        permanent: true,
+      },
     ];
   },
 };

@@ -11,7 +11,7 @@ export default async function sitemap() {
     // Homepage
     { url: `${base}/`, lastModified: nowISO, ...high },
 
-    // Trainers (core of Pianotrainer)
+    // Trainers (core of PianoTrainer)
     { url: `${base}/train`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation`, lastModified: nowISO, ...mid },
     { url: `${base}/train/notation/random-notes`, lastModified: nowISO, ...mid },
@@ -22,19 +22,14 @@ export default async function sitemap() {
     { url: `${base}/train/ear/intervals`, lastModified: nowISO, ...mid },
     { url: `${base}/train/ear/degrees`, lastModified: nowISO, ...mid },
 
-    // Learn section (still hosted on Pianotrainer)
+    // Learn (training-focused, stays here)
     { url: `${base}/learn`, lastModified: nowISO, ...mid },
-    { url: `${base}/learn/two-paths-of-harmony`, lastModified: nowISO, ...mid },
-    { url: `${base}/learn/path-of-flow`, lastModified: nowISO, ...low },
-    { url: `${base}/learn/path-of-color`, lastModified: nowISO, ...low },
     { url: `${base}/learn/spin-circle-of-fifths`, lastModified: nowISO, ...low },
     { url: `${base}/learn/intervals-guide`, lastModified: nowISO, ...low },
     { url: `${base}/learn/turn-the-stave-into-sound`, lastModified: nowISO, ...low },
 
-    // Experimental / legacy learn content (kept intentionally)
+    // Experimental / legacy (intentionally kept)
     { url: `${base}/learn/text-to-tone-chaos`, lastModified: nowISO, ...low },
-
-    // Visual / experimental tools (decision pending)
     { url: `${base}/learn/numbers-circle`, lastModified: nowISO, ...low },
     { url: `${base}/learn/chords-circle`, lastModified: nowISO, ...low },
 
