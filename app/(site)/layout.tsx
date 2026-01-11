@@ -7,9 +7,9 @@ import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "PianoTrainer – Emotional Harmony & Playful Music Tools",
+  title: "PianoTrainer – Ear & Notation Trainers for Piano",
   description:
-    "Hear emotions as harmony with Two Paths of Harmony. Explore Path of Flow, Path of Color, musical toys, notation & ear trainers, and simple guides that make music feel intuitive.",
+    "PianoTrainer is a collection of beginner-friendly ear and notation trainers. Learn notes on the grand staff, hear scale degrees, practice intervals, and build a strong connection between keys, sound, and notation.",
 
   metadataBase: new URL("https://pianotrainer.app"),
   alternates: { canonical: "/" },
@@ -18,60 +18,51 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://pianotrainer.app/",
     siteName: "PianoTrainer",
-    title: "PianoTrainer – Emotional Harmony & Playful Music Tools",
+    title: "PianoTrainer – Ear & Notation Trainers for Piano",
     description:
-      "Start with Two Paths of Harmony to hear how emotions move through harmony. Then explore Path of Flow, Path of Color, musical toys, notation trainers, ear trainers, and friendly learning guides.",
+      "Train your musical fundamentals with interactive piano tools. Practice reading notes, hearing scale degrees, identifying intervals, and connecting the keyboard to the staff — all in your browser.",
     images: ["/og/pianotrainer.jpg"],
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "PianoTrainer – Hear Emotions as Harmony",
+    title: "PianoTrainer – Train Your Ear and Learn Notation",
     description:
-      "Discover emotional harmony through Two Paths of Harmony. Explore Flow, Color, musical toys, and beginner-friendly trainers for notes and ear skills.",
+      "Interactive piano trainers for ear training and notation. Learn notes, intervals, and scale degrees with clear visuals and immediate sound feedback.",
     images: ["/og/pianotrainer.jpg"],
   },
 
   keywords: [
-    // Emotional Harmony
-    "Two Paths of Harmony",
-    "Path of Flow",
-    "Path of Color",
-    "emotional harmony",
-    "sadness chords",
-    "mystery harmony",
-    "anger harmony",
-    "wonder harmony",
+    // Core positioning
+    "piano trainer",
+    "piano practice",
+    "music training app",
 
-    // Learning paths
-    "learn music",
-    "music lessons",
-    "harmony explained",
-    "music theory for beginners",
-
-    // Tools
-    "music toys",
-    "KeyClock",
-    "ToneDial",
-    "TextToTone",
-    "Shape of Harmony",
-    "text to melody",
-    "date to music",
-    "phone to melody",
-
-    // Trainers
+    // Notation
+    "learn piano notes",
+    "read sheet music",
+    "grand staff notes",
     "notation trainer",
-    "ear trainer",
-    "chords helper",
-    "learn notes",
-    "intervals trainer",
+    "keys to notes",
+
+    // Ear training
+    "ear training piano",
+    "scale degrees",
+    "interval training",
+    "hear intervals",
+    "relative pitch",
+
+    // Audience
+    "piano for beginners",
+    "self taught piano",
+    "practice piano online",
+    "music fundamentals",
   ],
 
   robots: { index: true, follow: true },
 };
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
-  // Server layout (no "use client") – valid App Router signature
   return (
     <div className="site-shell">
       <SiteHeader />
