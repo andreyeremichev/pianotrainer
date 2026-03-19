@@ -888,6 +888,14 @@ function ColorCircle({ emotion, playToken, onFinished }: ColorCircleProps) {
     setPlaying(true);
     setActiveRoot(chords[0]?.root ?? null);
 
+    // 🔍 DEBUG — Print Color chords that will be played
+const colorChordNames = emotion.colorChords.trim().split(/\s+/).filter(Boolean);
+console.log(
+  `%c[Color LIVE DEBUG] ${emotion.id}:`,
+  "color:#5fc3ff; font-weight:bold",
+  colorChordNames.join(" → ")
+);
+
     const chordMs = chordDurSec * 1000;
     const totalMs = chordMs * chords.length;
     startRef.current = performance.now();
